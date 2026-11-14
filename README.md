@@ -3,7 +3,7 @@
 AI nástroj, který z rozpisů směn v libovolném formátu (Excel, fotka, screenshot, PDF, text) najde společný termín pro skupinu.
 Semestrální projekt do předmětu Umělá inteligence.
 
-> Stav: prázdná kostra projektu. Logika ani obrazovky zatím nejsou.
+> Stav: hotové rozhraní bez čtení rozpisů a bez výpočtu termínů. Směny jde zadat ručně nebo otevřít ukázkovou akci.
 
 ## Spuštění
 
@@ -36,6 +36,7 @@ Vue 3, TypeScript, Vite, Tailwind CSS, Vitest, ESLint, Prettier. Bez backendu a 
 ```
 src/
 ├─ main.ts, App.vue, styles.css
+├─ session.ts   stav aplikace: akce, rozpracovaný člověk, vybraný den
 ├─ core/        čistá logika (schémata, výpočet termínů), bez Vue a bez sítě
 ├─ llm/         jediné místo, které mluví s modelem
 │  └─ skill/    instrukce, slovník zkratek, vzorové rozpisy

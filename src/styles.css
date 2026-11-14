@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 
-/* Barvy a pismo smeru A (Klidny nastroj). Pouziti: bg-ground, text-ink, border-line... */
 @theme {
   --font-sans: 'Inter', system-ui, sans-serif;
 
@@ -9,15 +8,49 @@
   --color-ink: #132422;
   --color-muted: #5a6b69;
   --color-line: #dce4e3;
+  --color-line-strong: #c5d0ce;
+  --color-outline: #a9b8b6;
   --color-accent: #0f6b63;
   --color-accent-dark: #0a4f49;
   --color-accent-soft: #e6f0ef;
+  --color-accent-ring: #7fa9a4;
   --color-shift: #f1c9a5;
   --color-warn: #7a4410;
+  --color-warn-strong: #b5651d;
   --color-warn-soft: #fbebdd;
+  --color-void: #0a1f1d;
+
+  --animate-orbit: orbit 60s linear infinite;
+  --animate-orbit-reverse: orbit 24s linear infinite reverse;
+
+  @keyframes orbit {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+@utility bg-hatch {
+  background: repeating-linear-gradient(135deg, var(--color-line) 0 4px, #f2f5f5 4px 8px);
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-ground);
+}
+
+dialog::backdrop {
+  background: rgb(19 36 34 / 0.4);
+}
+
+@layer components {
+  .field-input {
+    @apply h-11 w-full rounded-lg border border-line-strong bg-white px-3 text-sm text-ink;
+  }
+
+  .field-input:focus-visible {
+    @apply border-accent outline-2 outline-offset-1 outline-accent;
+  }
 }
