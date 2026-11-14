@@ -1,0 +1,15 @@
+# tajemstvi
+.env
+.env.*
+!.env.example
+
+# zavislosti a build
+node_modules
+dist
+
+# editor a system
+.DS_Store
+Thumbs.db
+*.log
+.vscode/*
+!.vscode/extensions.json

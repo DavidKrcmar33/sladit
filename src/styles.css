@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+/* Barvy a pismo smeru A (Klidny nastroj). Pouziti: bg-ground, text-ink, border-line... */
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  --color-ground: #fbfcfc;
+  --color-panel: #f3f6f6;
+  --color-ink: #132422;
+  --color-muted: #5a6b69;
+  --color-line: #dce4e3;
+  --color-accent: #0f6b63;
+  --color-accent-dark: #0a4f49;
+  --color-accent-soft: #e6f0ef;
+  --color-shift: #f1c9a5;
+  --color-warn: #7a4410;
+  --color-warn-soft: #fbebdd;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+}
