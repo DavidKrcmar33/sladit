@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { CalendarView, DayStatus, PersonDay } from '@/core/calendar'
-import { describeDayStatus, formatDayHeader, formatDayLong } from '@/ui/format'
+import type { CalendarDay, CalendarView, PersonDay } from '@/core/calendar'
+import { describeCalendarDay, formatDayHeader, formatDayLong } from '@/ui/format'
 import CalendarCell from './CalendarCell.vue'
 
 const props = defineProps<{ calendar: CalendarView; selectedDay: PersonDay | null }>()
@@ -10,8 +10,8 @@ function isSelected(personId: string, date: string): boolean {
   return props.selectedDay?.personId === personId && props.selectedDay.date === date
 }
 
-function cellLabel(personName: string, date: string, status: DayStatus): string {
-  return `${personName}, ${formatDayLong(date)}: ${describeDayStatus(status)}`
+function cellLabel(personName: string, date: string, day: CalendarDay): string {
+  return `${personName}, ${formatDayLong(date)}: ${describeCalendarDay(day)}`
 }
 </script>
 
@@ -36,10 +36,10 @@ function cellLabel(personName: string, date: string, status: DayStatus): string 
           <th scope="row" class="max-w-28 truncate pr-2 text-left font-medium">
             {{ row.personName }}
           </th>
-          <td v-for="(status, index) in row.days" :key="calendar.dates[index]">
+          <td v-for="(day, index) in row.days" :key="calendar.dates[index]">
             <CalendarCell
-              :status="status"
-              :label="cellLabel(row.personName, calendar.dates[index], status)"
+              :day="day"
+              :label="cellLabel(row.personName, calendar.dates[index], day)"
               :selected="isSelected(row.personId, calendar.dates[index])"
               @select="emit('select', { personId: row.personId, date: calendar.dates[index] })"
             />

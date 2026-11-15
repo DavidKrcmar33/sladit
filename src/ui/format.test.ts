@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { DayStatus } from '@/core/calendar'
+import type { CalendarDay } from '@/core/calendar'
 import {
-  describeDayStatus,
+  describeCalendarDay,
   formatDateRange,
   formatDayHeader,
   formatDayLong,
@@ -68,15 +68,27 @@ describe('formatTimeWindow', () => {
   })
 })
 
-describe('describeDayStatus', () => {
-  const shift = { date: '2026-11-24', start: '22:00', end: '06:00', label: 'N', raw: 'N' }
+describe('describeCalendarDay', () => {
+  const nightShift = { date: '2026-11-24', start: '22:00', end: '06:00', label: 'N', raw: 'N' }
 
-  it.each<[DayStatus, string]>([
-    [{ kind: 'free' }, 'volno'],
-    [{ kind: 'unknown' }, 'rozpis chybí'],
-    [{ kind: 'working', shifts: [{ ...shift, uncertain: false }] }, 'směna N 22–6'],
-    [{ kind: 'working', shifts: [{ ...shift, uncertain: true }] }, 'směna N 22–6, nejisté čtení'],
-  ])('describes %o as %s', (status, expected) => {
-    expect(describeDayStatus(status)).toBe(expected)
+  it.each<[CalendarDay, string]>([
+    [{ status: { kind: 'free' }, attendance: 'available' }, 'volno, může'],
+    [{ status: { kind: 'unknown' }, attendance: 'unknown' }, 'rozpis chybí'],
+    [
+      {
+        status: { kind: 'working', shifts: [{ ...nightShift, uncertain: false }] },
+        attendance: 'busy',
+      },
+      'směna N 22–6, nemůže',
+    ],
+    [
+      {
+        status: { kind: 'working', shifts: [{ ...nightShift, uncertain: true }] },
+        attendance: 'available',
+      },
+      'směna N 22–6, nejisté čtení, může',
+    ],
+  ])('describes %o as %s', (day, expected) => {
+    expect(describeCalendarDay(day)).toBe(expected)
   })
 })

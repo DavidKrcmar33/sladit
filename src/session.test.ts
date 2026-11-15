@@ -147,6 +147,21 @@ describe('calendar step', () => {
     expect(session.currentStep.value).toBe('calendar')
   })
 
+  it('suggests proposals for the selected action', () => {
+    session.openSampleAction()
+    expect(session.proposals.value.map((proposal) => proposal.date)).toEqual([
+      '2026-11-27',
+      '2026-11-25',
+      '2026-11-28',
+    ])
+  })
+
+  it('recalculates proposals after a shift is edited', () => {
+    session.openSampleAction()
+    session.saveDayShifts('tomas', '2026-11-25', [])
+    expect(session.proposals.value[0]).toMatchObject({ date: '2026-11-25', missing: [] })
+  })
+
   it('saves edited shifts of a day', () => {
     session.openSampleAction()
     session.saveDayShifts('petr', '2026-11-25', [])

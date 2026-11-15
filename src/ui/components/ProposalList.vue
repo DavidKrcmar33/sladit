@@ -43,8 +43,11 @@ function namesOf(personIds: string[]): string {
           {{ formatDayLong(proposal.date) }}
         </p>
         <p class="text-[15px]">{{ formatTimeWindow(proposal.start, proposal.end) }}</p>
-        <p class="text-muted">
-          {{ proposal.missing.length ? `Chybí: ${namesOf(proposal.missing)}` : 'Mohou všichni.' }}
+        <p v-if="proposal.missing.length === 0 && proposal.unknown.length === 0" class="text-muted">
+          Mohou všichni.
+        </p>
+        <p v-if="proposal.missing.length" class="text-muted">
+          Chybí: {{ namesOf(proposal.missing) }}
         </p>
         <p v-if="proposal.unknown.length" class="text-muted">
           Neznámo: {{ namesOf(proposal.unknown) }}

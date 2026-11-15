@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
-import { addDays } from '@/core/calendar'
+import { addDays } from '@/core/time'
 import type { NewActionErrors, NewActionInput } from '@/core/newAction'
 import type { DateString } from '@/core/schema'
 import { formatDuration } from '@/ui/format'

@@ -3,7 +3,8 @@ import { addPerson, removePerson, replacePerson, setShiftsForDay } from './core/
 import { buildCalendar, findUncertainDays, type PersonDay } from './core/calendar'
 import { sampleAction } from './core/fixtures'
 import { createAction, type NewActionErrors, type NewActionInput } from './core/newAction'
-import type { Action, DateString, Proposal, Shift, SourceFile } from './core/schema'
+import type { Action, DateString, Shift, SourceFile } from './core/schema'
+import { findProposals } from './core/scheduler'
 import { detectSourceFileKind } from './core/sourceFile'
 
 export type Step = 'intake' | 'calendar'
@@ -68,8 +69,9 @@ export function createSession(generateId: () => string = () => crypto.randomUUID
     selectedAction.value ? findUncertainDays(selectedAction.value) : [],
   )
 
-  // Zatím prázdné: návrhy doplní výpočet termínů.
-  const proposals = computed<Proposal[]>(() => [])
+  const proposals = computed(() =>
+    selectedAction.value ? findProposals(selectedAction.value) : [],
+  )
 
   function updateSelectedAction(update: (action: Action) => Action) {
     const index = state.actions.findIndex((action) => action.id === state.selectedActionId)

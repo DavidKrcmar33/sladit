@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, buildCalendar, dayStatus, eachDay, findUncertainDays } from './calendar'
+import { buildCalendar, dayStatus, findUncertainDays } from './calendar'
 import { sampleAction } from './fixtures'
 import type { PersonSchedule } from './schema'
 
@@ -11,35 +11,6 @@ const schedule: PersonSchedule = {
   ],
   warnings: [],
 }
-
-describe('eachDay', () => {
-  it('lists every day including both ends', () => {
-    expect(eachDay('2026-11-29', '2026-12-02')).toEqual([
-      '2026-11-29',
-      '2026-11-30',
-      '2026-12-01',
-      '2026-12-02',
-    ])
-  })
-
-  it('returns a single day when the range starts and ends on the same day', () => {
-    expect(eachDay('2026-11-23', '2026-11-23')).toEqual(['2026-11-23'])
-  })
-
-  it('crosses a daylight saving change without skipping a day', () => {
-    expect(eachDay('2026-10-24', '2026-10-26')).toEqual(['2026-10-24', '2026-10-25', '2026-10-26'])
-  })
-})
-
-describe('addDays', () => {
-  it('moves across a month and a year', () => {
-    expect(addDays('2026-12-30', 3)).toBe('2027-01-02')
-  })
-
-  it('moves backwards with a negative number', () => {
-    expect(addDays('2026-03-01', -1)).toBe('2026-02-28')
-  })
-})
 
 describe('dayStatus', () => {
   it('is unknown when the person has no schedule yet', () => {
@@ -67,8 +38,14 @@ describe('dayStatus', () => {
 })
 
 describe('buildCalendar', () => {
+  const calendar = buildCalendar(sampleAction)
+
+  function day(personName: string, date: string) {
+    const row = calendar.rows.find((candidate) => candidate.personName === personName)
+    return row?.days[calendar.dates.indexOf(date)]
+  }
+
   it('has one column per day of the action and one row per person', () => {
-    const calendar = buildCalendar(sampleAction)
     expect(calendar.dates).toHaveLength(7)
     expect(calendar.rows.map((row) => row.personName)).toEqual([
       'Anna',
@@ -78,6 +55,24 @@ describe('buildCalendar', () => {
       'Eva',
     ])
     expect(calendar.rows.every((row) => row.days.length === 7)).toBe(true)
+  })
+
+  it('marks a morning shift as a day the person can attend', () => {
+    expect(day('Eva', '2026-11-27')).toMatchObject({
+      status: { kind: 'working' },
+      attendance: 'available',
+    })
+  })
+
+  it('marks an afternoon shift that covers the evening as busy', () => {
+    expect(day('Anna', '2026-11-23')?.attendance).toBe('busy')
+  })
+
+  it('marks days outside the schedule as unknown', () => {
+    expect(day('Anna', '2026-11-29')).toEqual({
+      status: { kind: 'unknown' },
+      attendance: 'unknown',
+    })
   })
 })
 

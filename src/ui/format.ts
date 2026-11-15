@@ -1,4 +1,4 @@
-import type { DayStatus } from '@/core/calendar'
+import type { CalendarDay } from '@/core/calendar'
 import type { DateString, Shift, TimeString } from '@/core/schema'
 
 const WEEKDAYS_SHORT = ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So']
@@ -56,9 +56,16 @@ export function formatShiftSummary(shift: Pick<Shift, 'label' | 'start' | 'end'>
   return `${shift.label} ${formatShiftTime(shift)}`.trim()
 }
 
-export function describeDayStatus(status: DayStatus): string {
-  if (status.kind === 'free') return 'volno'
+export function describeCalendarDay({ status, attendance }: CalendarDay): string {
   if (status.kind === 'unknown') return 'rozpis chybí'
-  const shifts = status.shifts.map((shift) => `směna ${formatShiftSummary(shift)}`).join(', ')
-  return status.shifts.some((shift) => shift.uncertain) ? `${shifts}, nejisté čtení` : shifts
+
+  const parts =
+    status.kind === 'free'
+      ? ['volno']
+      : status.shifts.map((shift) => `směna ${formatShiftSummary(shift)}`)
+  if (status.kind === 'working' && status.shifts.some((shift) => shift.uncertain)) {
+    parts.push('nejisté čtení')
+  }
+  parts.push(attendance === 'available' ? 'může' : 'nemůže')
+  return parts.join(', ')
 }

@@ -3,7 +3,7 @@
 AI nástroj, který z rozpisů směn v libovolném formátu (Excel, fotka, screenshot, PDF, text) najde společný termín pro skupinu.
 Semestrální projekt do předmětu Umělá inteligence.
 
-> Stav: hotové rozhraní bez čtení rozpisů a bez výpočtu termínů. Směny jde zadat ručně nebo otevřít ukázkovou akci.
+> Stav: hotové rozhraní a výpočet termínů, zatím bez čtení rozpisů. Směny jde zadat ručně nebo otevřít ukázkovou akci.
 
 ## Spuštění
 
@@ -29,7 +29,7 @@ Soubor `.env` se do gitu nedává. Sestavenou aplikaci (`dist/`) nikam veřejně
 
 ## Technologie
 
-Vue 3, TypeScript, Vite, Tailwind CSS, Vitest, ESLint, Prettier. Bez backendu a bez databáze.
+Vue 3, TypeScript, Vite, Tailwind CSS, Vitest, ESLint, Prettier.
 
 ## Struktura
 
