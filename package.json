@@ -8,7 +8,8 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "eval": "vite-node eval/run.ts"
   },
   "dependencies": {
     "vue": "^3.5.45",
@@ -27,6 +28,7 @@
     "tailwindcss": "^4.3.5",
     "typescript": "^6.0.3",
     "vite": "^6.4.6",
+    "vite-node": "^3.2.4",
     "vitest": "^3.2.7",
     "vue-tsc": "^3.3.14"
   },

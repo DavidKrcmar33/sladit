@@ -26,6 +26,7 @@ Soubor `.env` se do gitu nedává. Sestavenou aplikaci (`dist/`) nikam veřejně
 | `npm test`          | testy (Vitest)                       |
 | `npm run lint`      | kontrola kódu (ESLint)               |
 | `npm run format`    | formátování (Prettier)               |
+| `npm run eval`      | měření (eval/)                       |
 
 ## Technologie
 
