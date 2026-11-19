@@ -39,15 +39,26 @@ const app = createApp({
   clientDir: config.production ? './dist' : undefined,
 })
 
-serve({ fetch: app.fetch, port: config.port }, (info) => {
+const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
   const mode = config.production ? 'produkce' : 'vývoj'
   const login = config.google.mode === 'fake' ? 'falešný Google' : 'Google'
   console.log(`Sladit server (${mode}, přihlášení: ${login}) na portu ${info.port}`)
 })
 
 // Hosting server ukončuje signálem. Spojení s databází se zavřou čistě.
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => {
-    void db.close().finally(() => process.exit(0))
-  })
+const stop = () => {
+  void db.close().finally(() => process.exit(0))
 }
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, stop)
+
+// Vývoj (vite-node --watch): po změně se tento soubor spustí znovu ve stejném procesu.
+// Starý server musí nejdřív uvolnit port a databázi, jinak by dál běžel starý kód
+// a dvě PGlite nad jedním adresářem by si mohly poškodit data.
+import.meta.hot?.on('vite:beforeFullReload', async () => {
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.off(signal, stop)
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+    if ('closeAllConnections' in server) server.closeAllConnections()
+  })
+  await db.close()
+})
