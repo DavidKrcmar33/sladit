@@ -20,7 +20,11 @@ import { addDays, eachDay } from './time'
  * co má on v nejhorším. Nepočítá se žádná pravděpodobnost ani hodnota informace, jen meze.
  */
 
-export type PivotReason = 'missing' | 'uncertain'
+/**
+ * Proč na dni záleží. `private` vrací jen server u lidí, jejichž rozpis přihlášený nevidí:
+ * ví se, že na jejich dni záleží, ale ne proč.
+ */
+export type PivotReason = 'missing' | 'uncertain' | 'private'
 
 /** Člověk, jehož data v daný den mohou změnit nejlepší termín. */
 export interface Pivot {

@@ -6,6 +6,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { z } from 'zod'
 import {
   CreateActionRequestSchema,
+  GroupNameSchema,
   ImportRequestSchema,
   PersonNameSchema,
   ReadingRequestSchema,
@@ -22,6 +23,7 @@ import { codeChallengeOf, fakeGoogleCode, randomToken, type GoogleAuth } from '.
 import type { ServerConfig } from './config'
 import type { Store } from './db/store'
 import { InvalidSourceError, MAX_READING_BODY_BYTES, pragueDay, validateParts } from './reading'
+import { actionView } from './view'
 
 export interface AppDeps {
   config: ServerConfig
@@ -39,6 +41,12 @@ type Env = { Variables: { user: User } }
 const SESSION_COOKIE = 'sladit_session'
 const STATE_COOKIE = 'sladit_oauth_state'
 const SESSION_DAYS = 30
+const INVITE_DAYS = 7
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const ORGANIZER_ONLY = 'Akci upravuje jen organizátor.'
+const OWNER_ONLY = 'Tohle smí jen zakladatel skupiny.'
+const INVALID_INVITE = 'Pozvánka neplatí. Možná vypršela nebo ji zakladatel zrušil.'
 
 function hash(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -335,12 +343,34 @@ export function createApp(deps: AppDeps) {
 
   // Akce
 
+  /** Úprava akce se nepovedla: člen skupiny dostane vysvětlení, cizí člověk jen „nenalezeno“. */
+  async function refusedEdit(c: Context<Env>, notFound: string) {
+    const visible = await store.actionOf(c.get('user').id, c.req.param('id') ?? '')
+    return visible && !visible.isOrganizer
+      ? fail(c, 403, { error: ORGANIZER_ONLY })
+      : fail(c, 404, { error: notFound })
+  }
+
   api.get('/actions', async (c) => c.json({ actions: await store.actionsOf(c.get('user').id) }))
 
   api.post('/actions', async (c) => {
     const body = await parseBody(c, CreateActionRequestSchema)
     if (!body.ok) return body.response
-    return c.json({ action: await store.createAction(c.get('user').id, body.data.details) })
+    const action = await store.createAction(
+      c.get('user').id,
+      body.data.details,
+      body.data.groupId ?? null,
+    )
+    if (!action) return fail(c, 404, { error: 'Skupina nenalezena.' })
+    return c.json({ action })
+  })
+
+  // Návrhy a stav dne ostatních účastníků. Cizí rozpisy server jen použije, nevrátí.
+  api.get('/actions/:id/view', async (c) => {
+    const user = c.get('user')
+    const found = await store.actionForView(user.id, c.req.param('id'))
+    if (!found) return fail(c, 404, { error: 'Akce nenalezena.' })
+    return c.json({ view: actionView(user.id, found.action, found.people) })
   })
 
   api.patch('/actions/:id', async (c) => {
@@ -348,13 +378,13 @@ export function createApp(deps: AppDeps) {
     if (!body.ok) return body.response
     const user = c.get('user')
     const done = await store.updateAction(user.id, c.req.param('id'), body.data.details)
-    if (!done) return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (!done) return refusedEdit(c, 'Akce nenalezena.')
     return c.json({ action: await store.actionOf(user.id, c.req.param('id')) })
   })
 
   api.delete('/actions/:id', async (c) => {
     const done = await store.deleteAction(c.get('user').id, c.req.param('id'))
-    if (!done) return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (!done) return refusedEdit(c, 'Akce nenalezena.')
     return c.json({ ok: true })
   })
 
@@ -363,15 +393,100 @@ export function createApp(deps: AppDeps) {
     if (!body.ok) return body.response
     const user = c.get('user')
     const person = await store.addGuest(user.id, c.req.param('id'), body.data.name)
-    if (!person) return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (!person) return refusedEdit(c, 'Akce nenalezena.')
     return c.json({ person, action: await store.actionOf(user.id, c.req.param('id')) })
   })
 
   api.delete('/actions/:id/participants/:personId', async (c) => {
     const user = c.get('user')
     const done = await store.removeParticipant(user.id, c.req.param('id'), c.req.param('personId'))
-    if (!done) return fail(c, 404, { error: 'Člověk v akci není.' })
+    if (!done) return refusedEdit(c, 'Člověk v akci není.')
     return c.json({ action: await store.actionOf(user.id, c.req.param('id')) })
+  })
+
+  // Skupiny
+
+  api.get('/groups', async (c) => c.json({ groups: await store.groupsOf(c.get('user').id, now()) }))
+
+  api.post('/groups', async (c) => {
+    const body = await parseBody(c, GroupNameSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const id = await store.createGroup(user.id, body.data.name)
+    return c.json({ group: await store.groupOf(user.id, id, now()) })
+  })
+
+  api.delete('/groups/:id', async (c) => {
+    const user = c.get('user')
+    const groupId = c.req.param('id')
+    if (await store.deleteGroup(user.id, groupId)) return c.json({ ok: true })
+    return (await store.groupOf(user.id, groupId, now()))
+      ? fail(c, 403, { error: OWNER_ONLY })
+      : fail(c, 404, { error: 'Skupina nenalezena.' })
+  })
+
+  api.post('/groups/:id/leave', async (c) => {
+    const done = await store.leaveGroup(c.get('user').id, c.req.param('id'))
+    if (!done) return fail(c, 404, { error: 'Skupina nenalezena.' })
+    return c.json({ ok: true })
+  })
+
+  api.delete('/groups/:id/members/:userId', async (c) => {
+    const user = c.get('user')
+    const groupId = c.req.param('id')
+    const group = await store.groupOf(user.id, groupId, now())
+    if (!group) return fail(c, 404, { error: 'Skupina nenalezena.' })
+    if (!group.isOwner) return fail(c, 403, { error: OWNER_ONLY })
+    const done = await store.removeMember(user.id, groupId, c.req.param('userId'))
+    if (!done) return fail(c, 404, { error: 'Člen nenalezen.' })
+    return c.json({ group: await store.groupOf(user.id, groupId, now()) })
+  })
+
+  // Pozvánka je náhodný token v odkazu. Server si nechá jen jeho otisk.
+  api.post('/groups/:id/invites', async (c) => {
+    const user = c.get('user')
+    const groupId = c.req.param('id')
+    const token = randomToken()
+    const invite = await store.createInvite(
+      user.id,
+      groupId,
+      hash(token),
+      new Date(now().getTime() + INVITE_DAYS * DAY_MS),
+    )
+    if (!invite) {
+      return (await store.groupOf(user.id, groupId, now()))
+        ? fail(c, 403, { error: OWNER_ONLY })
+        : fail(c, 404, { error: 'Skupina nenalezena.' })
+    }
+    return c.json({
+      invite,
+      url: `${config.appOrigin}/pozvanka/${token}`,
+      group: await store.groupOf(user.id, groupId, now()),
+    })
+  })
+
+  api.delete('/groups/:id/invites/:inviteId', async (c) => {
+    const user = c.get('user')
+    const groupId = c.req.param('id')
+    const done = await store.revokeInvite(user.id, groupId, c.req.param('inviteId'))
+    if (!done) return fail(c, 404, { error: 'Pozvánka nenalezena.' })
+    return c.json({ group: await store.groupOf(user.id, groupId, now()) })
+  })
+
+  api.get('/invites/:token', async (c) => {
+    const invite = await store.invitePreview(c.get('user').id, hash(c.req.param('token')), now())
+    if (!invite) return fail(c, 404, { error: INVALID_INVITE, code: 'invite' })
+    return c.json({ invite })
+  })
+
+  api.post('/invites/:token/accept', async (c) => {
+    const user = c.get('user')
+    const result = await store.acceptInvite(user.id, hash(c.req.param('token')), now())
+    if (result === 'invalid') return fail(c, 404, { error: INVALID_INVITE, code: 'invite' })
+    if (result === 'full') {
+      return fail(c, 403, { error: 'Skupina je plná.', code: 'full' })
+    }
+    return c.json({ group: await store.groupOf(user.id, result.groupId, now()) })
   })
 
   // Jednorázové převzetí akcí uložených v prohlížeči.

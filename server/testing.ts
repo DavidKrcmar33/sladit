@@ -23,6 +23,8 @@ export const readContent: SourceContent = {
 export async function testServer(
   env: Record<string, string> = {},
   extract: (input: ExtractInput) => Promise<SourceContent> = async () => readContent,
+  /** Hodiny serveru, třeba pro vypršení pozvánky. */
+  now?: () => Date,
 ) {
   const db = await pgliteDb()
   await migrate(db)
@@ -34,7 +36,7 @@ export async function testServer(
     ...env,
   })
   const store = createStore(db)
-  const app = createApp({ config, store, google: fakeGoogle(ORIGIN), extract })
+  const app = createApp({ config, store, google: fakeGoogle(ORIGIN), extract, now })
   return { app, db, store, config }
 }
 

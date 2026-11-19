@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import type { ActionResource, OwnedPerson, User } from '@/contract/api'
+import type {
+  ActionResource,
+  Group,
+  GroupInvite,
+  InvitePreview,
+  OwnedPerson,
+  User,
+} from '@/contract/api'
 import {
   DateRangeSchema,
   DayOverrideSchema,
@@ -18,7 +25,18 @@ import type { Db } from './db'
  * Všechny dotazy do databáze na jednom místě. Každá metoda, která čte nebo mění data člověka
  * nebo akce, dostává id vlastníka a do dotazu ho dává jako podmínku. Cizí data tak nejde
  * přečíst ani změnit, ani když by trasa zapomněla na kontrolu.
+ *
+ * Jediná výjimka je `actionForView`: vrací rozpisy všech účastníků akce, aby server spočítal
+ * návrhy. Smí ji volat jen výpočet pohledu (server/view.ts), který ven pustí jen tři stavy dne.
  */
+
+/** Nejvíc členů ve skupině. Pozvánka je odkaz, který se může dostat dál, než měl. */
+export const MAX_GROUP_MEMBERS = 50
+
+/** Člověk v akci i s rozpisem. Jen pro výpočet na serveru, nikdy se neposílá celý ven. */
+export interface ViewPerson extends OwnedPerson {
+  ownerId: string
+}
 
 const SourceRowSchema = z.object({
   id: z.string(),
@@ -39,6 +57,9 @@ interface PersonRow {
 
 interface ActionRow {
   id: string
+  owner_id: string
+  group_id: string | null
+  organizer_name: string | null
   name: string
   date_from: string
   date_to: string
@@ -47,6 +68,19 @@ interface ActionRow {
   window_end: string
 }
 
+interface ParticipantRow {
+  action_id: string
+  id: string
+  name: string
+  owner_id: string
+  is_self: boolean
+}
+
+/** Akce viditelné uživateli: jeho vlastní a akce ve skupinách, kde je členem. */
+const VISIBLE_ACTION = `(a.owner_id = $1 or a.group_id in (select group_id from memberships where user_id = $1))`
+
+const ACTION_COLUMNS = `a.*, (select name from people where owner_id = a.owner_id and is_self) as organizer_name`
+
 function json(value: unknown): string {
   return JSON.stringify(value)
 }
@@ -54,6 +88,18 @@ function json(value: unknown): string {
 function toSource(row: unknown): Source {
   const { id, circle, files, coverage, shifts, warnings, parity } = SourceRowSchema.parse(row)
   return { id, circle, files, coverage, shifts, warnings, parity }
+}
+
+function isoTime(value: Date | string): string {
+  return new Date(value).toISOString()
+}
+
+function toInvite(row: {
+  id: string
+  created_at: Date | string
+  expires_at: Date | string
+}): GroupInvite {
+  return { id: row.id, createdAt: isoTime(row.created_at), expiresAt: isoTime(row.expires_at) }
 }
 
 function toDetails(row: ActionRow): ActionDetails {
@@ -68,13 +114,10 @@ function toDetails(row: ActionRow): ActionDetails {
 }
 
 export function createStore(db: Db) {
-  async function peopleOf(ownerId: string, onlyIds?: string[]): Promise<OwnedPerson[]> {
-    const rows = await db.query<PersonRow>(
-      onlyIds
-        ? 'select id, name, is_self from people where owner_id = $1 and id = any($2) order by is_self desc, position'
-        : 'select id, name, is_self from people where owner_id = $1 order by is_self desc, position',
-      onlyIds ? [ownerId, onlyIds] : [ownerId],
-    )
+  /** Doplní lidem zdroje a ruční úpravy. Volající odpovídá za to, že lidi smí vidět. */
+  async function withSchedules<T extends PersonRow>(
+    rows: T[],
+  ): Promise<(T & Pick<OwnedPerson, 'sources' | 'overrides'>)[]> {
     if (rows.length === 0) return []
     const ids = rows.map((row) => row.id)
     const sources = await db.query(
@@ -86,9 +129,7 @@ export function createStore(db: Db) {
       [ids],
     )
     return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      isSelf: row.is_self,
+      ...row,
       sources: sources
         .filter((source) => source.person_id === row.id)
         .map((source) => toSource(source)),
@@ -100,35 +141,179 @@ export function createStore(db: Db) {
     }))
   }
 
+  async function peopleOf(ownerId: string, onlyIds?: string[]): Promise<OwnedPerson[]> {
+    const rows = await db.query<PersonRow>(
+      onlyIds
+        ? 'select id, name, is_self from people where owner_id = $1 and id = any($2) order by is_self desc, position'
+        : 'select id, name, is_self from people where owner_id = $1 order by is_self desc, position',
+      onlyIds ? [ownerId, onlyIds] : [ownerId],
+    )
+    return (await withSchedules(rows)).map(({ id, name, is_self, sources, overrides }) => ({
+      id,
+      name,
+      isSelf: is_self,
+      sources,
+      overrides,
+    }))
+  }
+
   async function personOf(ownerId: string, personId: string): Promise<OwnedPerson | null> {
     const [person] = await peopleOf(ownerId, [personId])
     return person ?? null
   }
 
-  async function participantIds(actionIds: string[]): Promise<Map<string, string[]>> {
-    const rows = await db.query<{ action_id: string; person_id: string }>(
-      'select action_id, person_id from action_participants where action_id = any($1) order by position',
+  /**
+   * Účastníci akcí v pořadí: nejdřív lidé přidaní organizátorem (on sám a jeho hosté),
+   * pak členové skupiny. Členové se neukládají, akce ve skupině patří všem jejím současným členům.
+   */
+  async function participantsOf(actionIds: string[]): Promise<Map<string, ParticipantRow[]>> {
+    const rows = await db.query<ParticipantRow>(
+      `select action_id, id, name, owner_id, is_self from (
+         select ap.action_id, p.id, p.name, p.owner_id, p.is_self, 0 as part, ap.position
+         from action_participants ap join people p on p.id = ap.person_id
+         where ap.action_id = any($1)
+         union all
+         select a.id, p.id, p.name, p.owner_id, p.is_self, 1, m.position
+         from actions a
+         join memberships m on m.group_id = a.group_id
+         join people p on p.owner_id = m.user_id and p.is_self
+         where a.id = any($1)
+       ) as participants order by action_id, part, position`,
       [actionIds],
     )
-    const byAction = new Map<string, string[]>()
+    const byAction = new Map<string, ParticipantRow[]>()
     for (const row of rows) {
-      byAction.set(row.action_id, [...(byAction.get(row.action_id) ?? []), row.person_id])
+      const list = byAction.get(row.action_id) ?? []
+      if (!list.some((existing) => existing.id === row.id)) list.push(row)
+      byAction.set(row.action_id, list)
     }
     return byAction
   }
 
-  async function actionsOf(ownerId: string, onlyId?: string): Promise<ActionResource[]> {
-    const rows = await db.query<ActionRow>(
-      onlyId
-        ? 'select * from actions where owner_id = $1 and id = $2'
-        : 'select * from actions where owner_id = $1 order by position',
-      onlyId ? [ownerId, onlyId] : [ownerId],
-    )
-    const participants = await participantIds(rows.map((row) => row.id))
-    return rows.map((row) => ({
+  function toResource(
+    viewerId: string,
+    row: ActionRow,
+    participants: ParticipantRow[],
+  ): ActionResource {
+    return {
       id: row.id,
       details: toDetails(row),
-      participantIds: participants.get(row.id) ?? [],
+      participantIds: participants.map((person) => person.id),
+      // O lidech, které přihlášený nevlastní, se dozví jen jméno a zda jde o člena, nebo hosta.
+      others: participants
+        .filter((person) => person.owner_id !== viewerId)
+        .map((person) => ({
+          id: person.id,
+          name: person.name,
+          kind: person.is_self ? ('member' as const) : ('guest' as const),
+        })),
+      groupId: row.group_id,
+      isOrganizer: row.owner_id === viewerId,
+      organizerName: row.organizer_name ?? '',
+    }
+  }
+
+  async function actionsOf(viewerId: string, onlyId?: string): Promise<ActionResource[]> {
+    const rows = await db.query<ActionRow>(
+      onlyId
+        ? `select ${ACTION_COLUMNS} from actions a where ${VISIBLE_ACTION} and a.id = $2`
+        : `select ${ACTION_COLUMNS} from actions a where ${VISIBLE_ACTION} order by a.position`,
+      onlyId ? [viewerId, onlyId] : [viewerId],
+    )
+    if (rows.length === 0) return []
+    const participants = await participantsOf(rows.map((row) => row.id))
+    return rows.map((row) => toResource(viewerId, row, participants.get(row.id) ?? []))
+  }
+
+  async function isMember(tx: Db, userId: string, groupId: string, role?: 'owner') {
+    const rows = await tx.query(
+      role
+        ? "select 1 from memberships where user_id = $1 and group_id = $2 and role = 'owner'"
+        : 'select 1 from memberships where user_id = $1 and group_id = $2',
+      [userId, groupId],
+    )
+    return rows.length > 0
+  }
+
+  /**
+   * Odchod ze skupiny: akce, které v ní člověk pořádal, se smažou i s jeho hosty, kteří už
+   * nejsou v jiné akci. Zakladatel předá skupinu nejstaršímu členovi, poslední člen ji smaže.
+   */
+  async function leave(tx: Db, userId: string, groupId: string): Promise<boolean> {
+    const [membership] = await tx.query<{ role: string }>(
+      'delete from memberships where user_id = $1 and group_id = $2 returning role',
+      [userId, groupId],
+    )
+    if (!membership) return false
+    const guests = await tx.query<{ person_id: string }>(
+      `select ap.person_id from action_participants ap join actions a on a.id = ap.action_id
+       where a.owner_id = $1 and a.group_id = $2`,
+      [userId, groupId],
+    )
+    await tx.query('delete from actions where owner_id = $1 and group_id = $2', [userId, groupId])
+    await deleteOrphanGuests(
+      tx,
+      userId,
+      guests.map((guest) => guest.person_id),
+    )
+    if (membership.role === 'owner') {
+      const [next] = await tx.query(
+        `update memberships set role = 'owner'
+         where (group_id, user_id) = (select group_id, user_id from memberships where group_id = $1 order by position limit 1)
+         returning user_id`,
+        [groupId],
+      )
+      if (!next) await tx.query('delete from groups where id = $1', [groupId])
+    }
+    return true
+  }
+
+  async function groupsOf(userId: string, now: Date, onlyId?: string): Promise<Group[]> {
+    const groups = await db.query<{ id: string; name: string; role: string }>(
+      `select g.id, g.name, m.role from groups g join memberships m on m.group_id = g.id
+       where m.user_id = $1 ${onlyId ? 'and g.id = $2' : ''} order by g.position`,
+      onlyId ? [userId, onlyId] : [userId],
+    )
+    if (groups.length === 0) return []
+    const ids = groups.map((group) => group.id)
+    const members = await db.query<{
+      group_id: string
+      user_id: string
+      role: string
+      name: string
+    }>(
+      `select m.group_id, m.user_id, m.role, p.name from memberships m
+       join people p on p.owner_id = m.user_id and p.is_self
+       where m.group_id = any($1) order by m.position`,
+      [ids],
+    )
+    // Pozvánky vidí jen zakladatel.
+    const owned = groups.filter((group) => group.role === 'owner').map((group) => group.id)
+    const invites = await db.query<{
+      id: string
+      group_id: string
+      created_at: Date | string
+      expires_at: Date | string
+    }>(
+      `select id, group_id, created_at, expires_at from invites
+       where group_id = any($1) and revoked_at is null and expires_at > $2 order by created_at`,
+      [owned, now.toISOString()],
+    )
+    return groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      isOwner: group.role === 'owner',
+      members: members
+        .filter((member) => member.group_id === group.id)
+        .map((member) => ({
+          userId: member.user_id,
+          name: member.name,
+          isOwner: member.role === 'owner',
+          isYou: member.user_id === userId,
+        })),
+      invites: invites
+        .filter((invite) => invite.group_id === group.id)
+        .map((invite) => toInvite(invite)),
     }))
   }
 
@@ -180,9 +365,19 @@ export function createStore(db: Db) {
       await db.query('delete from sessions where token_hash = $1', [tokenHash])
     },
 
-    /** Smaže účet a kaskádou všechna jeho data: lidi, zdroje, úpravy, akce, relace. */
+    /**
+     * Smaže účet a kaskádou všechna jeho data: lidi, zdroje, úpravy, akce, relace, členství.
+     * Skupiny, které založil, předá dalším členům.
+     */
     async deleteUser(userId: string) {
-      await db.query('delete from users where id = $1', [userId])
+      await db.transaction(async (tx) => {
+        const groups = await tx.query<{ group_id: string }>(
+          'select group_id from memberships where user_id = $1',
+          [userId],
+        )
+        for (const group of groups) await leave(tx, userId, group.group_id)
+        await tx.query('delete from users where id = $1', [userId])
+      })
     },
 
     async saveOauthState(state: string, verifier: string, purpose: string, userId: string | null) {
@@ -304,21 +499,59 @@ export function createStore(db: Db) {
 
     actionsOf,
 
-    async actionOf(ownerId: string, actionId: string): Promise<ActionResource | null> {
-      const [action] = await actionsOf(ownerId, actionId)
+    /** Akce, kterou uživatel vidí: vlastní, nebo ve skupině, kde je členem. */
+    async actionOf(viewerId: string, actionId: string): Promise<ActionResource | null> {
+      const [action] = await actionsOf(viewerId, actionId)
       return action ?? null
     },
 
-    /** Založí akci. Uživatel se jí účastní sám za sebe. */
-    async createAction(ownerId: string, details: ActionDetails): Promise<ActionResource> {
-      return db.transaction(async (tx) => {
-        const id = randomUUID()
+    /**
+     * Akce i s rozpisy všech účastníků, pokud ji uživatel vidí. Jen pro výpočet pohledu
+     * (server/view.ts), rozpisy cizích lidí se nesmí poslat ven.
+     */
+    async actionForView(
+      viewerId: string,
+      actionId: string,
+    ): Promise<{ action: ActionResource; people: ViewPerson[] } | null> {
+      const [row] = await db.query<ActionRow>(
+        `select ${ACTION_COLUMNS} from actions a where ${VISIBLE_ACTION} and a.id = $2`,
+        [viewerId, actionId],
+      )
+      if (!row) return null
+      const participants = (await participantsOf([row.id])).get(row.id) ?? []
+      const people = await withSchedules(participants)
+      return {
+        action: toResource(viewerId, row, participants),
+        people: people.map(({ id, name, is_self, owner_id, sources, overrides }) => ({
+          id,
+          name,
+          isSelf: is_self,
+          ownerId: owner_id,
+          sources,
+          overrides,
+        })),
+      }
+    },
+
+    /**
+     * Založí akci. Uživatel se jí účastní sám za sebe. Ve skupině ji může založit každý člen,
+     * účastní se jí pak všichni členové. Vrací null, když uživatel ve skupině není.
+     */
+    async createAction(
+      ownerId: string,
+      details: ActionDetails,
+      groupId: string | null = null,
+    ): Promise<ActionResource | null> {
+      const id = await db.transaction(async (tx) => {
+        if (groupId && !(await isMember(tx, ownerId, groupId))) return null
+        const actionId = randomUUID()
         await tx.query(
-          `insert into actions (id, owner_id, name, date_from, date_to, duration_minutes, window_start, window_end)
-           values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          `insert into actions (id, owner_id, group_id, name, date_from, date_to, duration_minutes, window_start, window_end)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
-            id,
+            actionId,
             ownerId,
+            groupId,
             details.name,
             details.from,
             details.to,
@@ -333,12 +566,15 @@ export function createStore(db: Db) {
         )
         if (self) {
           await tx.query('insert into action_participants (action_id, person_id) values ($1, $2)', [
-            id,
+            actionId,
             self.id,
           ])
         }
-        return { id, details, participantIds: self ? [self.id] : [] }
+        return actionId
       })
+      if (!id) return null
+      const [action] = await actionsOf(ownerId, id)
+      return action ?? null
     },
 
     async updateAction(
@@ -419,6 +655,154 @@ export function createStore(db: Db) {
         if (rows.length === 0) return false
         await deleteOrphanGuests(tx, ownerId, [personId])
         return true
+      })
+    },
+
+    // Skupiny a pozvánky
+
+    groupsOf,
+
+    async groupOf(userId: string, groupId: string, now: Date): Promise<Group | null> {
+      const [group] = await groupsOf(userId, now, groupId)
+      return group ?? null
+    },
+
+    /** Založí skupinu. Kdo ji založí, je její zakladatel. */
+    async createGroup(userId: string, name: string): Promise<string> {
+      return db.transaction(async (tx) => {
+        const id = randomUUID()
+        await tx.query('insert into groups (id, name) values ($1, $2)', [id, name])
+        await tx.query(
+          "insert into memberships (group_id, user_id, role) values ($1, $2, 'owner')",
+          [id, userId],
+        )
+        return id
+      })
+    },
+
+    /** Smaže skupinu i s jejími akcemi. Smí jen zakladatel. */
+    async deleteGroup(ownerId: string, groupId: string): Promise<boolean> {
+      return db.transaction(async (tx) => {
+        if (!(await isMember(tx, ownerId, groupId, 'owner'))) return false
+        const guests = await tx.query<{ person_id: string; owner_id: string }>(
+          `select ap.person_id, a.owner_id from action_participants ap
+           join actions a on a.id = ap.action_id where a.group_id = $1`,
+          [groupId],
+        )
+        await tx.query('delete from groups where id = $1', [groupId])
+        for (const owner of new Set(guests.map((guest) => guest.owner_id))) {
+          await deleteOrphanGuests(
+            tx,
+            owner,
+            guests.filter((guest) => guest.owner_id === owner).map((guest) => guest.person_id),
+          )
+        }
+        return true
+      })
+    },
+
+    async leaveGroup(userId: string, groupId: string): Promise<boolean> {
+      return db.transaction((tx) => leave(tx, userId, groupId))
+    },
+
+    /** Zakladatel odebere člena. Sám sebe odebrat nemůže, na to je odchod. */
+    async removeMember(ownerId: string, groupId: string, userId: string): Promise<boolean> {
+      if (ownerId === userId) return false
+      return db.transaction(async (tx) => {
+        if (!(await isMember(tx, ownerId, groupId, 'owner'))) return false
+        return leave(tx, userId, groupId)
+      })
+    },
+
+    /** Uloží otisk nové pozvánky. Smí jen zakladatel. */
+    async createInvite(
+      ownerId: string,
+      groupId: string,
+      tokenHash: string,
+      expiresAt: Date,
+    ): Promise<GroupInvite | null> {
+      return db.transaction(async (tx) => {
+        if (!(await isMember(tx, ownerId, groupId, 'owner'))) return null
+        const [row] = await tx.query<{
+          id: string
+          created_at: Date | string
+          expires_at: Date | string
+        }>(
+          `insert into invites (id, token_hash, group_id, created_by, expires_at)
+           values ($1, $2, $3, $4, $5) returning id, created_at, expires_at`,
+          [randomUUID(), tokenHash, groupId, ownerId, expiresAt.toISOString()],
+        )
+        return toInvite(row)
+      })
+    },
+
+    async revokeInvite(ownerId: string, groupId: string, inviteId: string): Promise<boolean> {
+      const rows = await db.query(
+        `update invites set revoked_at = now()
+         where id = $3 and group_id = $2 and revoked_at is null
+           and exists (select 1 from memberships where user_id = $1 and group_id = $2 and role = 'owner')
+         returning id`,
+        [ownerId, groupId, inviteId],
+      )
+      return rows.length > 0
+    },
+
+    /** Co pozvaný uvidí před přijetím: název skupiny, zakladatel, počet členů. */
+    async invitePreview(
+      userId: string,
+      tokenHash: string,
+      now: Date,
+    ): Promise<InvitePreview | null> {
+      const [row] = await db.query<{
+        group_id: string
+        group_name: string
+        owner_name: string | null
+        member_count: number | string
+        is_member: boolean
+      }>(
+        `select g.id as group_id, g.name as group_name,
+           (select p.name from memberships m join people p on p.owner_id = m.user_id and p.is_self
+            where m.group_id = g.id and m.role = 'owner') as owner_name,
+           (select count(*) from memberships m where m.group_id = g.id) as member_count,
+           exists (select 1 from memberships m where m.group_id = g.id and m.user_id = $3) as is_member
+         from invites i join groups g on g.id = i.group_id
+         where i.token_hash = $1 and i.revoked_at is null and i.expires_at > $2`,
+        [tokenHash, now.toISOString(), userId],
+      )
+      if (!row) return null
+      return {
+        groupId: row.group_id,
+        groupName: row.group_name,
+        ownerName: row.owner_name ?? '',
+        memberCount: Number(row.member_count),
+        isMember: row.is_member,
+      }
+    },
+
+    /** Přidá uživatele do skupiny podle platné pozvánky. Vrací id skupiny, nebo důvod odmítnutí. */
+    async acceptInvite(
+      userId: string,
+      tokenHash: string,
+      now: Date,
+    ): Promise<{ groupId: string } | 'invalid' | 'full'> {
+      return db.transaction(async (tx) => {
+        const [invite] = await tx.query<{ group_id: string }>(
+          `select group_id from invites
+           where token_hash = $1 and revoked_at is null and expires_at > $2 for update`,
+          [tokenHash, now.toISOString()],
+        )
+        if (!invite) return 'invalid'
+        if (await isMember(tx, userId, invite.group_id)) return { groupId: invite.group_id }
+        const [count] = await tx.query<{ count: number | string }>(
+          'select count(*) as count from memberships where group_id = $1',
+          [invite.group_id],
+        )
+        if (Number(count?.count ?? 0) >= MAX_GROUP_MEMBERS) return 'full'
+        await tx.query(
+          "insert into memberships (group_id, user_id, role) values ($1, $2, 'member')",
+          [invite.group_id, userId],
+        )
+        return { groupId: invite.group_id }
       })
     },
 

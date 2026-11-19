@@ -133,7 +133,11 @@ export function describeStability(
   if (stability.pivots.length === 0) return 'Může se změnit.'
   const people = stability.pivots.map((pivot) => {
     const days = pivot.dates
-      .map((item) => `${formatDayShort(item.date)}, ${PIVOT_REASON[item.reason]}`)
+      .map((item) =>
+        item.reason === 'private'
+          ? formatDayShort(item.date)
+          : `${formatDayShort(item.date)}, ${PIVOT_REASON[item.reason]}`,
+      )
       .join('; ')
     return `${nameOf(pivot.personId)} (${days})`
   })

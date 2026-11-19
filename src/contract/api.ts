@@ -4,6 +4,7 @@ import {
   ActionSchema,
   DateStringSchema,
   DayOverrideSchema,
+  ProposalSchema,
   ShiftSchema,
   SourceFileSchema,
   SourceSchema,
@@ -42,17 +43,119 @@ export const PersonNameSchema = z.object({
   name: z.string().trim().min(1, 'Jméno nesmí být prázdné').max(80, 'Jméno je příliš dlouhé'),
 })
 
+/** Účastník akce, jehož rozpis přihlášený nevidí. Ví se o něm jen jméno. */
+export const OtherParticipantSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  /** Člen skupiny, nebo host, kterého přidal organizátor. */
+  kind: z.enum(['member', 'guest']),
+})
+
 /** Akce s parametry a lidmi, kteří se jí účastní. */
 export const ActionResourceSchema = z.object({
   id: z.string(),
   details: ActionDetailsSchema,
+  /** Všichni účastníci v pořadí, vlastní i cizí. */
   participantIds: z.array(z.string()),
+  /** Účastníci, které přihlášený nevlastní: ostatní členové skupiny a hosté organizátora. */
+  others: z.array(OtherParticipantSchema),
+  /** Skupina, ve které akce je. Bez skupiny je akce osobní. */
+  groupId: z.string().nullable(),
+  /** Akci upravuje, maže a přidává do ní hosty jen organizátor. */
+  isOrganizer: z.boolean(),
+  organizerName: z.string(),
 })
 
 export const ActionsResponseSchema = z.object({ actions: z.array(ActionResourceSchema) })
 export const ActionResponseSchema = z.object({ action: ActionResourceSchema })
 
-export const CreateActionRequestSchema = z.object({ details: ActionDetailsSchema })
+export const CreateActionRequestSchema = z.object({
+  details: ActionDetailsSchema,
+  groupId: z.string().nullable().optional(),
+})
+
+/** Stav dne vůči akci: může, nemůže, nevíme. Nic víc o cizím rozpisu server neprozradí. */
+export const DayAttendanceSchema = z.enum(['available', 'busy', 'unknown'])
+
+/**
+ * Pohled na akci, ve které jsou lidé s rozpisem, který přihlášený nevidí. Návrhy a jejich
+ * jistotu počítá server ze všech rozpisů. U cizích lidí vrací jen stav dne a u křehkého termínu
+ * jen den, na kterém záleží, bez důvodu.
+ */
+export const ActionViewSchema = z.object({
+  actionId: z.string(),
+  dates: z.array(DateStringSchema),
+  others: z.array(z.object({ personId: z.string(), days: z.array(DayAttendanceSchema) })),
+  proposals: z.array(ProposalSchema),
+  stability: z.object({
+    winner: ProposalSchema.nullable(),
+    certain: z.boolean(),
+    pivots: z.array(
+      z.object({
+        personId: z.string(),
+        dates: z.array(
+          z.object({
+            date: DateStringSchema,
+            reason: z.enum(['missing', 'uncertain', 'private']),
+          }),
+        ),
+      }),
+    ),
+  }),
+})
+
+export const ActionViewResponseSchema = z.object({ view: ActionViewSchema })
+
+// Skupiny
+
+export const GroupNameSchema = z.object({
+  name: z.string().trim().min(1, 'Název nesmí být prázdný').max(60, 'Název je příliš dlouhý'),
+})
+
+/** Platná pozvánka. Samotný odkaz se ukáže jen jednou, při založení. */
+export const GroupInviteSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+})
+
+/** Člen skupiny. Ostatní o něm vidí jen jméno, e-mail ne. */
+export const GroupMemberSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  isOwner: z.boolean(),
+  isYou: z.boolean(),
+})
+
+export const GroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  /** Zakladatel zve, ruší pozvánky, odebírá členy a může skupinu smazat. */
+  isOwner: z.boolean(),
+  members: z.array(GroupMemberSchema),
+  /** Platné pozvánky, jen pro zakladatele. */
+  invites: z.array(GroupInviteSchema),
+})
+
+export const GroupsResponseSchema = z.object({ groups: z.array(GroupSchema) })
+export const GroupResponseSchema = z.object({ group: GroupSchema })
+
+export const CreateInviteResponseSchema = z.object({
+  group: GroupSchema,
+  invite: GroupInviteSchema,
+  /** Odkaz s pozvánkou. Server ho neuloží, zná jen jeho otisk. */
+  url: z.string(),
+})
+
+export const InvitePreviewSchema = z.object({
+  groupId: z.string(),
+  groupName: z.string(),
+  ownerName: z.string(),
+  memberCount: z.number(),
+  isMember: z.boolean(),
+})
+
+export const InvitePreviewResponseSchema = z.object({ invite: InvitePreviewSchema })
 
 export const UpdateActionRequestSchema = z.object({ details: ActionDetailsSchema })
 
@@ -109,6 +212,12 @@ export type User = z.infer<typeof UserSchema>
 export type MeResponse = z.infer<typeof MeResponseSchema>
 export type OwnedPerson = z.infer<typeof OwnedPersonSchema>
 export type ActionResource = z.infer<typeof ActionResourceSchema>
+export type OtherParticipant = z.infer<typeof OtherParticipantSchema>
+export type DayAttendance = z.infer<typeof DayAttendanceSchema>
+export type ActionView = z.infer<typeof ActionViewSchema>
+export type Group = z.infer<typeof GroupSchema>
+export type GroupInvite = z.infer<typeof GroupInviteSchema>
+export type InvitePreview = z.infer<typeof InvitePreviewSchema>
 export type ReadingRequest = z.infer<typeof ReadingRequestSchema>
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequestSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
