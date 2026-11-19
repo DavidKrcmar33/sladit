@@ -39,3 +39,25 @@ export function formatMinutes(minutesAfterMidnight: number): TimeString {
 export function absoluteMinutes(date: DateString, time: TimeString): number {
   return toUtcMs(date) / 60_000 + toMinutes(time)
 }
+
+/** Den v týdnu: 1 = pondělí až 7 = neděle. */
+export function weekdayOf(date: DateString): number {
+  return new Date(toUtcMs(date)).getUTCDay() || 7
+}
+
+/** Pondělí téhož týdne. */
+export function mondayOf(date: DateString): DateString {
+  return addDays(date, 1 - weekdayOf(date))
+}
+
+/** Počet dnů od from do to (záporný, když je to dřív). */
+export function daysBetween(from: DateString, to: DateString): number {
+  return Math.round((toUtcMs(to) - toUtcMs(from)) / MS_PER_DAY)
+}
+
+/** Číslo týdne podle ISO 8601 (týden začíná pondělím, první týden obsahuje první čtvrtek roku). */
+export function isoWeek(date: DateString): number {
+  const thursday = toUtcMs(date) + (4 - weekdayOf(date)) * MS_PER_DAY
+  const yearStart = Date.UTC(new Date(thursday).getUTCFullYear(), 0, 1)
+  return Math.floor((thursday - yearStart) / MS_PER_DAY / 7) + 1
+}

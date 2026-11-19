@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { addPerson, removePerson, replacePerson, setShiftsForDay } from './actionEdits'
+import {
+  addPerson,
+  addSource,
+  removeDayOverride,
+  removePerson,
+  removeSource,
+  replacePerson,
+  setDayOverride,
+  setSourceCircle,
+  setWeekParity,
+} from './actionEdits'
+import { composeSchedule } from './compose'
 import { sampleAction } from './fixtures'
-import type { Action, Person, Shift } from './schema'
+import { SCHOOL_CIRCLE, type Action, type Person, type Shift, type Source } from './schema'
 
 const emptyAction: Action = { ...sampleAction, people: [] }
 
@@ -9,7 +20,8 @@ const lucie: Person = {
   id: 'lucie',
   name: 'Lucie',
   files: [{ id: 'f9', name: 'rozpis.pdf', kind: 'pdf' }],
-  schedule: null,
+  sources: [],
+  overrides: [],
 }
 
 function shift(date: string, start: string, end: string, label = 'R'): Shift {
@@ -20,6 +32,16 @@ function personById(action: Action, personId: string): Person {
   const person = action.people.find((candidate) => candidate.id === personId)
   if (!person) throw new Error(`Person ${personId} not found`)
   return person
+}
+
+const lucieSource: Source = {
+  id: 's1',
+  circle: 'Práce',
+  files: [{ id: 'f9', name: 'rozpis.pdf', kind: 'pdf' }],
+  coverage: [{ from: '2026-11-23', to: '2026-11-29' }],
+  shifts: [shift('2026-11-24', '06:00', '14:00')],
+  warnings: [],
+  parity: { calendar: false, anchors: [] },
 }
 
 describe('addPerson / replacePerson / removePerson', () => {
@@ -48,62 +70,107 @@ describe('addPerson / replacePerson / removePerson', () => {
   })
 })
 
-describe('setShiftsForDay', () => {
+describe('sources', () => {
+  const withLucie = addPerson(emptyAction, lucie)
+
+  it('adds a read source and stops waiting for the files it was read from', () => {
+    const updated = addSource(withLucie, 'lucie', lucieSource)
+    expect(personById(updated, 'lucie')).toMatchObject({ files: [], sources: [lucieSource] })
+  })
+
+  it('keeps older sources when another one is added', () => {
+    const december = { ...lucieSource, id: 's2', files: [] }
+    const updated = addSource(addSource(withLucie, 'lucie', lucieSource), 'lucie', december)
+    expect(personById(updated, 'lucie').sources.map((source) => source.id)).toEqual(['s1', 's2'])
+  })
+
+  it('removes a source and keeps the manual edits', () => {
+    const edited = setDayOverride(
+      addSource(withLucie, 'lucie', lucieSource),
+      'lucie',
+      '2026-11-25',
+      [],
+    )
+    const updated = removeSource(edited, 'lucie', 's1')
+    expect(personById(updated, 'lucie')).toMatchObject({
+      sources: [],
+      overrides: [{ date: '2026-11-25', shifts: [] }],
+    })
+  })
+
+  it('changes the circle of a source', () => {
+    const updated = setSourceCircle(
+      addSource(withLucie, 'lucie', lucieSource),
+      'lucie',
+      's1',
+      ` ${SCHOOL_CIRCLE} `,
+    )
+    expect(personById(updated, 'lucie').sources[0].circle).toBe(SCHOOL_CIRCLE)
+  })
+
+  it('stores the parity answer on the source and replaces an earlier one for the same term', () => {
+    let updated = addSource(withLucie, 'lucie', lucieSource)
+    updated = setWeekParity(updated, 'lucie', 's1', '2026-11-23', true)
+    updated = setWeekParity(updated, 'lucie', 's1', '2026-11-30', true)
+    expect(personById(updated, 'lucie').sources[0].parity.anchors).toEqual([
+      { date: '2026-11-30', odd: true },
+    ])
+  })
+
+  it('refuses a source of somebody else', () => {
+    expect(() => setSourceCircle(sampleAction, 'anna', 'zdroj-2', 'Škola')).toThrow()
+  })
+})
+
+describe('setDayOverride', () => {
   it('replaces the shifts of that day and leaves other days alone', () => {
-    const updated = setShiftsForDay(sampleAction, 'petr', '2026-11-25', [
+    const updated = setDayOverride(sampleAction, 'petr', '2026-11-25', [
       shift('2026-11-25', '22:00', '06:00', 'N'),
     ])
-    const shifts = personById(updated, 'petr').schedule?.shifts
-    expect(shifts).toEqual([
-      sampleAction.people[1].schedule?.shifts[0],
-      shift('2026-11-25', '22:00', '06:00', 'N'),
+    const schedule = composeSchedule(personById(updated, 'petr'))!
+    expect(schedule.shifts).toEqual([
+      expect.objectContaining({ date: '2026-11-24', label: 'N' }),
+      expect.objectContaining({ date: '2026-11-25', label: 'N', uncertain: false }),
     ])
   })
 
   it('makes the day free when given no shifts', () => {
-    const updated = setShiftsForDay(sampleAction, 'anna', '2026-11-23', [])
-    const shiftDates = personById(updated, 'anna').schedule?.shifts.map((s) => s.date)
-    expect(shiftDates).not.toContain('2026-11-23')
+    const updated = setDayOverride(sampleAction, 'anna', '2026-11-23', [])
+    const schedule = composeSchedule(personById(updated, 'anna'))!
+    expect(schedule.shifts.some((item) => item.date === '2026-11-23')).toBe(false)
   })
 
-  it('keeps shifts ordered by date and start time', () => {
-    const updated = setShiftsForDay(sampleAction, 'jana', '2026-11-24', [
-      shift('2026-11-24', '14:00', '18:00'),
-      shift('2026-11-24', '06:00', '10:00'),
-    ])
-    const starts = personById(updated, 'jana').schedule?.shifts.map((s) => `${s.date} ${s.start}`)
-    expect(starts).toEqual([
-      '2026-11-23 13:00',
-      '2026-11-24 06:00',
-      '2026-11-24 14:00',
-      '2026-11-25 06:00',
-      '2026-11-26 13:00',
+  it('covers only that one day, days in between stay unknown', () => {
+    // Anna má rozpis do 28. 11. Úprava 1. 12. nesmí udělat z 29. a 30. 11. volno.
+    const updated = setDayOverride(sampleAction, 'anna', '2026-12-01', [])
+    const schedule = composeSchedule(personById(updated, 'anna'))!
+    expect(schedule.coverage).toEqual([
+      { from: '2026-11-23', to: '2026-11-28' },
+      { from: '2026-12-01', to: '2026-12-01' },
     ])
   })
 
-  it('extends the covered range when the day was unknown', () => {
-    const updated = setShiftsForDay(sampleAction, 'anna', '2026-11-29', [])
-    const schedule = personById(updated, 'anna').schedule
-    expect(schedule?.coveredFrom).toBe('2026-11-23')
-    expect(schedule?.coveredTo).toBe('2026-11-29')
+  it('replaces an earlier edit of the same day', () => {
+    let updated = setDayOverride(sampleAction, 'anna', '2026-11-23', [])
+    updated = setDayOverride(updated, 'anna', '2026-11-23', [shift('2026-11-23', '08:00', '12:00')])
+    expect(personById(updated, 'anna').overrides).toEqual([
+      { date: '2026-11-23', shifts: [shift('2026-11-23', '08:00', '12:00')] },
+    ])
   })
 
-  it('creates a schedule covering just that day for a person without one', () => {
-    const withLucie = addPerson(emptyAction, lucie)
-    const updated = setShiftsForDay(withLucie, 'lucie', '2026-11-26', [
-      shift('2026-11-26', '06:00', '14:00'),
-    ])
-    expect(personById(updated, 'lucie').schedule).toEqual({
-      coveredFrom: '2026-11-26',
-      coveredTo: '2026-11-26',
-      shifts: [shift('2026-11-26', '06:00', '14:00')],
-      warnings: [],
-    })
+  it('can be undone, the day follows the documents again', () => {
+    const edited = setDayOverride(sampleAction, 'anna', '2026-11-23', [])
+    const updated = removeDayOverride(edited, 'anna', '2026-11-23')
+    expect(personById(updated, 'anna').overrides).toEqual([])
   })
 
   it('rejects a shift that starts on a different day', () => {
     expect(() =>
-      setShiftsForDay(sampleAction, 'anna', '2026-11-23', [shift('2026-11-24', '06:00', '14:00')]),
+      setDayOverride(sampleAction, 'anna', '2026-11-23', [shift('2026-11-24', '06:00', '14:00')]),
     ).toThrow()
+  })
+
+  it('throws when the person is not part of the action', () => {
+    expect(() => setDayOverride(sampleAction, 'nobody', '2026-11-23', [])).toThrow()
   })
 })

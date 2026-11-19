@@ -8,8 +8,8 @@ export type NewActionErrors = Partial<Record<keyof NewActionInput, string>>
 export type CreateActionResult =
   { ok: true; action: Action } | { ok: false; errors: NewActionErrors }
 
-export function createAction(id: string, input: NewActionInput): CreateActionResult {
-  const result = ActionSchema.safeParse({ ...input, id, people: [] })
+function validate(candidate: unknown, input: NewActionInput): CreateActionResult {
+  const result = ActionSchema.safeParse(candidate)
   if (result.success) return { ok: true, action: result.data }
 
   const { fieldErrors } = z.flattenError(result.error)
@@ -20,4 +20,19 @@ export function createAction(id: string, input: NewActionInput): CreateActionRes
     }
   }
   return { ok: false, errors }
+}
+
+export function createAction(id: string, input: NewActionInput): CreateActionResult {
+  return validate({ ...input, id, people: [] }, input)
+}
+
+/** Nové parametry akce. Lidé a jejich rozpisy zůstanou, termíny se jen přepočítají. */
+export function updateActionDetails(action: Action, input: NewActionInput): CreateActionResult {
+  return validate({ ...action, ...input }, input)
+}
+
+/** Parametry akce, jak je ukazuje formulář. */
+export function actionDetails(action: Action): NewActionInput {
+  const { name, from, to, durationMinutes, windowStart, windowEnd } = action
+  return { name, from, to, durationMinutes, windowStart, windowEnd }
 }
