@@ -20,45 +20,61 @@ if (config.legacyLlmNames.length > 0) {
   console.warn(`Přejmenuj v .env: ${config.legacyLlmNames.join(', ')} (bez předpony VITE_).`)
 }
 
-const db = config.databaseUrl ? postgresDb(config.databaseUrl) : await pgliteDb(config.pgliteDir)
-const applied = await migrate(db)
-if (applied.length > 0) console.log(`Migrace databáze: ${applied.join(', ')}`)
+/** Spustí server. Když mezitím přijde restart (vývoj), skončí dřív, než otevře port. */
+async function start() {
+  const db = config.databaseUrl ? postgresDb(config.databaseUrl) : await pgliteDb(config.pgliteDir)
+  const applied = await migrate(db)
+  if (applied.length > 0) console.log(`Migrace databáze: ${applied.join(', ')}`)
+  if (stopping) return { db, server: null }
 
-const store = createStore(db)
-const google =
-  config.google.mode === 'fake'
-    ? fakeGoogle(config.appOrigin)
-    : realGoogle(config.google.clientId, config.google.clientSecret)
-const extractDeps = depsFromConfig(config.llm)
+  const store = createStore(db)
+  const google =
+    config.google.mode === 'fake'
+      ? fakeGoogle(config.appOrigin)
+      : realGoogle(config.google.clientId, config.google.clientSecret)
+  const extractDeps = depsFromConfig(config.llm)
 
-const app = createApp({
-  config,
-  store,
-  google,
-  extract: (input) => extractSchedule(input, extractDeps),
-  clientDir: config.production ? './dist' : undefined,
-})
+  const app = createApp({
+    config,
+    store,
+    google,
+    extract: (input) => extractSchedule(input, extractDeps),
+    clientDir: config.production ? './dist' : undefined,
+  })
 
-const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
-  const mode = config.production ? 'produkce' : 'vývoj'
-  const login = config.google.mode === 'fake' ? 'falešný Google' : 'Google'
-  console.log(`Sladit server (${mode}, přihlášení: ${login}) na portu ${info.port}`)
-})
+  const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
+    const mode = config.production ? 'produkce' : 'vývoj'
+    const login = config.google.mode === 'fake' ? 'falešný Google' : 'Google'
+    console.log(`Sladit server (${mode}, přihlášení: ${login}) na portu ${info.port}`)
+  })
+  return { db, server }
+}
+
+let stopping = false
+const started = start()
 
 // Hosting server ukončuje signálem. Spojení s databází se zavřou čistě.
 const stop = () => {
-  void db.close().finally(() => process.exit(0))
+  void started.then(({ db }) => db.close()).finally(() => process.exit(0))
 }
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, stop)
 
 // Vývoj (vite-node --watch): po změně se tento soubor spustí znovu ve stejném procesu.
-// Starý server musí nejdřív uvolnit port a databázi, jinak by dál běžel starý kód
-// a dvě PGlite nad jedním adresářem by si mohly poškodit data.
+// Starý server musí nejdřív doběhnout a uvolnit port i databázi, jinak by dál běžel starý kód
+// a dvě PGlite nad jedním adresářem by si mohly poškodit data. vite-node na tohle počká.
 import.meta.hot?.on('vite:beforeFullReload', async () => {
+  stopping = true
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.off(signal, stop)
-  await new Promise<void>((resolve) => {
-    server.close(() => resolve())
-    if ('closeAllConnections' in server) server.closeAllConnections()
-  })
-  await db.close()
+  const running = await started.catch(() => null)
+  if (!running) return
+  const { server } = running
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve())
+      if ('closeAllConnections' in server) server.closeAllConnections()
+    })
+  }
+  await running.db.close()
 })
+
+await started
