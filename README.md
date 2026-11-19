@@ -3,7 +3,7 @@
 AI nástroj, který z rozpisů směn v libovolném formátu (Excel, fotka, screenshot, PDF, text) najde společný termín pro skupinu.
 Semestrální projekt do předmětu Umělá inteligence.
 
-> Stav: přihlášení přes Google, rozpisy a akce v účtu, skupiny s pozvánkou odkazem (ostatní vidí jen může, nemůže, nevíme), čtení rozpisů přes server (Gemini nebo Claude), výpočet termínů a měření fungují. Poslední měření na vygenerovaných podkladech: 121 ze 121 směn správně, správný termín u 23 z 23 skupin (model `claude-opus-5-5`). Skutečné fotky rozpisů v testovací sadě zatím nejsou. Aplikace je nasazená na Railway, viz [docs/BACKEND.md](docs/BACKEND.md). Google Kalendář se připravuje.
+> Stav: přihlášení přes Google, vlastní rozpis v účtu (Můj rozvrh), přátelé a skupiny přes odkaz, akce s pozvanými a potvrzením termínu (ostatní vidí jen může, nemůže, nevíme), čtení rozpisů přes server (Gemini nebo Claude), výpočet termínů a měření fungují. Poslední měření na vygenerovaných podkladech: 121 ze 121 směn správně, správný termín u 23 z 23 skupin (model `claude-opus-5-5`). Skutečné fotky rozpisů v testovací sadě zatím nejsou. Aplikace je nasazená na Railway, viz [docs/BACKEND.md](docs/BACKEND.md). Google Kalendář se připravuje.
 
 ## Spuštění
 
@@ -57,7 +57,7 @@ Vue 3, TypeScript, Vite, Tailwind CSS, Zod, ExcelJS (čtení xlsx), Vitest, ESLi
 ```
 src/
 ├─ main.ts, App.vue, styles.css
-├─ session.ts   stav aplikace v prohlížeči: kopie dat z účtu, rozpracovaný člověk, výběr
+├─ session.ts   stav aplikace v prohlížeči: kopie dat z účtu, nepřečtené soubory, otevřená stránka
 ├─ core/        čistá logika (schémata, skládání rozpisu, plánovač), bez Vue a bez sítě
 ├─ contract/    schémata požadavků a odpovědí API, sdílí je prohlížeč i server
 ├─ client/      rozhraní k serveru (HTTP) a jeho varianta v paměti pro testy a ukázku
@@ -65,9 +65,9 @@ src/
 │  ├─ reading / expand / checks   čtení modelem, převod na dny, kontroly
 │  └─ skill/    instrukce, slovník zkratek, vzorové rozpisy
 └─ ui/
-   ├─ steps/       obrazovky
+   ├─ pages/       stránky: Můj rozvrh, Přátelé, akce
    └─ components/  komponenty
-server/         API: přihlášení, rozpisy, akce, skupiny, čtení (app.ts), pohled pro členy (view.ts), databáze (db/)
+server/         API: přihlášení, rozpisy, akce, přátelé, skupiny, čtení (app.ts), pohled pro účastníky (view.ts), databáze (db/)
 docs/           pipeline čtení rozpisů, server a nasazení, nápady na funkce
 eval/
 ├─ data/schedules/   testovací rozpisy se správnými odpověďmi
