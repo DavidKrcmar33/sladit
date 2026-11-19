@@ -51,7 +51,7 @@ const editedDay = computed(() => {
     key: `${person.id}-${day.date}`,
     person,
     date: day.date,
-    shifts: status.kind === 'free' ? [] : status.shifts,
+    shifts: 'shifts' in status ? status.shifts : [],
     isKnown: status.kind !== 'unknown',
     hasOverride: person.overrides.some((override) => override.date === day.date),
     warnings: composed.schedule?.warnings ?? [],

@@ -87,6 +87,24 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
 
   const selfId = () => people.find((person) => person.isSelf)?.id
 
+  /** Osobní akce: v paměti je jen jeden uživatel, takže je vždy organizátor a nikdo cizí v ní není. */
+  function resource(details: ActionDetails, participantIds: string[]): ActionResource {
+    return {
+      id: generateId(),
+      details: checked(details),
+      participantIds,
+      others: [],
+      groupId: null,
+      isOrganizer: true,
+      organizerName: user?.name ?? '',
+    }
+  }
+
+  function noGroups(): never {
+    signedIn()
+    throw new BackendError('Skupiny jdou jen s účtem. Přihlas se.', 400)
+  }
+
   return {
     loginUrl: '/api/auth/google',
     signIn(next) {
@@ -177,14 +195,11 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
       signedIn()
       return copy(actions)
     },
-    async createAction(details) {
+    async createAction(details, groupId = null) {
       signedIn()
+      if (groupId) noGroups()
       const self = selfId()
-      const action = {
-        id: generateId(),
-        details: checked(details),
-        participantIds: self ? [self] : [],
-      }
+      const action = resource(details, self ? [self] : [])
       actions.push(action)
       return copy(action)
     },
@@ -214,6 +229,20 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
       dropOrphanGuests()
       return copy(action)
     },
+    actionView: async () => noGroups(),
+
+    async groups() {
+      signedIn()
+      return []
+    },
+    createGroup: async () => noGroups(),
+    deleteGroup: async () => noGroups(),
+    leaveGroup: async () => noGroups(),
+    removeMember: async () => noGroups(),
+    createInvite: async () => noGroups(),
+    revokeInvite: async () => noGroups(),
+    invitePreview: async () => noGroups(),
+    acceptInvite: async () => noGroups(),
 
     async importActions(imported: Action[]) {
       signedIn()
@@ -232,7 +261,7 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
           })
           participantIds.push(id)
         }
-        actions.push({ id: generateId(), details: checked(details), participantIds })
+        actions.push(resource(details, participantIds))
       }
       return imported.length
     },

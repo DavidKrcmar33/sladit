@@ -1,5 +1,8 @@
 import type {
   ActionResource,
+  ActionView,
+  Group,
+  InvitePreview,
   MeResponse,
   OwnedPerson,
   ReadingRequest,
@@ -27,11 +30,23 @@ export interface Backend {
   deleteOverride(personId: string, date: string): Promise<OwnedPerson>
 
   actions(): Promise<ActionResource[]>
-  createAction(details: ActionDetails): Promise<ActionResource>
+  createAction(details: ActionDetails, groupId?: string | null): Promise<ActionResource>
   updateAction(actionId: string, details: ActionDetails): Promise<ActionResource>
   deleteAction(actionId: string): Promise<void>
   addGuest(actionId: string, name: string): Promise<{ person: OwnedPerson; action: ActionResource }>
   removeParticipant(actionId: string, personId: string): Promise<ActionResource>
+  /** Návrhy a stav dne ostatních, spočítané na serveru. Jen pro akce s cizími lidmi. */
+  actionView(actionId: string): Promise<ActionView>
+
+  groups(): Promise<Group[]>
+  createGroup(name: string): Promise<Group>
+  deleteGroup(groupId: string): Promise<void>
+  leaveGroup(groupId: string): Promise<void>
+  removeMember(groupId: string, userId: string): Promise<Group>
+  createInvite(groupId: string): Promise<{ group: Group; url: string }>
+  revokeInvite(groupId: string, inviteId: string): Promise<Group>
+  invitePreview(token: string): Promise<InvitePreview>
+  acceptInvite(token: string): Promise<Group>
 
   importActions(actions: Action[]): Promise<number>
 }

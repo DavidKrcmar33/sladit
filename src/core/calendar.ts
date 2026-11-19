@@ -6,10 +6,14 @@ import { eachDay } from './time'
 
 /**
  * Stav dne podle rozpisu. U neznámého dne jsou směny to, co o něm přesto víme,
- * třeba výuka z rozvrhu, když chybí rozpis z práce.
+ * třeba výuka z rozvrhu, když chybí rozpis z práce. `private` je den člověka, jehož rozpis
+ * přihlášený nevidí: víme jen, zda může, nemůže, nebo nevíme (attendance).
  */
 export type DayStatus =
-  { kind: 'unknown'; shifts: Shift[] } | { kind: 'free' } | { kind: 'working'; shifts: Shift[] }
+  | { kind: 'unknown'; shifts: Shift[] }
+  | { kind: 'free' }
+  | { kind: 'working'; shifts: Shift[] }
+  | { kind: 'private' }
 
 export interface CalendarDay {
   status: DayStatus
@@ -24,6 +28,8 @@ export interface CalendarRow {
   personId: string
   personName: string
   days: CalendarDay[]
+  /** Rozpis vidí jen jeho vlastník, řádek nejde upravit. */
+  isPrivate?: boolean
 }
 
 export interface CalendarView {
@@ -53,6 +59,29 @@ export function buildCalendar(action: ActionParams, people: ComposedPerson[]): C
         status: dayStatus(person.schedule, date),
         ...dayAvailability(action, person.schedule, date),
       })),
+    })),
+  }
+}
+
+/**
+ * Řádek člověka, jehož rozpis přihlášený nevidí. Stav dne spočítal server, dokud nedorazí,
+ * je každý den „nevíme“.
+ */
+export function privateRow(
+  personId: string,
+  personName: string,
+  dates: DateString[],
+  attendances: Attendance[] | undefined,
+): CalendarRow {
+  return {
+    personId,
+    personName,
+    isPrivate: true,
+    days: dates.map((_, index) => ({
+      status: { kind: 'private' },
+      attendance: attendances?.[index] ?? 'unknown',
+      windows: [],
+      isPartial: false,
     })),
   }
 }

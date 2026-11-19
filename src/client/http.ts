@@ -2,9 +2,14 @@ import { z } from 'zod'
 import {
   ActionResponseSchema,
   ActionsResponseSchema,
+  ActionViewResponseSchema,
   AddGuestResponseSchema,
+  CreateInviteResponseSchema,
   ErrorResponseSchema,
+  GroupResponseSchema,
+  GroupsResponseSchema,
   ImportResponseSchema,
+  InvitePreviewResponseSchema,
   MeResponseSchema,
   PeopleResponseSchema,
   PersonResponseSchema,
@@ -52,6 +57,10 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
   const ok = async (method: string, path: string) => {
     await call(OkResponseSchema, method, path)
   }
+  const group = (method: string, path: string, body?: unknown) =>
+    call(GroupResponseSchema, method, path, body).then((data) => data.group)
+  // Token pozvánky jde jen do cesty na vlastní server, nikam jinam.
+  const invite = (token: string) => `/invites/${encodeURIComponent(token)}`
 
   return {
     loginUrl: '/api/auth/google',
@@ -71,13 +80,27 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     deleteOverride: (personId, date) => person('DELETE', `/people/${personId}/overrides/${date}`),
 
     actions: () => call(ActionsResponseSchema, 'GET', '/actions').then((data) => data.actions),
-    createAction: (details) => action('POST', '/actions', { details }),
+    createAction: (details, groupId = null) => action('POST', '/actions', { details, groupId }),
     updateAction: (actionId, details) => action('PATCH', `/actions/${actionId}`, { details }),
     deleteAction: (actionId) => ok('DELETE', `/actions/${actionId}`),
     addGuest: (actionId, name) =>
       call(AddGuestResponseSchema, 'POST', `/actions/${actionId}/guests`, { name }),
     removeParticipant: (actionId, personId) =>
       action('DELETE', `/actions/${actionId}/participants/${personId}`),
+    actionView: (actionId) =>
+      call(ActionViewResponseSchema, 'GET', `/actions/${actionId}/view`).then((data) => data.view),
+
+    groups: () => call(GroupsResponseSchema, 'GET', '/groups').then((data) => data.groups),
+    createGroup: (name) => group('POST', '/groups', { name }),
+    deleteGroup: (groupId) => ok('DELETE', `/groups/${groupId}`),
+    leaveGroup: (groupId) => ok('POST', `/groups/${groupId}/leave`),
+    removeMember: (groupId, userId) => group('DELETE', `/groups/${groupId}/members/${userId}`),
+    createInvite: (groupId) =>
+      call(CreateInviteResponseSchema, 'POST', `/groups/${groupId}/invites`),
+    revokeInvite: (groupId, inviteId) => group('DELETE', `/groups/${groupId}/invites/${inviteId}`),
+    invitePreview: (token) =>
+      call(InvitePreviewResponseSchema, 'GET', invite(token)).then((data) => data.invite),
+    acceptInvite: (token) => group('POST', `${invite(token)}/accept`),
 
     importActions: (actions) =>
       call(ImportResponseSchema, 'POST', '/import', { actions }).then((data) => data.imported),

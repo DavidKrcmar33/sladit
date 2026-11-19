@@ -6,7 +6,7 @@ import { formatFreeWindows, formatShiftSummary } from '@/ui/format'
 const props = defineProps<{ day: CalendarDay; label: string; selected: boolean }>()
 const emit = defineEmits<{ select: [] }>()
 
-const shifts = computed(() => (props.day.status.kind === 'free' ? [] : props.day.status.shifts))
+const shifts = computed(() => ('shifts' in props.day.status ? props.day.status.shifts : []))
 
 const isUncertain = computed(() => shifts.value.some((shift) => shift.uncertain))
 
@@ -17,6 +17,14 @@ const content = computed(() => {
     : rest.length
       ? `${formatShiftSummary(first)} +${rest.length}`
       : formatShiftSummary(first)
+  // U cizího rozpisu jen výsledek: směny ani důvod neznáme.
+  if (props.day.status.kind === 'private') {
+    return props.day.attendance === 'busy'
+      ? 'nemůže'
+      : props.day.attendance === 'unknown'
+        ? '?'
+        : ''
+  }
   // Neznámý den může mít známou směnu, třeba výuku, když chybí rozpis z práce.
   if (props.day.status.kind === 'unknown') return summary ? `${summary} ?` : '?'
   return summary

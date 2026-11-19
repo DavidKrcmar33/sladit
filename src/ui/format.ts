@@ -83,12 +83,16 @@ function formatWindowList(windows: TimeRange[]): string {
   return windows.map((window) => formatTimeWindow(window.start, window.end)).join(', ')
 }
 
+const PRIVATE_DAY = { available: 'může', busy: 'nemůže', unknown: 'nevíme' } as const
+
 export function describeCalendarDay({
   status,
   attendance,
   windows,
   isPartial,
 }: CalendarDay): string {
+  // U cizího rozpisu víme jen výsledek, ne důvod.
+  if (status.kind === 'private') return PRIVATE_DAY[attendance]
   if (status.kind === 'unknown') {
     const known = status.shifts.map((shift) => `směna ${formatShiftSummary(shift)}`)
     return ['rozpis chybí', ...known].join(', ')
