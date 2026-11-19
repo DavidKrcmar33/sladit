@@ -1,0 +1,13 @@
+{
+  "personName": "Dita",
+  "nameInSchedule": "Dita Malá",
+  "from": "2026-11-23",
+  "to": "2026-12-06",
+  "format": "pdf",
+  "notation": "D/N 12h",
+  "style": "grid",
+  "legend": true,
+  "kinds": [
+    "table"
+  ]
+}

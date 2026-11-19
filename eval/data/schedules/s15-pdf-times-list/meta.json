@@ -1,0 +1,13 @@
+{
+  "personName": "Cyril",
+  "nameInSchedule": "Cyril",
+  "from": "2026-11-23",
+  "to": "2026-11-29",
+  "format": "pdf",
+  "notation": "časy (6-14)",
+  "style": "times-list",
+  "legend": false,
+  "kinds": [
+    "list"
+  ]
+}

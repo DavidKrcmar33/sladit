@@ -1,0 +1,34 @@
+{
+  "id": "g07",
+  "action": {
+    "name": "Skupina 7",
+    "from": "2026-11-23",
+    "to": "2026-11-29",
+    "durationMinutes": 180,
+    "windowStart": "16:00",
+    "windowEnd": "23:00"
+  },
+  "people": [
+    {
+      "id": "tomas",
+      "name": "Tomáš",
+      "scheduleId": "s13-pdf-grid"
+    },
+    {
+      "id": "yvona",
+      "name": "Yvona",
+      "scheduleId": "s14-pdf-grid"
+    },
+    {
+      "id": "cyril",
+      "name": "Cyril",
+      "scheduleId": "s15-pdf-times-list"
+    },
+    {
+      "id": "dita",
+      "name": "Dita",
+      "scheduleId": "s16-pdf-grid"
+    }
+  ],
+  "expectedDate": "2026-11-27"
+}

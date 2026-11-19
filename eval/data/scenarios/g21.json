@@ -1,0 +1,34 @@
+{
+  "id": "g21",
+  "action": {
+    "name": "Rozvrhy 1",
+    "from": "2026-11-23",
+    "to": "2026-12-06",
+    "durationMinutes": 120,
+    "windowStart": "15:00",
+    "windowEnd": "21:00"
+  },
+  "people": [
+    {
+      "id": "hedvika",
+      "name": "Hedvika",
+      "scheduleId": "s23-text-timetable"
+    },
+    {
+      "id": "martin",
+      "name": "Martin",
+      "scheduleId": "s05-xlsx-grid"
+    },
+    {
+      "id": "dita",
+      "name": "Dita",
+      "scheduleId": "s16-pdf-grid"
+    },
+    {
+      "id": "zbynek",
+      "name": "Zbyněk",
+      "scheduleId": "s22-pdf-timetable"
+    }
+  ],
+  "expectedDate": "2026-11-25"
+}

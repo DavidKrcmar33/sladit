@@ -1,0 +1,13 @@
+{
+  "personName": "Nela",
+  "nameInSchedule": "Nela B.",
+  "from": "2026-11-23",
+  "to": "2026-11-29",
+  "format": "text",
+  "notation": "R/O/N",
+  "style": "grid",
+  "legend": true,
+  "kinds": [
+    "table"
+  ]
+}

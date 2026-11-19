@@ -1,0 +1,59 @@
+{
+  "answer": {
+    "documentKind": "table",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí, směny jsou zapsané přímo časy (např. 6-14), „-“ znamená volno.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "6-14",
+        "uncertain": false,
+        "source": "strana 1, řádek Radim T., sloupec Út 24.11."
+      },
+      {
+        "date": "2026-11-25",
+        "weekday": "wed",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14-22",
+        "uncertain": false,
+        "source": "strana 1, řádek Radim T., sloupec St 25.11."
+      },
+      {
+        "date": "2026-11-26",
+        "weekday": "thu",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "22–6",
+        "raw": "22-6",
+        "uncertain": false,
+        "source": "strana 1, řádek Radim T., sloupec Čt 26.11."
+      },
+      {
+        "date": "2026-11-29",
+        "weekday": "sun",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14-22",
+        "uncertain": false,
+        "source": "strana 1, řádek Radim T., sloupec Ne 29.11. (zalomený řádek)"
+      }
+    ],
+    "weekly": [],
+    "warnings": []
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "answer": {
+    "documentKind": "timetable",
+    "readability": "good",
+    "people": "one",
+    "legend": "Týdenní rozvrh, časy u bloků. Poznámky u předmětů určují lichý nebo sudý týden, bez určení, jak se týdny počítají.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-09-21",
+        "to": "2026-12-18"
+      }
+    ],
+    "dated": [],
+    "weekly": [
+      {
+        "weekday": "tue",
+        "weeks": "odd",
+        "exceptDates": [],
+        "start": "16:00",
+        "end": "17:30",
+        "label": "ŠK",
+        "raw": "Cvičení z programování (jen lichý týden)",
+        "uncertain": false,
+        "source": "Podklad 1: Úterý, 16:00–17:30"
+      },
+      {
+        "weekday": "tue",
+        "weeks": "even",
+        "exceptDates": [],
+        "start": "18:00",
+        "end": "19:30",
+        "label": "ŠK",
+        "raw": "Konzultace (jen sudý týden)",
+        "uncertain": false,
+        "source": "Podklad 1: Úterý, 18:00–19:30"
+      },
+      {
+        "weekday": "fri",
+        "weeks": "even",
+        "exceptDates": [],
+        "start": "15:00",
+        "end": "16:30",
+        "label": "ŠK",
+        "raw": "Tělocvik (jen sudý týden)",
+        "uncertain": false,
+        "source": "Podklad 1: Pátek, 15:00–16:30"
+      }
+    ],
+    "warnings": [
+      "Podklad neuvádí, podle čeho se počítá lichý a sudý týden. Je potřeba to potvrdit."
+    ]
+  }
+}

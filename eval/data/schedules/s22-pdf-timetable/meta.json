@@ -1,0 +1,17 @@
+{
+  "personName": "Zbyněk",
+  "nameInSchedule": "",
+  "from": "2026-11-23",
+  "to": "2026-12-06",
+  "format": "pdf",
+  "notation": "týdenní vzor",
+  "style": "timetable",
+  "legend": false,
+  "kinds": [
+    "timetable"
+  ],
+  "weekParity": {
+    "date": "2026-11-23",
+    "odd": false
+  }
+}

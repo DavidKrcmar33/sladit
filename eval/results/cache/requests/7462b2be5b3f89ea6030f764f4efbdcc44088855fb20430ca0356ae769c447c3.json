@@ -1,0 +1,91 @@
+{
+  "answer": {
+    "documentKind": "timetable",
+    "readability": "good",
+    "people": "one",
+    "legend": "Týdenní rozvrh, časy u bloků. Poznámky: odpadající dny u jednotlivých předmětů, sudý a lichý týden u úterních laboratoří.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-09-14",
+        "to": "2026-12-18"
+      }
+    ],
+    "dated": [],
+    "weekly": [
+      {
+        "weekday": "mon",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "08:00",
+        "end": "09:30",
+        "label": "ŠK",
+        "raw": "Matematika 2 (A12)",
+        "uncertain": false,
+        "source": "Pondělí, 8:00–9:30"
+      },
+      {
+        "weekday": "mon",
+        "weeks": "every",
+        "exceptDates": [
+          "2026-11-23"
+        ],
+        "start": "14:00",
+        "end": "15:30",
+        "label": "ŠK",
+        "raw": "Angličtina (B03)",
+        "uncertain": false,
+        "source": "Pondělí, 14:00–15:30"
+      },
+      {
+        "weekday": "tue",
+        "weeks": "even",
+        "exceptDates": [],
+        "start": "10:00",
+        "end": "11:30",
+        "label": "ŠK",
+        "raw": "Programování (lab L2) – jen sudý týden",
+        "uncertain": false,
+        "source": "Úterý, 10:00–11:30 (první řádek)"
+      },
+      {
+        "weekday": "tue",
+        "weeks": "odd",
+        "exceptDates": [],
+        "start": "10:00",
+        "end": "11:30",
+        "label": "ŠK",
+        "raw": "Databáze (lab L4) – jen lichý týden",
+        "uncertain": false,
+        "source": "Úterý, 10:00–11:30 (druhý řádek)"
+      },
+      {
+        "weekday": "thu",
+        "weeks": "every",
+        "exceptDates": [
+          "2026-12-17"
+        ],
+        "start": "12:00",
+        "end": "13:30",
+        "label": "ŠK",
+        "raw": "Statistika (A12)",
+        "uncertain": false,
+        "source": "Čtvrtek, 12:00–13:30"
+      },
+      {
+        "weekday": "fri",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "08:00",
+        "end": "11:15",
+        "label": "Praxe",
+        "raw": "Praxe ve firmě",
+        "uncertain": false,
+        "source": "Pátek, 8:00–11:15"
+      }
+    ],
+    "warnings": [
+      "Podklad neuvádí, zda se lichý a sudý týden počítá podle kalendáře; parita úterních laboratoří je nutné potvrdit."
+    ]
+  }
+}

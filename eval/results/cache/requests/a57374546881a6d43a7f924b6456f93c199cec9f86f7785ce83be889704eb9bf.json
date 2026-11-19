@@ -1,0 +1,59 @@
+{
+  "answer": {
+    "documentKind": "list",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí, časy jsou uvedeny přímo u dnů.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14:00-22:00",
+        "uncertain": false,
+        "source": "řádek „úterý 24.11.  14:00-22:00“"
+      },
+      {
+        "date": "2026-11-25",
+        "weekday": "wed",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14:00-22:00",
+        "uncertain": false,
+        "source": "řádek „středa 25.11.  14:00-22:00“"
+      },
+      {
+        "date": "2026-11-26",
+        "weekday": "thu",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "6:00-14:00",
+        "uncertain": false,
+        "source": "řádek „čtvrtek 26.11.  6:00-14:00“"
+      },
+      {
+        "date": "2026-11-28",
+        "weekday": "sat",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "22–6",
+        "raw": "22:00-6:00",
+        "uncertain": false,
+        "source": "řádek „sobota 28.11.  22:00-6:00“"
+      }
+    ],
+    "weekly": [],
+    "warnings": []
+  }
+}

@@ -1,0 +1,1986 @@
+{
+  "summary": {
+    "date": "2026-11-18",
+    "model": "claude:claude-opus-5-5",
+    "reading": {
+      "correct": 110,
+      "expected": 110,
+      "returned": 110,
+      "recall": 1,
+      "precision": 1
+    },
+    "byFormat": {
+      "xlsx": {
+        "correct": 35,
+        "expected": 35,
+        "returned": 35,
+        "recall": 1,
+        "precision": 1
+      },
+      "text": {
+        "correct": 28,
+        "expected": 28,
+        "returned": 28,
+        "recall": 1,
+        "precision": 1
+      },
+      "pdf": {
+        "correct": 34,
+        "expected": 34,
+        "returned": 34,
+        "recall": 1,
+        "precision": 1
+      },
+      "screenshot": {
+        "correct": 13,
+        "expected": 13,
+        "returned": 13,
+        "recall": 1,
+        "precision": 1
+      }
+    },
+    "phases": {
+      "recognition": {
+        "correct": 22,
+        "total": 22
+      },
+      "secondLook": {
+        "ran": 3,
+        "total": 22,
+        "disagreements": 0
+      },
+      "checks": {
+        "returned": 110,
+        "flagged": 12,
+        "wrong": 0,
+        "silentlyWrong": 0
+      }
+    },
+    "scenarios": {
+      "total": 10,
+      "expectedHits": 10,
+      "readHits": 10
+    }
+  },
+  "outcomes": [
+    {
+      "id": "s01-xlsx-grid",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "Rozpis!B4"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "Rozpis!C4"
+          },
+          {
+            "date": "2026-11-25",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "Rozpis!D4"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "Rozpis!F4"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "Rozpis!G4"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s02-xlsx-grid",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "6-14",
+            "uncertain": false,
+            "source": "Rozpis!B4"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "6-14",
+            "uncertain": false,
+            "source": "Rozpis!C4"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "14-22",
+            "uncertain": false,
+            "source": "Rozpis!E4"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "14-22",
+            "uncertain": false,
+            "source": "Rozpis!F4"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "22–6",
+            "raw": "22-6",
+            "uncertain": false,
+            "source": "Rozpis!G4"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s03-xlsx-colors",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-24",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "[výplň #FFE699] žlutá",
+            "uncertain": false,
+            "source": "Rozpis!C4"
+          },
+          {
+            "date": "2026-11-25",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "[výplň #FFE699] žlutá",
+            "uncertain": false,
+            "source": "Rozpis!D4"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "[výplň #F4B183] oranžová",
+            "uncertain": false,
+            "source": "Rozpis!E4"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "[výplň #F4B183] oranžová",
+            "uncertain": false,
+            "source": "Rozpis!F4"
+          },
+          {
+            "date": "2026-11-29",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "[výplň #8EA9DB] modrá",
+            "uncertain": false,
+            "source": "Rozpis!H4"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s04-xlsx-vertical",
+      "counts": {
+        "correct": 3,
+        "expected": 3,
+        "returned": 3
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "Rozpis!B3"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "Rozpis!B6"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "Rozpis!B7"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s05-xlsx-grid",
+      "counts": {
+        "correct": 8,
+        "expected": 8,
+        "returned": 8
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-12-06",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "Rozpis!B4"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "Rozpis!C4"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "18:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "Rozpis!F4"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "18:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "Rozpis!G4"
+          },
+          {
+            "date": "2026-12-01",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "Rozpis!J4"
+          },
+          {
+            "date": "2026-12-02",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "Rozpis!K4"
+          },
+          {
+            "date": "2026-12-03",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "Rozpis!L4"
+          },
+          {
+            "date": "2026-12-06",
+            "start": "18:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "Rozpis!O4"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s06-xlsx-grid",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "07:00",
+            "end": "15:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "Rozpis!B4"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "07:00",
+            "end": "15:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "Rozpis!C4"
+          },
+          {
+            "date": "2026-11-25",
+            "start": "07:00",
+            "end": "15:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "Rozpis!D4"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "15:00",
+            "end": "23:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "Rozpis!G4"
+          },
+          {
+            "date": "2026-11-29",
+            "start": "15:00",
+            "end": "23:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "Rozpis!H4"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s07-xlsx-grid",
+      "counts": {
+        "correct": 4,
+        "expected": 4,
+        "returned": 4
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": true,
+            "source": "Rozpis!B4"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": true,
+            "source": "Rozpis!E4"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": true,
+            "source": "Rozpis!F4"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": true,
+            "source": "Rozpis!G4"
+          }
+        ],
+        "warnings": [
+          "Časy odhadnuty podle slovníku."
+        ]
+      },
+      "error": null
+    },
+    {
+      "id": "s08-text-vertical",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "řádek „23.11. O“"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "řádek „24.11. O“"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "řádek „26.11. R“"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "řádek „27.11. R“"
+          },
+          {
+            "date": "2026-11-29",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "řádek „29.11. N“"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s09-text-times-list",
+      "counts": {
+        "correct": 4,
+        "expected": 4,
+        "returned": 4
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-24",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "14:00-22:00",
+            "uncertain": false,
+            "source": "řádek „úterý 24.11.  14:00-22:00“"
+          },
+          {
+            "date": "2026-11-25",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "14:00-22:00",
+            "uncertain": false,
+            "source": "řádek „středa 25.11.  14:00-22:00“"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "6:00-14:00",
+            "uncertain": false,
+            "source": "řádek „čtvrtek 26.11.  6:00-14:00“"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "22–6",
+            "raw": "22:00-6:00",
+            "uncertain": false,
+            "source": "řádek „sobota 28.11.  22:00-6:00“"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s10-text-words",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "ranní",
+            "uncertain": true,
+            "source": "řádek „pondělí: ranní“"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "ranní",
+            "uncertain": true,
+            "source": "řádek „úterý: ranní“"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "odpolední",
+            "uncertain": true,
+            "source": "řádek „pátek: odpolední“"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "odpolední",
+            "uncertain": true,
+            "source": "řádek „sobota: odpolední“"
+          },
+          {
+            "date": "2026-11-29",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "odpolední",
+            "uncertain": true,
+            "source": "řádek „neděle: odpolední“"
+          }
+        ],
+        "warnings": [
+          "Časy odhadnuty podle slovníku.",
+          "Rozpis je „na týden“ bez konkrétních dat, není jasné, kterého týdne se týká ani zda se opakuje. Bloky vráceny jako týdenní.",
+          "Platnost rozvrhu není v podkladu uvedena, počítá se s celým hledaným obdobím."
+        ]
+      },
+      "error": null
+    },
+    {
+      "id": "s11-text-grid",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-24",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "řádek Nela B., sloupec Út 24.11."
+          },
+          {
+            "date": "2026-11-25",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "řádek Nela B., sloupec St 25.11."
+          },
+          {
+            "date": "2026-11-27",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "řádek Nela B., sloupec Pá 27.11."
+          },
+          {
+            "date": "2026-11-28",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "řádek Nela B., sloupec So 28.11."
+          },
+          {
+            "date": "2026-11-29",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "řádek Nela B., sloupec Ne 29.11."
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s12-text-chat",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "pondělí odpolední",
+            "uncertain": true,
+            "source": "text „pondělí odpolední“"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "úterý odpolední",
+            "uncertain": true,
+            "source": "text „úterý odpolední“"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "čtvrtek noční (od 22 do 6)",
+            "uncertain": false,
+            "source": "text „čtvrtek noční (od 22 do 6)“"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "pátek noční (od 22 do 6)",
+            "uncertain": false,
+            "source": "text „pátek noční (od 22 do 6)“"
+          },
+          {
+            "date": "2026-11-29",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "neděle ranní",
+            "uncertain": true,
+            "source": "text „neděle ranní“"
+          }
+        ],
+        "warnings": [
+          "Časy odhadnuty podle slovníku."
+        ]
+      },
+      "error": null
+    },
+    {
+      "id": "s13-pdf-grid",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "strana 1, řádek Tomáš H., sloupec Po 23.11."
+          },
+          {
+            "date": "2026-11-25",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "strana 1, řádek Tomáš H., sloupec St 25.11."
+          },
+          {
+            "date": "2026-11-26",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "strana 1, řádek Tomáš H., sloupec Čt 26.11."
+          },
+          {
+            "date": "2026-11-28",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "strana 1, řádek Tomáš H., sloupec So 28.11."
+          },
+          {
+            "date": "2026-11-29",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "strana 1, řádek Tomáš H., sloupec Ne 29.11."
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s14-pdf-grid",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14-22",
+            "raw": "14-22",
+            "uncertain": false,
+            "source": "strana 1, řádek Yvona, sloupec Po 23.11."
+          },
+          {
+            "date": "2026-11-24",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14-22",
+            "raw": "14-22",
+            "uncertain": false,
+            "source": "strana 1, řádek Yvona, sloupec Út 24.11."
+          },
+          {
+            "date": "2026-11-25",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14-22",
+            "raw": "14-22",
+            "uncertain": false,
+            "source": "strana 1, řádek Yvona, sloupec St 25.11."
+          },
+          {
+            "date": "2026-11-28",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6-14",
+            "raw": "6-14",
+            "uncertain": false,
+            "source": "strana 1, řádek Yvona, sloupec So 28.11."
+          },
+          {
+            "date": "2026-11-29",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6-14",
+            "raw": "6-14",
+            "uncertain": false,
+            "source": "strana 1, řádek Yvona, sloupec Ne 29.11."
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s15-pdf-times-list",
+      "counts": {
+        "correct": 4,
+        "expected": 4,
+        "returned": 4
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "22:00-6:00",
+            "uncertain": false,
+            "source": "strana 1, řádek „pondělí 23.11. 22:00-6:00“"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "22:00-6:00",
+            "uncertain": false,
+            "source": "strana 1, řádek „úterý 24.11. 22:00-6:00“"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "6:00-14:00",
+            "uncertain": false,
+            "source": "strana 1, řádek „pátek 27.11. 6:00-14:00“"
+          },
+          {
+            "date": "2026-11-29",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "14:00-22:00",
+            "uncertain": false,
+            "source": "strana 1, řádek „neděle 29.11. 14:00-22:00“"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s16-pdf-grid",
+      "counts": {
+        "correct": 8,
+        "expected": 8,
+        "returned": 8
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-12-06",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "18:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec Po 23.11."
+          },
+          {
+            "date": "2026-11-24",
+            "start": "18:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec Út 24.11."
+          },
+          {
+            "date": "2026-11-28",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec So 28.11."
+          },
+          {
+            "date": "2026-11-29",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec Ne 29.11."
+          },
+          {
+            "date": "2026-12-01",
+            "start": "18:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec Út 1.12."
+          },
+          {
+            "date": "2026-12-02",
+            "start": "18:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec St 2.12."
+          },
+          {
+            "date": "2026-12-05",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec So 5.12."
+          },
+          {
+            "date": "2026-12-06",
+            "start": "06:00",
+            "end": "18:00",
+            "label": "D",
+            "raw": "D",
+            "uncertain": false,
+            "source": "strana 1, řádek Dita Malá, sloupec Ne 6.12."
+          }
+        ],
+        "warnings": [
+          "Záhlaví i řádek tabulky jsou v PDF zalomené do dvou řádků; hodnoty byly přiřazeny dnům podle pořadí."
+        ]
+      },
+      "error": null
+    },
+    {
+      "id": "s17-pdf-grid",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-25",
+            "start": "15:00",
+            "end": "23:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "strana 1, řádek Honza, sloupec St 25.11."
+          },
+          {
+            "date": "2026-11-26",
+            "start": "15:00",
+            "end": "23:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "strana 1, řádek Honza, sloupec Čt 26.11."
+          },
+          {
+            "date": "2026-11-27",
+            "start": "15:00",
+            "end": "23:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "strana 1, řádek Honza, sloupec Pá 27.11."
+          },
+          {
+            "date": "2026-11-28",
+            "start": "07:00",
+            "end": "15:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "strana 1, řádek Honza, sloupec So 28.11."
+          },
+          {
+            "date": "2026-11-29",
+            "start": "07:00",
+            "end": "15:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "strana 1, řádek Honza, sloupec Ne 29.11."
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s18-screenshot-grid",
+      "counts": {
+        "correct": 4,
+        "expected": 4,
+        "returned": 4
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "strana 1, řádek Libor, sloupec Po 23.11."
+          },
+          {
+            "date": "2026-11-24",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "O",
+            "raw": "O",
+            "uncertain": false,
+            "source": "strana 1, řádek Libor, sloupec Út 24.11."
+          },
+          {
+            "date": "2026-11-27",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "N",
+            "raw": "N",
+            "uncertain": false,
+            "source": "strana 1, řádek Libor, sloupec Pá 27.11."
+          },
+          {
+            "date": "2026-11-28",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "R",
+            "raw": "R",
+            "uncertain": false,
+            "source": "strana 1, řádek Libor (zalomený), sloupec So 28.11."
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s19-screenshot-times-list",
+      "counts": {
+        "correct": 5,
+        "expected": 5,
+        "returned": 5
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "14:00-22:00",
+            "uncertain": false,
+            "source": "řádek „pondělí 23.11. 14:00-22:00“"
+          },
+          {
+            "date": "2026-11-25",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "6:00-14:00",
+            "uncertain": false,
+            "source": "řádek „středa 25.11. 6:00-14:00“"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "6:00-14:00",
+            "uncertain": false,
+            "source": "řádek „čtvrtek 26.11. 6:00-14:00“"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "22–6",
+            "raw": "22:00-6:00",
+            "uncertain": false,
+            "source": "řádek „sobota 28.11. 22:00-6:00“"
+          },
+          {
+            "date": "2026-11-29",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "22–6",
+            "raw": "22:00-6:00",
+            "uncertain": false,
+            "source": "řádek „neděle 29.11. 22:00-6:00“"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s20-screenshot-grid",
+      "counts": {
+        "correct": 4,
+        "expected": 4,
+        "returned": 4
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-24",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "6-14",
+            "uncertain": false,
+            "source": "strana 1, řádek Radim T., sloupec Út 24.11."
+          },
+          {
+            "date": "2026-11-25",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "14-22",
+            "uncertain": false,
+            "source": "strana 1, řádek Radim T., sloupec St 25.11."
+          },
+          {
+            "date": "2026-11-26",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "22–6",
+            "raw": "22-6",
+            "uncertain": false,
+            "source": "strana 1, řádek Radim T., sloupec Čt 26.11."
+          },
+          {
+            "date": "2026-11-29",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "14-22",
+            "uncertain": false,
+            "source": "strana 1, řádek Radim T., sloupec Ne 29.11. (zalomený řádek)"
+          }
+        ],
+        "warnings": [
+          "Tabulka je zalomená do dvou řádků; hodnoty pro So 28.11. a Ne 29.11. přiřazeny podle zarovnání zalomené části."
+        ]
+      },
+      "error": null
+    },
+    {
+      "id": "s21-text-timetable",
+      "counts": {
+        "correct": 4,
+        "expected": 4,
+        "returned": 4
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-11-29",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "08:00",
+            "end": "09:30",
+            "label": "ŠK",
+            "raw": "Matematika 2 (A12)",
+            "uncertain": false,
+            "source": "Pondělí, 8:00–9:30"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "10:00",
+            "end": "11:30",
+            "label": "ŠK",
+            "raw": "Programování (lab L2) – jen sudý týden",
+            "uncertain": false,
+            "source": "Úterý, 10:00–11:30 (první řádek)"
+          },
+          {
+            "date": "2026-11-26",
+            "start": "12:00",
+            "end": "13:30",
+            "label": "ŠK",
+            "raw": "Statistika (A12)",
+            "uncertain": false,
+            "source": "Čtvrtek, 12:00–13:30"
+          },
+          {
+            "date": "2026-11-27",
+            "start": "08:00",
+            "end": "11:15",
+            "label": "ŠK",
+            "raw": "Praxe ve firmě",
+            "uncertain": false,
+            "source": "Pátek, 8:00–11:15"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    },
+    {
+      "id": "s22-pdf-timetable",
+      "counts": {
+        "correct": 7,
+        "expected": 7,
+        "returned": 7
+      },
+      "diff": {
+        "missing": [],
+        "extra": []
+      },
+      "schedule": {
+        "coveredFrom": "2026-11-23",
+        "coveredTo": "2026-12-06",
+        "shifts": [
+          {
+            "date": "2026-11-23",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "Po 6:00–14:00",
+            "uncertain": false,
+            "source": "strana 1, řádek Po"
+          },
+          {
+            "date": "2026-11-24",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "Út 6:00–14:00",
+            "uncertain": false,
+            "source": "strana 1, řádek Út"
+          },
+          {
+            "date": "2026-11-28",
+            "start": "22:00",
+            "end": "06:00",
+            "label": "22–6",
+            "raw": "So 22:00–6:00 (jen v sudém týdnu)",
+            "uncertain": false,
+            "source": "strana 1, řádek So"
+          },
+          {
+            "date": "2026-11-30",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "Po 6:00–14:00",
+            "uncertain": false,
+            "source": "strana 1, řádek Po"
+          },
+          {
+            "date": "2026-12-01",
+            "start": "06:00",
+            "end": "14:00",
+            "label": "6–14",
+            "raw": "Út 6:00–14:00",
+            "uncertain": false,
+            "source": "strana 1, řádek Út"
+          },
+          {
+            "date": "2026-12-03",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "Čt 14:00–22:00 (jen v lichém týdnu)",
+            "uncertain": false,
+            "source": "strana 1, řádek Čt"
+          },
+          {
+            "date": "2026-12-04",
+            "start": "14:00",
+            "end": "22:00",
+            "label": "14–22",
+            "raw": "Pá 14:00–22:00 (jen v lichém týdnu)",
+            "uncertain": false,
+            "source": "strana 1, řádek Pá"
+          }
+        ],
+        "warnings": []
+      },
+      "error": null
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario": {
+        "id": "g01",
+        "action": {
+          "name": "Skupina 1",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 180,
+          "windowStart": "16:00",
+          "windowEnd": "23:00"
+        },
+        "people": [
+          {
+            "id": "petr",
+            "name": "Petr",
+            "scheduleId": "s01-xlsx-grid"
+          },
+          {
+            "id": "lucie",
+            "name": "Lucie",
+            "scheduleId": "s02-xlsx-grid"
+          },
+          {
+            "id": "david",
+            "name": "David",
+            "scheduleId": "s03-xlsx-colors"
+          },
+          {
+            "id": "tereza",
+            "name": "Tereza",
+            "scheduleId": "s04-xlsx-vertical"
+          }
+        ],
+        "expectedDate": "2026-11-25"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-25 16:00",
+        "2026-11-28 16:00",
+        "2026-11-29 16:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g02",
+        "action": {
+          "name": "Skupina 2",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 120,
+          "windowStart": "17:00",
+          "windowEnd": "22:00"
+        },
+        "people": [
+          {
+            "id": "david",
+            "name": "David",
+            "scheduleId": "s03-xlsx-colors"
+          },
+          {
+            "id": "tereza",
+            "name": "Tereza",
+            "scheduleId": "s04-xlsx-vertical"
+          },
+          {
+            "id": "martin",
+            "name": "Martin",
+            "scheduleId": "s05-xlsx-grid"
+          },
+          {
+            "id": "barbora",
+            "name": "Barbora",
+            "scheduleId": "s06-xlsx-grid"
+          },
+          {
+            "id": "hana",
+            "name": "Hana",
+            "scheduleId": "s07-xlsx-grid"
+          }
+        ],
+        "expectedDate": "2026-11-23"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-23 19:00",
+        "2026-11-24 19:00",
+        "2026-11-25 17:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g03",
+        "action": {
+          "name": "Skupina 3",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 240,
+          "windowStart": "12:00",
+          "windowEnd": "23:00"
+        },
+        "people": [
+          {
+            "id": "martin",
+            "name": "Martin",
+            "scheduleId": "s05-xlsx-grid"
+          },
+          {
+            "id": "barbora",
+            "name": "Barbora",
+            "scheduleId": "s06-xlsx-grid"
+          },
+          {
+            "id": "hana",
+            "name": "Hana",
+            "scheduleId": "s07-xlsx-grid"
+          },
+          {
+            "id": "karel",
+            "name": "Karel",
+            "scheduleId": "s08-text-vertical"
+          },
+          {
+            "id": "lenka",
+            "name": "Lenka",
+            "scheduleId": "s09-text-times-list"
+          },
+          {
+            "id": "michal",
+            "name": "Michal",
+            "scheduleId": "s10-text-words"
+          }
+        ],
+        "expectedDate": "2026-11-26"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-26 15:00",
+        "2026-11-25 16:00",
+        "2026-11-23 16:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g04",
+        "action": {
+          "name": "Skupina 4",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 180,
+          "windowStart": "16:00",
+          "windowEnd": "23:00"
+        },
+        "people": [
+          {
+            "id": "hana",
+            "name": "Hana",
+            "scheduleId": "s07-xlsx-grid"
+          },
+          {
+            "id": "karel",
+            "name": "Karel",
+            "scheduleId": "s08-text-vertical"
+          },
+          {
+            "id": "lenka",
+            "name": "Lenka",
+            "scheduleId": "s09-text-times-list"
+          },
+          {
+            "id": "michal",
+            "name": "Michal",
+            "scheduleId": "s10-text-words"
+          }
+        ],
+        "expectedDate": "2026-11-26"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-26 16:00",
+        "2026-11-23 16:00",
+        "2026-11-25 16:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g05",
+        "action": {
+          "name": "Skupina 5",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 120,
+          "windowStart": "17:00",
+          "windowEnd": "22:00"
+        },
+        "people": [
+          {
+            "id": "lenka",
+            "name": "Lenka",
+            "scheduleId": "s09-text-times-list"
+          },
+          {
+            "id": "michal",
+            "name": "Michal",
+            "scheduleId": "s10-text-words"
+          },
+          {
+            "id": "nela",
+            "name": "Nela",
+            "scheduleId": "s11-text-grid"
+          },
+          {
+            "id": "sara",
+            "name": "Sára",
+            "scheduleId": "s12-text-chat"
+          },
+          {
+            "id": "tomas",
+            "name": "Tomáš",
+            "scheduleId": "s13-pdf-grid"
+          }
+        ],
+        "expectedDate": "2026-11-23"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-23 17:00",
+        "2026-11-26 17:00",
+        "2026-11-27 17:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g06",
+        "action": {
+          "name": "Skupina 6",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 240,
+          "windowStart": "12:00",
+          "windowEnd": "23:00"
+        },
+        "people": [
+          {
+            "id": "nela",
+            "name": "Nela",
+            "scheduleId": "s11-text-grid"
+          },
+          {
+            "id": "sara",
+            "name": "Sára",
+            "scheduleId": "s12-text-chat"
+          },
+          {
+            "id": "tomas",
+            "name": "Tomáš",
+            "scheduleId": "s13-pdf-grid"
+          },
+          {
+            "id": "yvona",
+            "name": "Yvona",
+            "scheduleId": "s14-pdf-grid"
+          },
+          {
+            "id": "cyril",
+            "name": "Cyril",
+            "scheduleId": "s15-pdf-times-list"
+          },
+          {
+            "id": "dita",
+            "name": "Dita",
+            "scheduleId": "s16-pdf-grid"
+          }
+        ],
+        "expectedDate": "2026-11-27"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-27 15:00",
+        "2026-11-26 14:00",
+        "2026-11-28 15:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g07",
+        "action": {
+          "name": "Skupina 7",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 180,
+          "windowStart": "16:00",
+          "windowEnd": "23:00"
+        },
+        "people": [
+          {
+            "id": "tomas",
+            "name": "Tomáš",
+            "scheduleId": "s13-pdf-grid"
+          },
+          {
+            "id": "yvona",
+            "name": "Yvona",
+            "scheduleId": "s14-pdf-grid"
+          },
+          {
+            "id": "cyril",
+            "name": "Cyril",
+            "scheduleId": "s15-pdf-times-list"
+          },
+          {
+            "id": "dita",
+            "name": "Dita",
+            "scheduleId": "s16-pdf-grid"
+          }
+        ],
+        "expectedDate": "2026-11-27"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-27 16:00",
+        "2026-11-26 16:00",
+        "2026-11-28 16:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g08",
+        "action": {
+          "name": "Skupina 8",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 120,
+          "windowStart": "17:00",
+          "windowEnd": "22:00"
+        },
+        "people": [
+          {
+            "id": "cyril",
+            "name": "Cyril",
+            "scheduleId": "s15-pdf-times-list"
+          },
+          {
+            "id": "dita",
+            "name": "Dita",
+            "scheduleId": "s16-pdf-grid"
+          },
+          {
+            "id": "honza",
+            "name": "Honza",
+            "scheduleId": "s17-pdf-grid"
+          },
+          {
+            "id": "libor",
+            "name": "Libor",
+            "scheduleId": "s18-screenshot-grid"
+          },
+          {
+            "id": "pepa",
+            "name": "Pepa",
+            "scheduleId": "s19-screenshot-times-list"
+          }
+        ],
+        "expectedDate": "2026-11-28"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-28 19:00",
+        "2026-11-25 17:00",
+        "2026-11-26 17:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g09",
+        "action": {
+          "name": "Skupina 9",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 240,
+          "windowStart": "12:00",
+          "windowEnd": "23:00"
+        },
+        "people": [
+          {
+            "id": "honza",
+            "name": "Honza",
+            "scheduleId": "s17-pdf-grid"
+          },
+          {
+            "id": "libor",
+            "name": "Libor",
+            "scheduleId": "s18-screenshot-grid"
+          },
+          {
+            "id": "pepa",
+            "name": "Pepa",
+            "scheduleId": "s19-screenshot-times-list"
+          },
+          {
+            "id": "radim",
+            "name": "Radim",
+            "scheduleId": "s20-screenshot-grid"
+          },
+          {
+            "id": "petr",
+            "name": "Petr",
+            "scheduleId": "s01-xlsx-grid"
+          },
+          {
+            "id": "lucie",
+            "name": "Lucie",
+            "scheduleId": "s02-xlsx-grid"
+          }
+        ],
+        "expectedDate": "2026-11-28"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-28 16:00",
+        "2026-11-29 16:00",
+        "2026-11-23 15:00"
+      ]
+    },
+    {
+      "scenario": {
+        "id": "g10",
+        "action": {
+          "name": "Skupina 10",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "durationMinutes": 180,
+          "windowStart": "16:00",
+          "windowEnd": "23:00"
+        },
+        "people": [
+          {
+            "id": "pepa",
+            "name": "Pepa",
+            "scheduleId": "s19-screenshot-times-list"
+          },
+          {
+            "id": "radim",
+            "name": "Radim",
+            "scheduleId": "s20-screenshot-grid"
+          },
+          {
+            "id": "petr",
+            "name": "Petr",
+            "scheduleId": "s01-xlsx-grid"
+          },
+          {
+            "id": "lucie",
+            "name": "Lucie",
+            "scheduleId": "s02-xlsx-grid"
+          }
+        ],
+        "expectedDate": "2026-11-28"
+      },
+      "expectedHit": true,
+      "readHit": true,
+      "proposalDates": [
+        "2026-11-28 16:00",
+        "2026-11-24 16:00",
+        "2026-11-25 16:00"
+      ]
+    }
+  ]
+}

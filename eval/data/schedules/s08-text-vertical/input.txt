@@ -1,0 +1,10 @@
+Směny Karel
+Legenda: R = 6-14, O = 14-22, N = 22-6, V = volno, DOV = dovolená, NEM = nemoc
+
+23.11. O
+24.11. O
+25.11. V
+26.11. R
+27.11. R
+28.11. V
+29.11. N

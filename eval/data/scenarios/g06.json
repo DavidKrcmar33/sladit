@@ -1,0 +1,44 @@
+{
+  "id": "g06",
+  "action": {
+    "name": "Skupina 6",
+    "from": "2026-11-23",
+    "to": "2026-11-29",
+    "durationMinutes": 240,
+    "windowStart": "12:00",
+    "windowEnd": "23:00"
+  },
+  "people": [
+    {
+      "id": "nela",
+      "name": "Nela",
+      "scheduleId": "s11-text-grid"
+    },
+    {
+      "id": "sara",
+      "name": "Sára",
+      "scheduleId": "s12-text-chat"
+    },
+    {
+      "id": "tomas",
+      "name": "Tomáš",
+      "scheduleId": "s13-pdf-grid"
+    },
+    {
+      "id": "yvona",
+      "name": "Yvona",
+      "scheduleId": "s14-pdf-grid"
+    },
+    {
+      "id": "cyril",
+      "name": "Cyril",
+      "scheduleId": "s15-pdf-times-list"
+    },
+    {
+      "id": "dita",
+      "name": "Dita",
+      "scheduleId": "s16-pdf-grid"
+    }
+  ],
+  "expectedDate": "2026-11-27"
+}

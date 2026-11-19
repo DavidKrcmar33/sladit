@@ -1,0 +1,6 @@
+Rozpis směn – provozovna Sklad Jih
+
+Jméno    Po 23.11.  Út 24.11.  St 25.11.  Čt 26.11.  Pá 27.11.  So 28.11.  Ne 29.11.
+Nela B.  V          N          N          V          R          R          O
+
+Legenda: R = 6-14, O = 14-22, N = 22-6, V = volno, DOV = dovolená, NEM = nemoc

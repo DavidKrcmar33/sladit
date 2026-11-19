@@ -1,0 +1,101 @@
+{
+  "answer": {
+    "documentKind": "table",
+    "readability": "good",
+    "people": "one",
+    "legend": "D = denní 6-18, N = noční 18-6, V = volno.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-12-06"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-23",
+        "weekday": "mon",
+        "start": "18:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "N",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá, sloupec Po 23.11."
+      },
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "18:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "N",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá, sloupec Út 24.11."
+      },
+      {
+        "date": "2026-11-28",
+        "weekday": "sat",
+        "start": "06:00",
+        "end": "18:00",
+        "label": "D",
+        "raw": "D",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá, sloupec So 28.11."
+      },
+      {
+        "date": "2026-11-29",
+        "weekday": "sun",
+        "start": "06:00",
+        "end": "18:00",
+        "label": "D",
+        "raw": "D",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá, sloupec Ne 29.11."
+      },
+      {
+        "date": "2026-12-01",
+        "weekday": "tue",
+        "start": "18:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "N",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá (zalomený), sloupec Út 1.12."
+      },
+      {
+        "date": "2026-12-02",
+        "weekday": "wed",
+        "start": "18:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "N",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá (zalomený), sloupec St 2.12."
+      },
+      {
+        "date": "2026-12-05",
+        "weekday": "sat",
+        "start": "06:00",
+        "end": "18:00",
+        "label": "D",
+        "raw": "D",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá (zalomený), sloupec So 5.12."
+      },
+      {
+        "date": "2026-12-06",
+        "weekday": "sun",
+        "start": "06:00",
+        "end": "18:00",
+        "label": "D",
+        "raw": "D",
+        "uncertain": false,
+        "source": "strana 1, řádek Dita Malá (zalomený), sloupec Ne 6.12."
+      }
+    ],
+    "weekly": [],
+    "warnings": [
+      "Záhlaví i řádek se směnami jsou v PDF zalomené do dvou řádků; 14 hodnot bylo přiřazeno ke 14 dnům v pořadí."
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "coverage": [
+    {
+      "from": "2026-11-23",
+      "to": "2026-12-06"
+    }
+  ],
+  "shifts": [
+    {
+      "date": "2026-11-23",
+      "start": "18:00",
+      "end": "06:00",
+      "label": "N",
+      "raw": "N",
+      "uncertain": false
+    },
+    {
+      "date": "2026-11-24",
+      "start": "18:00",
+      "end": "06:00",
+      "label": "N",
+      "raw": "N",
+      "uncertain": false
+    },
+    {
+      "date": "2026-11-28",
+      "start": "06:00",
+      "end": "18:00",
+      "label": "D",
+      "raw": "D",
+      "uncertain": false
+    },
+    {
+      "date": "2026-11-29",
+      "start": "06:00",
+      "end": "18:00",
+      "label": "D",
+      "raw": "D",
+      "uncertain": false
+    },
+    {
+      "date": "2026-12-01",
+      "start": "18:00",
+      "end": "06:00",
+      "label": "N",
+      "raw": "N",
+      "uncertain": false
+    },
+    {
+      "date": "2026-12-02",
+      "start": "18:00",
+      "end": "06:00",
+      "label": "N",
+      "raw": "N",
+      "uncertain": false
+    },
+    {
+      "date": "2026-12-05",
+      "start": "06:00",
+      "end": "18:00",
+      "label": "D",
+      "raw": "D",
+      "uncertain": false
+    },
+    {
+      "date": "2026-12-06",
+      "start": "06:00",
+      "end": "18:00",
+      "label": "D",
+      "raw": "D",
+      "uncertain": false
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,76 @@
+{
+  "answer": {
+    "documentKind": "timetable",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí, časy jsou uvedeny přímo u dnů; Čt a Pá jen v lichém týdnu, So jen v sudém týdnu.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      }
+    ],
+    "dated": [],
+    "weekly": [
+      {
+        "weekday": "mon",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "Po 6:00–14:00",
+        "uncertain": false,
+        "source": "strana 1, řádek Po"
+      },
+      {
+        "weekday": "tue",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "Út 6:00–14:00",
+        "uncertain": false,
+        "source": "strana 1, řádek Út"
+      },
+      {
+        "weekday": "thu",
+        "weeks": "odd",
+        "exceptDates": [],
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "Čt 14:00–22:00 (jen v lichém týdnu)",
+        "uncertain": false,
+        "source": "strana 1, řádek Čt"
+      },
+      {
+        "weekday": "fri",
+        "weeks": "odd",
+        "exceptDates": [],
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "Pá 14:00–22:00 (jen v lichém týdnu)",
+        "uncertain": false,
+        "source": "strana 1, řádek Pá"
+      },
+      {
+        "weekday": "sat",
+        "weeks": "even",
+        "exceptDates": [],
+        "start": "22:00",
+        "end": "06:00",
+        "label": "22–6",
+        "raw": "So 22:00–6:00 (jen v sudém týdnu)",
+        "uncertain": false,
+        "source": "strana 1, řádek So"
+      }
+    ],
+    "warnings": [
+      "Podklad neuvádí, podle čeho se určuje lichý a sudý týden, je nutné to potvrdit."
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "answer": {
+    "documentKind": "message",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí. Noční směny mají v textu čas 22–6, odpolední a ranní jsou odhadnuty podle běžného slovníku.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-23",
+        "weekday": "mon",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "pondělí odpolední",
+        "uncertain": true,
+        "source": "zpráva, „pondělí odpolední“"
+      },
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "úterý odpolední",
+        "uncertain": true,
+        "source": "zpráva, „úterý odpolední“"
+      },
+      {
+        "date": "2026-11-26",
+        "weekday": "thu",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "čtvrtek noční (od 22 do 6)",
+        "uncertain": false,
+        "source": "zpráva, „čtvrtek noční (od 22 do 6)“"
+      },
+      {
+        "date": "2026-11-27",
+        "weekday": "fri",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "pátek noční (od 22 do 6)",
+        "uncertain": false,
+        "source": "zpráva, „pátek noční (od 22 do 6)“"
+      },
+      {
+        "date": "2026-11-29",
+        "weekday": "sun",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "neděle ranní",
+        "uncertain": true,
+        "source": "zpráva, „neděle ranní“"
+      }
+    ],
+    "weekly": [],
+    "warnings": [
+      "Časy odhadnuty podle slovníku."
+    ]
+  }
+}

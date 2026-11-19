@@ -1,0 +1,39 @@
+{
+  "id": "g02",
+  "action": {
+    "name": "Skupina 2",
+    "from": "2026-11-23",
+    "to": "2026-11-29",
+    "durationMinutes": 120,
+    "windowStart": "17:00",
+    "windowEnd": "22:00"
+  },
+  "people": [
+    {
+      "id": "david",
+      "name": "David",
+      "scheduleId": "s03-xlsx-colors"
+    },
+    {
+      "id": "tereza",
+      "name": "Tereza",
+      "scheduleId": "s04-xlsx-vertical"
+    },
+    {
+      "id": "martin",
+      "name": "Martin",
+      "scheduleId": "s05-xlsx-grid"
+    },
+    {
+      "id": "barbora",
+      "name": "Barbora",
+      "scheduleId": "s06-xlsx-grid"
+    },
+    {
+      "id": "hana",
+      "name": "Hana",
+      "scheduleId": "s07-xlsx-grid"
+    }
+  ],
+  "expectedDate": "2026-11-23"
+}

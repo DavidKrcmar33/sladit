@@ -1,0 +1,13 @@
+{
+  "personName": "Lucie",
+  "nameInSchedule": "Marie Nováková",
+  "from": "2026-11-23",
+  "to": "2026-11-29",
+  "format": "xlsx",
+  "notation": "časy (6-14)",
+  "style": "grid",
+  "legend": false,
+  "kinds": [
+    "table"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "answer": {
+    "documentKind": "list",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí, časy směn (ranní, odpolední) odhadnuty podle běžného slovníku.",
+    "weekParity": "unstated",
+    "coverage": [],
+    "dated": [],
+    "weekly": [
+      {
+        "weekday": "mon",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "ranní",
+        "uncertain": true,
+        "source": "řádek „pondělí: ranní“"
+      },
+      {
+        "weekday": "tue",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "ranní",
+        "uncertain": true,
+        "source": "řádek „úterý: ranní“"
+      },
+      {
+        "weekday": "fri",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "odpolední",
+        "uncertain": true,
+        "source": "řádek „pátek: odpolední“"
+      },
+      {
+        "weekday": "sat",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "odpolední",
+        "uncertain": true,
+        "source": "řádek „sobota: odpolední“"
+      },
+      {
+        "weekday": "sun",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "odpolední",
+        "uncertain": true,
+        "source": "řádek „neděle: odpolední“"
+      }
+    ],
+    "warnings": [
+      "Časy odhadnuty podle slovníku.",
+      "Rozpis je „na týden“ bez konkrétních dat, není jasné, pro který týden platí ani zda se opakuje. Bloky vráceny jako týdenní, nutno ověřit."
+    ]
+  }
+}

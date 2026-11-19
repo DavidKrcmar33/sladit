@@ -1,0 +1,13 @@
+{
+  "personName": "Hana",
+  "nameInSchedule": "Zaměstnanec č. 17",
+  "from": "2026-11-23",
+  "to": "2026-11-29",
+  "format": "xlsx",
+  "notation": "R/O/N",
+  "style": "grid",
+  "legend": false,
+  "kinds": [
+    "table"
+  ]
+}

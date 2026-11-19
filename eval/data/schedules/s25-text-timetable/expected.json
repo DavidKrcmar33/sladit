@@ -1,0 +1,43 @@
+{
+  "coverage": [
+    {
+      "from": "2026-11-23",
+      "to": "2026-12-06"
+    }
+  ],
+  "shifts": [
+    {
+      "date": "2026-11-25",
+      "start": "17:00",
+      "end": "18:30",
+      "label": "",
+      "raw": "",
+      "uncertain": false
+    },
+    {
+      "date": "2026-11-26",
+      "start": "10:00",
+      "end": "11:30",
+      "label": "",
+      "raw": "",
+      "uncertain": false
+    },
+    {
+      "date": "2026-11-30",
+      "start": "18:00",
+      "end": "19:30",
+      "label": "",
+      "raw": "",
+      "uncertain": false
+    },
+    {
+      "date": "2026-12-03",
+      "start": "10:00",
+      "end": "11:30",
+      "label": "",
+      "raw": "",
+      "uncertain": false
+    }
+  ],
+  "warnings": []
+}

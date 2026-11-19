@@ -1,0 +1,13 @@
+{
+  "personName": "David",
+  "nameInSchedule": "David",
+  "from": "2026-11-23",
+  "to": "2026-11-29",
+  "format": "xlsx",
+  "notation": "R/O/N",
+  "style": "colors",
+  "legend": true,
+  "kinds": [
+    "table"
+  ]
+}

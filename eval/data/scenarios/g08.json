@@ -1,0 +1,39 @@
+{
+  "id": "g08",
+  "action": {
+    "name": "Skupina 8",
+    "from": "2026-11-23",
+    "to": "2026-11-29",
+    "durationMinutes": 120,
+    "windowStart": "17:00",
+    "windowEnd": "22:00"
+  },
+  "people": [
+    {
+      "id": "cyril",
+      "name": "Cyril",
+      "scheduleId": "s15-pdf-times-list"
+    },
+    {
+      "id": "dita",
+      "name": "Dita",
+      "scheduleId": "s16-pdf-grid"
+    },
+    {
+      "id": "honza",
+      "name": "Honza",
+      "scheduleId": "s17-pdf-grid"
+    },
+    {
+      "id": "libor",
+      "name": "Libor",
+      "scheduleId": "s18-screenshot-grid"
+    },
+    {
+      "id": "pepa",
+      "name": "Pepa",
+      "scheduleId": "s19-screenshot-times-list"
+    }
+  ],
+  "expectedDate": "2026-11-28"
+}

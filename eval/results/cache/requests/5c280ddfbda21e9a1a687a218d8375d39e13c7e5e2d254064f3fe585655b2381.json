@@ -1,0 +1,49 @@
+{
+  "answer": {
+    "documentKind": "list",
+    "readability": "good",
+    "people": "one",
+    "legend": "R = 6-14, O = 14-22, N = 22-6, V = volno, DOV = dovolená, NEM = nemoc.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-23",
+        "weekday": "none",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "R",
+        "uncertain": false,
+        "source": "Rozpis!B3"
+      },
+      {
+        "date": "2026-11-26",
+        "weekday": "none",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "O",
+        "uncertain": false,
+        "source": "Rozpis!B6"
+      },
+      {
+        "date": "2026-11-27",
+        "weekday": "none",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "N",
+        "uncertain": false,
+        "source": "Rozpis!B7"
+      }
+    ],
+    "weekly": [],
+    "warnings": []
+  }
+}

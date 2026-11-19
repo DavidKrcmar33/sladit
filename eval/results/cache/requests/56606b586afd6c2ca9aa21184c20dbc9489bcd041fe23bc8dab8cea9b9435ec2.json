@@ -1,0 +1,54 @@
+{
+  "answer": {
+    "documentKind": "timetable",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí. Týdenní rozvrh s časy u bloků, u dvou předmětů je uveden lichý nebo sudý týden.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-09-21",
+        "to": "2026-12-18"
+      }
+    ],
+    "dated": [],
+    "weekly": [
+      {
+        "weekday": "mon",
+        "weeks": "odd",
+        "exceptDates": [],
+        "start": "18:00",
+        "end": "19:30",
+        "label": "ŠK",
+        "raw": "Angličtina (lichý týden)",
+        "uncertain": false,
+        "source": "Po, 18:00–19:30"
+      },
+      {
+        "weekday": "wed",
+        "weeks": "even",
+        "exceptDates": [],
+        "start": "17:00",
+        "end": "18:30",
+        "label": "ŠK",
+        "raw": "Sborový zpěv (sudý týden)",
+        "uncertain": false,
+        "source": "St, 17:00–18:30"
+      },
+      {
+        "weekday": "thu",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "10:00",
+        "end": "11:30",
+        "label": "ŠK",
+        "raw": "Statistika",
+        "uncertain": false,
+        "source": "Čt, 10:00–11:30"
+      }
+    ],
+    "warnings": [
+      "Podklad neuvádí, podle čeho se počítá lichý a sudý týden."
+    ]
+  }
+}

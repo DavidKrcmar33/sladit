@@ -1,0 +1,69 @@
+{
+  "answer": {
+    "documentKind": "table",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí, časy jsou zapsány přímo v buňkách, „-“ znamená volno.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-23",
+        "weekday": "mon",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14-22",
+        "uncertain": false,
+        "source": "strana 1, řádek Yvona, sloupec Po 23.11."
+      },
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14-22",
+        "uncertain": false,
+        "source": "strana 1, řádek Yvona, sloupec Út 24.11."
+      },
+      {
+        "date": "2026-11-25",
+        "weekday": "wed",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14-22",
+        "uncertain": false,
+        "source": "strana 1, řádek Yvona, sloupec St 25.11."
+      },
+      {
+        "date": "2026-11-28",
+        "weekday": "sat",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "6-14",
+        "uncertain": false,
+        "source": "strana 1, řádek Yvona, sloupec So 28.11."
+      },
+      {
+        "date": "2026-11-29",
+        "weekday": "sun",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "6-14",
+        "uncertain": false,
+        "source": "strana 1, řádek Yvona, sloupec Ne 29.11."
+      }
+    ],
+    "weekly": [],
+    "warnings": []
+  }
+}

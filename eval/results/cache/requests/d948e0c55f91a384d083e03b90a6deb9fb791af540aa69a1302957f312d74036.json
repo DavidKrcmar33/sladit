@@ -1,0 +1,59 @@
+{
+  "answer": {
+    "documentKind": "table",
+    "readability": "good",
+    "people": "one",
+    "legend": "R = 6-14, O = 14-22, N = 22-6, V = volno, DOV = dovolená, NEM = nemoc.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-23",
+        "weekday": "mon",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "R",
+        "uncertain": false,
+        "source": "strana 1, řádek Libor, sloupec Po 23.11."
+      },
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "O",
+        "uncertain": false,
+        "source": "strana 1, řádek Libor, sloupec Út 24.11."
+      },
+      {
+        "date": "2026-11-27",
+        "weekday": "fri",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "N",
+        "uncertain": false,
+        "source": "strana 1, řádek Libor, sloupec Pá 27.11."
+      },
+      {
+        "date": "2026-11-28",
+        "weekday": "sat",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "R",
+        "uncertain": false,
+        "source": "strana 1, řádek Libor (zalomený), sloupec So 28.11."
+      }
+    ],
+    "weekly": [],
+    "warnings": []
+  }
+}

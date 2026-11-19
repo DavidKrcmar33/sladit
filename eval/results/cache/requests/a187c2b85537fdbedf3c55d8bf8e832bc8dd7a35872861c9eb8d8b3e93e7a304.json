@@ -1,0 +1,69 @@
+{
+  "answer": {
+    "documentKind": "table",
+    "readability": "good",
+    "people": "one",
+    "legend": "Barvy buněk: žlutá = ranní 06:00-14:00, oranžová = odpolední 14:00-22:00, modrá = noční 22:00-06:00, zelená = dovolená, šedá = nemoc, bílá = volno.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "[výplň #FFE699] žlutá",
+        "uncertain": false,
+        "source": "Rozpis!C4"
+      },
+      {
+        "date": "2026-11-25",
+        "weekday": "wed",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "[výplň #FFE699] žlutá",
+        "uncertain": false,
+        "source": "Rozpis!D4"
+      },
+      {
+        "date": "2026-11-26",
+        "weekday": "thu",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "[výplň #F4B183] oranžová",
+        "uncertain": false,
+        "source": "Rozpis!E4"
+      },
+      {
+        "date": "2026-11-27",
+        "weekday": "fri",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "[výplň #F4B183] oranžová",
+        "uncertain": false,
+        "source": "Rozpis!F4"
+      },
+      {
+        "date": "2026-11-29",
+        "weekday": "sun",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "[výplň #8EA9DB] modrá",
+        "uncertain": false,
+        "source": "Rozpis!H4"
+      }
+    ],
+    "weekly": [],
+    "warnings": []
+  }
+}

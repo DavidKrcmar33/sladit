@@ -1,0 +1,54 @@
+{
+  "id": "g14",
+  "action": {
+    "name": "Plná skupina 4",
+    "from": "2026-11-23",
+    "to": "2026-11-29",
+    "durationMinutes": 180,
+    "windowStart": "16:00",
+    "windowEnd": "23:00"
+  },
+  "people": [
+    {
+      "id": "karel",
+      "name": "Karel",
+      "scheduleId": "s08-text-vertical"
+    },
+    {
+      "id": "petr",
+      "name": "Petr",
+      "scheduleId": "s01-xlsx-grid"
+    },
+    {
+      "id": "michal",
+      "name": "Michal",
+      "scheduleId": "s10-text-words"
+    },
+    {
+      "id": "pepa",
+      "name": "Pepa",
+      "scheduleId": "s19-screenshot-times-list"
+    },
+    {
+      "id": "nela",
+      "name": "Nela",
+      "scheduleId": "s11-text-grid"
+    },
+    {
+      "id": "honza",
+      "name": "Honza",
+      "scheduleId": "s17-pdf-grid"
+    },
+    {
+      "id": "lucie",
+      "name": "Lucie",
+      "scheduleId": "s02-xlsx-grid"
+    },
+    {
+      "id": "lenka",
+      "name": "Lenka",
+      "scheduleId": "s09-text-times-list"
+    }
+  ],
+  "expectedDate": "2026-11-28"
+}

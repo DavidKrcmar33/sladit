@@ -1,0 +1,52 @@
+{
+  "answer": {
+    "documentKind": "timetable",
+    "readability": "good",
+    "people": "one",
+    "legend": "Týdenní rozvrh s časy u bloků. Liché a sudé týdny se počítají podle kalendáře.",
+    "weekParity": "calendar",
+    "coverage": [
+      {
+        "from": "2026-09-21",
+        "to": "2026-12-18"
+      }
+    ],
+    "dated": [],
+    "weekly": [
+      {
+        "weekday": "mon",
+        "weeks": "every",
+        "exceptDates": [],
+        "start": "09:00",
+        "end": "10:30",
+        "label": "ŠK",
+        "raw": "Ekonomie (E1)",
+        "uncertain": false,
+        "source": "Pondělí, 9:00–10:30"
+      },
+      {
+        "weekday": "wed",
+        "weeks": "odd",
+        "exceptDates": [],
+        "start": "17:00",
+        "end": "18:30",
+        "label": "ŠK",
+        "raw": "Seminář z účetnictví – lichý týden",
+        "uncertain": false,
+        "source": "Středa, 17:00–18:30"
+      },
+      {
+        "weekday": "thu",
+        "weeks": "even",
+        "exceptDates": [],
+        "start": "18:00",
+        "end": "19:30",
+        "label": "ŠK",
+        "raw": "Laboratoř fyziky – sudý týden",
+        "uncertain": false,
+        "source": "Čtvrtek, 18:00–19:30"
+      }
+    ],
+    "warnings": []
+  }
+}

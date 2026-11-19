@@ -1,0 +1,61 @@
+{
+  "answer": {
+    "documentKind": "table",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí, časy značek R, O, N odhadnuty podle běžného slovníku (třísměnný provoz), V = volno.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-23",
+        "weekday": "mon",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "N",
+        "raw": "N",
+        "uncertain": true,
+        "source": "Rozpis!B4"
+      },
+      {
+        "date": "2026-11-26",
+        "weekday": "thu",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "R",
+        "raw": "R",
+        "uncertain": true,
+        "source": "Rozpis!E4"
+      },
+      {
+        "date": "2026-11-27",
+        "weekday": "fri",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "O",
+        "uncertain": true,
+        "source": "Rozpis!F4"
+      },
+      {
+        "date": "2026-11-28",
+        "weekday": "sat",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "O",
+        "raw": "O",
+        "uncertain": true,
+        "source": "Rozpis!G4"
+      }
+    ],
+    "weekly": [],
+    "warnings": [
+      "Časy odhadnuty podle slovníku."
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "g04",
+  "action": {
+    "name": "Skupina 4",
+    "from": "2026-11-23",
+    "to": "2026-11-29",
+    "durationMinutes": 180,
+    "windowStart": "16:00",
+    "windowEnd": "23:00"
+  },
+  "people": [
+    {
+      "id": "hana",
+      "name": "Hana",
+      "scheduleId": "s07-xlsx-grid"
+    },
+    {
+      "id": "karel",
+      "name": "Karel",
+      "scheduleId": "s08-text-vertical"
+    },
+    {
+      "id": "lenka",
+      "name": "Lenka",
+      "scheduleId": "s09-text-times-list"
+    },
+    {
+      "id": "michal",
+      "name": "Michal",
+      "scheduleId": "s10-text-words"
+    }
+  ],
+  "expectedDate": "2026-11-26"
+}

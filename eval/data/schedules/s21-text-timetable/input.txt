@@ -1,0 +1,18 @@
+Rozvrh – zimní semestr
+Platnost: 14. 9. 2026 – 18. 12. 2026
+
+Pondělí
+  8:00–9:30    Matematika 2 (A12)
+  14:00–15:30  Angličtina (B03) *
+Úterý
+  10:00–11:30  Programování (lab L2) – jen sudý týden
+  10:00–11:30  Databáze (lab L4) – jen lichý týden
+Středa
+  (bez výuky)
+Čtvrtek
+  12:00–13:30  Statistika (A12) **
+Pátek
+  8:00–11:15   Praxe ve firmě
+
+*  odpadá 23. 11. 2026
+** odpadá 17. 12. 2026

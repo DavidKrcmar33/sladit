@@ -1,0 +1,13 @@
+{
+  "personName": "Libor",
+  "nameInSchedule": "Libor",
+  "from": "2026-11-23",
+  "to": "2026-11-29",
+  "format": "screenshot",
+  "notation": "R/O/N",
+  "style": "grid",
+  "legend": true,
+  "kinds": [
+    "table"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "personName": "Martin",
+  "nameInSchedule": "Novák Martin",
+  "from": "2026-11-23",
+  "to": "2026-12-06",
+  "format": "xlsx",
+  "notation": "D/N 12h",
+  "style": "grid",
+  "legend": true,
+  "kinds": [
+    "table"
+  ]
+}

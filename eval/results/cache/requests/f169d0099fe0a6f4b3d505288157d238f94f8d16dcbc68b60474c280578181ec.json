@@ -1,0 +1,69 @@
+{
+  "answer": {
+    "documentKind": "table",
+    "readability": "good",
+    "people": "one",
+    "legend": "Legenda chybí, časy jsou zapsány přímo v buňkách.",
+    "weekParity": "unstated",
+    "coverage": [
+      {
+        "from": "2026-11-23",
+        "to": "2026-11-29"
+      }
+    ],
+    "dated": [
+      {
+        "date": "2026-11-23",
+        "weekday": "mon",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "6-14",
+        "uncertain": false,
+        "source": "Rozpis!B4"
+      },
+      {
+        "date": "2026-11-24",
+        "weekday": "tue",
+        "start": "06:00",
+        "end": "14:00",
+        "label": "6–14",
+        "raw": "6-14",
+        "uncertain": false,
+        "source": "Rozpis!C4"
+      },
+      {
+        "date": "2026-11-26",
+        "weekday": "thu",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14-22",
+        "uncertain": false,
+        "source": "Rozpis!E4"
+      },
+      {
+        "date": "2026-11-27",
+        "weekday": "fri",
+        "start": "14:00",
+        "end": "22:00",
+        "label": "14–22",
+        "raw": "14-22",
+        "uncertain": false,
+        "source": "Rozpis!F4"
+      },
+      {
+        "date": "2026-11-28",
+        "weekday": "sat",
+        "start": "22:00",
+        "end": "06:00",
+        "label": "22–6",
+        "raw": "22-6",
+        "uncertain": false,
+        "source": "Rozpis!G4"
+      }
+    ],
+    "weekly": [],
+    "warnings": []
+  }
+}
