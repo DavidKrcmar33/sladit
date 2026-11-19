@@ -2,7 +2,7 @@
 
 Jak funguje serverová část Sladitu: přihlášení, ukládání rozpisů a akcí, čtení modelem přes server a nasazení na internet. Popis čtení rozpisů je v [PIPELINE.md](PIPELINE.md).
 
-> Stav k 19. 11. 2026: hotová je fáze 3 (přihlášení, rozpisy a akce v účtu, čtení přes server, převzetí dat z prohlížeče). Skupiny a pozvánky (fáze 4) a Google Kalendář (fáze 5) zatím nejsou.
+> Stav k 19. 11. 2026: hotové jsou fáze 3 a 4 (přihlášení, rozpisy a akce v účtu, čtení přes server, převzetí dat z prohlížeče, skupiny s pozvánkou odkazem a sdílení jen tří stavů). Google Kalendář (fáze 5) zatím není.
 
 ## Proč server
 
@@ -33,7 +33,7 @@ src/ui ─► src/session.ts ─► src/client/http.ts ──HTTPS──► serv
 | `src/contract` | Schémata Zod pro požadavky a odpovědi API. Server jimi ověřuje požadavky, prohlížeč odpovědi.        |
 | `src/llm`      | Čtení modelem. `ingest.ts` běží v prohlížeči (příprava podkladu), zbytek jen na serveru a v měření.  |
 | `src/client`   | Rozhraní k serveru: `http.ts` (skutečný server), `memory.ts` (v paměti pro testy a ukázku bez účtu). |
-| `server`       | `app.ts` trasy, `config.ts` nastavení, `auth/` přihlášení přes Google, `db/` databáze a migrace.     |
+| `server`       | `app.ts` trasy, `view.ts` pohled na akci pro člena skupiny, `auth/` přihlášení, `db/` databáze.      |
 
 Pravidlo závislostí: v prohlížeči `ui → session → client → contract → core`, na serveru `server → llm → core`. `core` nezávisí na ničem dalším.
 
@@ -51,9 +51,14 @@ Migrace jsou v `server/db/migrations/`, spouští je server sám při startu (`m
 | `people`              | Člověk s rozpisem. Každý uživatel má jednoho sám za sebe (`is_self`), ostatní jsou jeho hosté.              |
 | `sources`             | Přečtený podklad: okruh, názvy souborů, pokrytí, směny, poznámky, parita (JSON podle `src/core/schema.ts`). |
 | `day_overrides`       | Ruční úprava jednoho dne. Nové čtení ji nepřepíše.                                                          |
-| `actions`             | Akce a její parametry (období, délka, denní okno).                                                          |
-| `action_participants` | Kdo se akce účastní. Organizátor sám za sebe se přidá při založení.                                         |
+| `actions`             | Akce a její parametry (období, délka, denní okno). `group_id` u akce ve skupině, jinak je akce osobní.      |
+| `action_participants` | Lidé přidaní organizátorem: on sám (při založení) a jeho hosté. Členy skupiny se sem neukládají.            |
+| `groups`              | Skupina a její název.                                                                                       |
+| `memberships`         | Členství s rolí `owner` (zakladatel) nebo `member`.                                                         |
+| `invites`             | Pozvánka odkazem: jen otisk tokenu (SHA-256), platnost 7 dní, případné zrušení.                             |
 | `read_usage`          | Počet čtení modelem za den podle času v Praze, kvůli limitům.                                               |
+
+Akce ve skupině patří všem současným členům: účastníci jsou lidé z `action_participants` a k nim „sám za sebe“ každého člena. Kdo se přidá později, je v akci hned, kdo odejde, z ní zmizí.
 
 Obsah nahraných souborů se na serveru neukládá. Ukládají se jen přečtené směny a názvy souborů, které vidí jen vlastník.
 
@@ -74,17 +79,41 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `POST /people/:id/readings`                            | Přečte připravené podklady modelem a uloží nový zdroj.             |
 | `PATCH`, `DELETE /people/:id/sources/:sourceId`        | Okruh, odpověď na lichý týden, smazání zdroje.                     |
 | `PUT`, `DELETE /people/:id/overrides/:date`            | Ruční úprava dne a její zrušení.                                   |
-| `GET`, `POST /actions`, `PATCH`, `DELETE /actions/:id` | Akce.                                                              |
-| `POST /actions/:id/guests`                             | Nový host v akci.                                                  |
+| `GET`, `POST /actions`, `PATCH`, `DELETE /actions/:id` | Akce. `POST` s `groupId` založí akci ve skupině.                   |
+| `GET /actions/:id/view`                                | Návrhy, jistota termínu a stav dne ostatních (viz Soukromí).       |
+| `POST /actions/:id/guests`                             | Nový host v akci (jen organizátor).                                |
 | `DELETE /actions/:id/participants/:personId`           | Odebrání z akce. Host, který už v žádné akci není, se smaže.       |
+| `GET`, `POST /groups`, `DELETE /groups/:id`            | Moje skupiny, nová skupina, smazání (jen zakladatel).              |
+| `POST /groups/:id/leave`                               | Odchod ze skupiny.                                                 |
+| `DELETE /groups/:id/members/:userId`                   | Zakladatel odebere člena.                                          |
+| `POST /groups/:id/invites`                             | Nový odkaz s pozvánkou. Odkaz je v odpovědi jen tentokrát.         |
+| `DELETE /groups/:id/invites/:inviteId`                 | Zrušení pozvánky.                                                  |
+| `GET /invites/:token`, `POST /invites/:token/accept`   | Náhled pozvánky (skupina, zakladatel, počet členů) a přijetí.      |
 | `POST /import`                                         | Jednorázové převzetí akcí uložených v prohlížeči z doby před účty. |
 | `GET /health`                                          | Kontrola pro hosting.                                              |
 
-Chyby mají tvar `{ "error": "česká zpráva", "code": "…" }`. Kód `limit` je vyčerpaný denní limit čtení, `unreadable` nečitelný podklad (s polem `notes`), `busy` přetížený model.
+Chyby mají tvar `{ "error": "česká zpráva", "code": "…" }`. Kód `limit` je vyčerpaný denní limit čtení, `unreadable` nečitelný podklad (s polem `notes`), `busy` přetížený model, `invite` neplatná pozvánka, `full` plná skupina (50 členů).
+
+Akci upravuje, maže a přidává do ní hosty jen organizátor. Člen skupiny dostane `403` s vysvětlením, kdo ve skupině není, dostane `404`.
 
 ## Soukromí a bezpečnost
 
-**Kdo co vidí.** Uživatel vidí jen své lidi a své akce. Každý dotaz do databáze, který čte nebo mění člověka nebo akci, má v podmínce id vlastníka (`server/db/store.ts`). Cizí data tak nejde přečíst ani změnit, ani kdyby trasa zapomněla na kontrolu: odpověď je `404` a neprozradí, zda data existují. Testy v `server/app.test.ts` (oddíl „cizí data“) to zkoušejí za jiného uživatele i bez přihlášení. Pravidla pro skupiny, kde ostatní uvidí jen „může, nemůže, nevíme“, přidá fáze 4.
+**Kdo co vidí.** Rozpis (zdroje, směny, ruční úpravy, názvy souborů, poznámky ke čtení) vidí jen jeho vlastník: uživatel u sebe a u hostů, které přidal. Každý dotaz do databáze, který čte nebo mění člověka, má v podmínce id vlastníka (`server/db/store.ts`). Cizí data tak nejde přečíst ani změnit, ani kdyby trasa zapomněla na kontrolu: odpověď je `404` a neprozradí, zda data existují. Testy v `server/app.test.ts` (oddíl „cizí data“) to zkoušejí za jiného uživatele i bez přihlášení.
+
+**Skupiny.** Akci vidí její organizátor a členové skupiny, ve které je. O ostatních účastnících člen dostane jen:
+
+- jméno a zda jde o člena, nebo hosta organizátora (`GET /actions`),
+- pro každý den období akce jen „může / nemůže / nevíme“ (`GET /actions/:id/view`),
+- zda může v každém ze tří návrhů,
+- u křehkého termínu den, na kterém záleží, bez důvodu (chybí rozpis, nebo nejisté čtení).
+
+Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`). Rozpisy cizích lidí jen použije, ven je nepustí. Jediná metoda úložiště, která čte cizí rozpisy, je `actionForView` a volá ji jen tento výpočet. Členové o sobě navzájem nevidí e-mail. Testy v `server/groups.test.ts` hledají v odpovědích pro člena skutečné časy, označení, text z podkladu, poznámky i název souboru a zkoušejí přístup za člena, za organizátora i za člověka mimo skupinu.
+
+**Pozvánka.** Náhodný token (32 bajtů) v odkazu `/pozvanka/<token>`. Server zná jen jeho otisk, takže odkaz ukáže jen jednou. Platí 7 dní, víc lidí ho může použít, zakladatel ho může kdykoli zrušit. Prohlížeč adresu s tokenem hned přepíše na `/`, aby nezůstala v historii, a token podrží v `sessionStorage` přes přihlášení u Googlu.
+
+**Odchod a konec skupiny.** Kdo ze skupiny odejde nebo je odebrán, přijde o akce, které v ní pořádal, i s hosty, kteří nebyli jinde. Zakladatel při odchodu nebo smazání účtu předá skupinu nejdéle přítomnému členovi, poslední člen ji odchodem smaže.
+
+**Zbytkové riziko.** Kdo smí měnit denní okno akce, může opakovanou změnou odhadnout, kdy končí cizí směny. Proto akci upravuje jen organizátor. Detekci takového zkoušení server nemá. Podobně trochu prozradí čas nejlepšího návrhu, když nezačíná na začátku okna.
 
 **Přihlášení.** OAuth 2.0 s autorizačním kódem na serveru, s `state` (proti podstrčenému přihlášení je uložený v databázi i v cookie prohlížeče) a s PKCE. Z účtu Google se bere jen `openid email profile`. O kalendář se bude žádat zvlášť, až ho uživatel připojí (fáze 5). Relace je náhodný token v cookie `HttpOnly`, `SameSite=Lax` a v produkci `Secure`, platí 30 dní.
 
@@ -149,6 +178,7 @@ Zálohy databáze na plánu Hobby Railway podle dostupných informací automatic
 
 ## Co zatím chybí
 
-- Skupiny, pozvánky a sdílení tří stavů (fáze 4). Dnes každý vidí jen své akce.
 - Google Kalendář: obsazenost a zápis potvrzeného termínu (fáze 5).
+- Člen skupiny se nemůže z jedné akce ve skupině odhlásit. Účastní se všech, dokud ve skupině je.
+- Pohled ze serveru se obnoví při otevření akce a po vlastní změně. Změnu rozpisu jiného člena uvidíš až po přepnutí na jinou akci a zpět nebo po obnovení stránky.
 - Nasazení zatím neproběhlo, čeká na účty v Google Cloudu a na Railway.

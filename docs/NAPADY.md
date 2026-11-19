@@ -797,7 +797,7 @@ Při slučování sta nápadů do 49 funkcí se ztratily hlavně dva a stojí za
 Čtyři mezery, které se netýkají AI:
 
 - **„Může“ není „chce“.** Chybí soukromá blokace, která se navenek neliší od směny.
-- **Souhlas kamarádů.** Organizátor dnes nahrává rozpisy kamarádů a posílá je modelu, aniž o tom vědí. Všechny funkce pro soukromí v katalogu čekají na server.
+- **Souhlas kamarádů.** Organizátor dnes nahrává rozpisy kamarádů a posílá je modelu, aniž o tom vědí. Všechny funkce pro soukromí v katalogu čekají na server. _Stav 19. 11.: ve skupině si každý nahrává svůj rozpis a ostatní z něj vidí jen „může, nemůže, nevíme“ (docs/BACKEND.md, Soukromí). Host bez účtu zůstává, jeho rozpis vidí jen ten, kdo ho přidal._
 - **Dovolená a nemoc se nečtou jako blok** (`src/llm/skill/SKILL.md`), takže člověk na dovolené vypadá jako volný.
 - **Jeden souvislý rozsah pokrytí.** Dny mezi dvěma přečtenými obdobími vyjdou jako volné.
 
