@@ -156,7 +156,7 @@ describe('ochrana proti požadavkům z cizí stránky', () => {
 })
 
 describe('cizí data', () => {
-  /** Anna má akci, hosta Petra s přečteným rozpisem a ruční úpravou dne. */
+  /** Anna má akci a vlastní rozpis s přečteným podkladem a ruční úpravou dne. */
   async function annaWithData() {
     const server = await testServer()
     const anna = browser(server.app)
@@ -164,17 +164,15 @@ describe('cizí data', () => {
     const { action } = await json<{ action: { id: string } }>(
       await anna.send('POST', '/api/actions', { details }),
     )
-    const { person } = await json<{ person: OwnedPerson }>(
-      await anna.send('POST', `/api/actions/${action.id}/guests`, { name: 'Petr' }),
-    )
-    await anna.send('POST', `/api/people/${person.id}/readings`, textReading())
-    await anna.send('PUT', `/api/people/${person.id}/overrides/2026-11-25`, { shifts: [] })
-    const { person: read } = await json<{ person: OwnedPerson }>(
-      await anna.send('PATCH', `/api/people/${person.id}`, { name: 'Petr' }),
+    const { people } = await json<{ people: OwnedPerson[] }>(await anna.get('/api/people'))
+    await anna.send('POST', `/api/people/${people[0].id}/readings`, textReading())
+    await anna.send('PUT', `/api/people/${people[0].id}/overrides/2026-11-25`, { shifts: [] })
+    const { person: own } = await json<{ person: OwnedPerson }>(
+      await anna.send('PATCH', `/api/people/${people[0].id}`, { name: 'Anna' }),
     )
     const eva = browser(server.app)
     await eva.login('eva@example.com', 'Eva')
-    return { ...server, anna, eva, actionId: action.id, petr: read }
+    return { ...server, anna, eva, actionId: action.id, own }
   }
 
   it('never lists the people or actions of somebody else', async () => {
@@ -184,44 +182,51 @@ describe('cizí data', () => {
     expect(await json(await eva.get('/api/actions'))).toEqual({ actions: [] })
   })
 
-  it('refuses to change or read through another user the guest, its sources and day edits', async () => {
-    const { eva, petr } = await annaWithData()
-    const sourceId = petr.sources[0].id
+  it('refuses to change or read through another user someone’s schedule, its sources and day edits', async () => {
+    const { eva, own } = await annaWithData()
+    const sourceId = own.sources[0].id
     const attempts = [
-      eva.send('PATCH', `/api/people/${petr.id}`, { name: 'Hacknuto' }),
-      eva.send('POST', `/api/people/${petr.id}/readings`, textReading()),
-      eva.send('PATCH', `/api/people/${petr.id}/sources/${sourceId}`, { circle: 'Škola' }),
-      eva.send('DELETE', `/api/people/${petr.id}/sources/${sourceId}`),
-      eva.send('PUT', `/api/people/${petr.id}/overrides/2026-11-26`, { shifts: [] }),
-      eva.send('DELETE', `/api/people/${petr.id}/overrides/2026-11-25`),
+      eva.send('PATCH', `/api/people/${own.id}`, { name: 'Hacknuto' }),
+      eva.send('POST', `/api/people/${own.id}/readings`, textReading()),
+      eva.send('PATCH', `/api/people/${own.id}/sources/${sourceId}`, { circle: 'Škola' }),
+      eva.send('DELETE', `/api/people/${own.id}/sources/${sourceId}`),
+      eva.send('PUT', `/api/people/${own.id}/overrides/2026-11-26`, { shifts: [] }),
+      eva.send('DELETE', `/api/people/${own.id}/overrides/2026-11-25`),
     ]
     for (const response of await Promise.all(attempts)) {
       expect(response.status).toBe(404)
       const body = JSON.stringify(await response.json())
-      // Odpověď nesmí prozradit nic z Petrova rozpisu.
+      // Odpověď nesmí prozradit nic z Annina rozpisu.
       expect(body).not.toContain('2026-11-24')
       expect(body).not.toContain('rozpis_Novakova')
     }
   })
 
-  it('refuses to change another user’s action or add people to it', async () => {
-    const { eva, actionId, petr } = await annaWithData()
+  it('refuses to change another user’s action, invite to it or confirm its date', async () => {
+    const { eva, actionId } = await annaWithData()
     const attempts = [
       eva.send('PATCH', `/api/actions/${actionId}`, { details }),
       eva.send('DELETE', `/api/actions/${actionId}`),
-      eva.send('POST', `/api/actions/${actionId}/guests`, { name: 'Vetřelec' }),
-      eva.send('DELETE', `/api/actions/${actionId}/participants/${petr.id}`),
+      eva.send('POST', `/api/actions/${actionId}/invites`, { userIds: ['kdokoli'] }),
+      eva.send('DELETE', `/api/actions/${actionId}/invites/kdokoli`),
+      eva.send('PUT', `/api/actions/${actionId}/confirmed`, {
+        date: '2026-11-24',
+        start: '17:00',
+        end: '19:00',
+      }),
+      eva.send('POST', `/api/actions/${actionId}/response`, { accept: true }),
+      eva.get(`/api/actions/${actionId}/view`),
     ]
     for (const response of await Promise.all(attempts)) expect(response.status).toBe(404)
   })
 
   it('keeps Anna’s data unchanged after all of Eva’s attempts', async () => {
-    const { anna, eva, petr, actionId } = await annaWithData()
-    await eva.send('DELETE', `/api/people/${petr.id}/sources/${petr.sources[0].id}`)
+    const { anna, eva, own, actionId } = await annaWithData()
+    await eva.send('DELETE', `/api/people/${own.id}/sources/${own.sources[0].id}`)
     await eva.send('DELETE', `/api/actions/${actionId}`)
     const { people } = await json<{ people: OwnedPerson[] }>(await anna.get('/api/people'))
-    expect(people.find((person) => person.id === petr.id)).toMatchObject({
-      sources: [{ id: petr.sources[0].id }],
+    expect(people.find((person) => person.id === own.id)).toMatchObject({
+      sources: [{ id: own.sources[0].id }],
       overrides: [{ date: '2026-11-25', shifts: [] }],
     })
     expect(await json(await anna.get('/api/actions'))).toMatchObject({
@@ -440,27 +445,22 @@ describe('akce', () => {
     expect(await json(tooLong)).toEqual({ error: 'Akce se do denního okna nevejde' })
   })
 
-  it('deletes a guest who is no longer in any action, but never the user', async () => {
+  it('deletes an action and keeps the organizer’s own schedule', async () => {
     const { app } = await testServer()
     const anna = browser(app)
     await anna.login('anna@example.com', 'Anna')
     const { action } = await json<{ action: { id: string } }>(
       await anna.send('POST', '/api/actions', { details }),
     )
-    const { person } = await json<{ person: OwnedPerson }>(
-      await anna.send('POST', `/api/actions/${action.id}/guests`, { name: 'Petr' }),
-    )
-
-    await anna.send('DELETE', `/api/actions/${action.id}/participants/${person.id}`)
-    await anna.send('DELETE', `/api/actions/${action.id}`)
-
+    expect((await anna.send('DELETE', `/api/actions/${action.id}`)).status).toBe(200)
+    expect(await json(await anna.get('/api/actions'))).toEqual({ actions: [] })
     const { people } = await json<{ people: OwnedPerson[] }>(await anna.get('/api/people'))
     expect(people.map((item) => item.name)).toEqual(['Anna'])
   })
 })
 
 describe('převzetí dat z prohlížeče a smazání účtu', () => {
-  it('imports local actions with their people, sources and day edits', async () => {
+  it('imports only the parameters of local actions, not the people in them', async () => {
     const { app } = await testServer()
     const anna = browser(app)
     await anna.login('anna@example.com', 'Anna')
@@ -472,17 +472,10 @@ describe('převzetí dat z prohlížeče a smazání účtu', () => {
       actions: { participantIds: string[]; details: { name: string } }[]
     }>(await anna.get('/api/actions'))
     expect(actions[0].details.name).toBe('Vánoční deskovky')
-    expect(actions[0].participantIds).toHaveLength(6)
+    // Každý si teď nahrává rozpis sám, lidi z uložené akce se nepřevezmou.
+    expect(actions[0].participantIds).toHaveLength(1)
     const { people } = await json<{ people: OwnedPerson[] }>(await anna.get('/api/people'))
-    expect(people.map((person) => person.name)).toEqual([
-      'Anna',
-      'Anna',
-      'Petr',
-      'Jana',
-      'Tomáš',
-      'Eva',
-    ])
-    expect(people.find((person) => person.name === 'Petr')?.sources[0].shifts).toHaveLength(2)
+    expect(people.map((person) => person.name)).toEqual(['Anna'])
   })
 
   it('deletes the account with all its data and ends the session', async () => {

@@ -5,11 +5,14 @@ import { bodyLimit } from 'hono/body-limit'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { z } from 'zod'
 import {
+  ConfirmedSlotSchema,
   CreateActionRequestSchema,
   GroupNameSchema,
   ImportRequestSchema,
+  InviteToActionRequestSchema,
   PersonNameSchema,
   ReadingRequestSchema,
+  RespondToActionRequestSchema,
   SetOverrideRequestSchema,
   UpdateActionRequestSchema,
   UpdateSourceRequestSchema,
@@ -18,6 +21,7 @@ import {
 } from '@/contract/api'
 import { withAnchor } from '@/core/parity'
 import { DateStringSchema, type SourceContent } from '@/core/schema'
+import { toMinutes } from '@/core/time'
 import type { ExtractInput } from '@/llm/extract'
 import { codeChallengeOf, fakeGoogleCode, randomToken, type GoogleAuth } from './auth/google'
 import type { ServerConfig } from './config'
@@ -46,7 +50,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 const ORGANIZER_ONLY = 'Akci upravuje jen organizátor.'
 const OWNER_ONLY = 'Tohle smí jen zakladatel skupiny.'
-const INVALID_INVITE = 'Pozvánka neplatí. Možná vypršela nebo ji zakladatel zrušil.'
+const INVALID_INVITE = 'Pozvánka neplatí. Možná vypršela nebo ji ten, kdo ji poslal, zrušil.'
+const NOT_CONTACT = 'Pozvat jde jen přátele a lidi z tvých skupin.'
 
 function hash(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -343,12 +348,16 @@ export function createApp(deps: AppDeps) {
 
   // Akce
 
-  /** Úprava akce se nepovedla: člen skupiny dostane vysvětlení, cizí člověk jen „nenalezeno“. */
+  /** Úprava akce se nepovedla: pozvaný dostane vysvětlení, cizí člověk jen „nenalezeno“. */
   async function refusedEdit(c: Context<Env>, notFound: string) {
     const visible = await store.actionOf(c.get('user').id, c.req.param('id') ?? '')
     return visible && !visible.isOrganizer
       ? fail(c, 403, { error: ORGANIZER_ONLY })
       : fail(c, 404, { error: notFound })
+  }
+
+  async function actionResponse(c: Context<Env>) {
+    return c.json({ action: await store.actionOf(c.get('user').id, c.req.param('id') ?? '') })
   }
 
   api.get('/actions', async (c) => c.json({ actions: await store.actionsOf(c.get('user').id) }))
@@ -359,9 +368,9 @@ export function createApp(deps: AppDeps) {
     const action = await store.createAction(
       c.get('user').id,
       body.data.details,
-      body.data.groupId ?? null,
+      body.data.inviteUserIds,
     )
-    if (!action) return fail(c, 404, { error: 'Skupina nenalezena.' })
+    if (action === 'not-contact') return fail(c, 400, { error: NOT_CONTACT })
     return c.json({ action })
   })
 
@@ -376,10 +385,9 @@ export function createApp(deps: AppDeps) {
   api.patch('/actions/:id', async (c) => {
     const body = await parseBody(c, UpdateActionRequestSchema)
     if (!body.ok) return body.response
-    const user = c.get('user')
-    const done = await store.updateAction(user.id, c.req.param('id'), body.data.details)
+    const done = await store.updateAction(c.get('user').id, c.req.param('id'), body.data.details)
     if (!done) return refusedEdit(c, 'Akce nenalezena.')
-    return c.json({ action: await store.actionOf(user.id, c.req.param('id')) })
+    return actionResponse(c)
   })
 
   api.delete('/actions/:id', async (c) => {
@@ -388,20 +396,94 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true })
   })
 
-  api.post('/actions/:id/guests', async (c) => {
-    const body = await parseBody(c, PersonNameSchema)
+  // Pozvánky do akce. Zve jen organizátor, a to přátele a lidi ze svých skupin.
+  api.post('/actions/:id/invites', async (c) => {
+    const body = await parseBody(c, InviteToActionRequestSchema)
     if (!body.ok) return body.response
-    const user = c.get('user')
-    const person = await store.addGuest(user.id, c.req.param('id'), body.data.name)
-    if (!person) return refusedEdit(c, 'Akce nenalezena.')
-    return c.json({ person, action: await store.actionOf(user.id, c.req.param('id')) })
+    const result = await store.inviteToAction(
+      c.get('user').id,
+      c.req.param('id'),
+      body.data.userIds,
+    )
+    if (result === 'not-found') return refusedEdit(c, 'Akce nenalezena.')
+    if (result === 'not-contact') return fail(c, 400, { error: NOT_CONTACT })
+    return actionResponse(c)
   })
 
-  api.delete('/actions/:id/participants/:personId', async (c) => {
+  api.delete('/actions/:id/invites/:userId', async (c) => {
+    const done = await store.cancelInvite(
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.param('userId'),
+    )
+    if (!done) return refusedEdit(c, 'Pozvánka nenalezena.')
+    return actionResponse(c)
+  })
+
+  // Odpověď pozvaného. Kdo odmítne, akci už neuvidí.
+  api.post('/actions/:id/response', async (c) => {
+    const body = await parseBody(c, RespondToActionRequestSchema)
+    if (!body.ok) return body.response
     const user = c.get('user')
-    const done = await store.removeParticipant(user.id, c.req.param('id'), c.req.param('personId'))
-    if (!done) return refusedEdit(c, 'Člověk v akci není.')
-    return c.json({ action: await store.actionOf(user.id, c.req.param('id')) })
+    const done = await store.respondToAction(user.id, c.req.param('id'), body.data.accept)
+    if (!done) return fail(c, 404, { error: 'Pozvánka nenalezena.' })
+    return c.json({
+      action: body.data.accept ? await store.actionOf(user.id, c.req.param('id')) : null,
+    })
+  })
+
+  // Potvrzený termín: musí ležet v období a v denním okně akce a mít její délku.
+  api.put('/actions/:id/confirmed', async (c) => {
+    const body = await parseBody(c, ConfirmedSlotSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const action = await store.actionOf(user.id, c.req.param('id'))
+    if (!action) return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (!action.isOrganizer) return fail(c, 403, { error: ORGANIZER_ONLY })
+    const { details } = action
+    const slot = body.data
+    const fits =
+      details.from <= slot.date &&
+      slot.date <= details.to &&
+      details.windowStart <= slot.start &&
+      slot.end <= details.windowEnd &&
+      toMinutes(slot.end) - toMinutes(slot.start) === details.durationMinutes
+    if (!fits) return fail(c, 400, { error: 'Termín neodpovídá období, oknu nebo délce akce.' })
+    await store.confirmAction(user.id, action.id, slot)
+    return actionResponse(c)
+  })
+
+  api.delete('/actions/:id/confirmed', async (c) => {
+    const done = await store.confirmAction(c.get('user').id, c.req.param('id'), null)
+    if (!done) return refusedEdit(c, 'Akce nenalezena.')
+    return actionResponse(c)
+  })
+
+  // Přátelé
+
+  api.get('/friends', async (c) => c.json(await store.friendsOf(c.get('user').id, now())))
+
+  // Osobní odkaz „přidej si mě do přátel“. Server si nechá jen otisk tokenu.
+  api.post('/friends/invites', async (c) => {
+    const token = randomToken()
+    const invite = await store.createFriendInvite(
+      c.get('user').id,
+      hash(token),
+      new Date(now().getTime() + INVITE_DAYS * DAY_MS),
+    )
+    return c.json({ invite, url: `${config.appOrigin}/pozvanka/${token}` })
+  })
+
+  api.delete('/friends/invites/:inviteId', async (c) => {
+    const done = await store.revokeFriendInvite(c.get('user').id, c.req.param('inviteId'))
+    if (!done) return fail(c, 404, { error: 'Pozvánka nenalezena.' })
+    return c.json({ ok: true })
+  })
+
+  api.delete('/friends/:userId', async (c) => {
+    const done = await store.removeFriend(c.get('user').id, c.req.param('userId'))
+    if (!done) return fail(c, 404, { error: 'Přítel nenalezen.' })
+    return c.json({ ok: true })
   })
 
   // Skupiny
@@ -473,6 +555,7 @@ export function createApp(deps: AppDeps) {
     return c.json({ group: await store.groupOf(user.id, groupId, now()) })
   })
 
+  // Odkaz s pozvánkou do skupiny i do přátel má stejnou adresu: /pozvanka/<token>.
   api.get('/invites/:token', async (c) => {
     const invite = await store.invitePreview(c.get('user').id, hash(c.req.param('token')), now())
     if (!invite) return fail(c, 404, { error: INVALID_INVITE, code: 'invite' })
@@ -483,13 +566,17 @@ export function createApp(deps: AppDeps) {
     const user = c.get('user')
     const result = await store.acceptInvite(user.id, hash(c.req.param('token')), now())
     if (result === 'invalid') return fail(c, 404, { error: INVALID_INVITE, code: 'invite' })
-    if (result === 'full') {
-      return fail(c, 403, { error: 'Skupina je plná.', code: 'full' })
+    if (result === 'full') return fail(c, 403, { error: 'Skupina je plná.', code: 'full' })
+    if (result === 'self') {
+      return fail(c, 400, { error: 'Sám sebe si do přátel přidat nejde.', code: 'self' })
     }
-    return c.json({ group: await store.groupOf(user.id, result.groupId, now()) })
+    if (result.kind === 'friend') {
+      return c.json({ kind: 'friend', friend: await store.friendOf(user.id, result.friendId) })
+    }
+    return c.json({ kind: 'group', group: await store.groupOf(user.id, result.groupId, now()) })
   })
 
-  // Jednorázové převzetí akcí uložených v prohlížeči.
+  // Jednorázové převzetí akcí uložených v prohlížeči. Jen parametry, lidi z nich ne.
   api.post(
     '/import',
     bodyLimit({
@@ -501,16 +588,9 @@ export function createApp(deps: AppDeps) {
       if (!body.ok) return body.response
       const imported = await store.importActions(
         c.get('user').id,
-        body.data.actions.map(
-          ({ name, from, to, durationMinutes, windowStart, windowEnd, people }) => ({
-            details: { name, from, to, durationMinutes, windowStart, windowEnd },
-            people: people.map(({ name: personName, sources, overrides }) => ({
-              name: personName,
-              sources,
-              overrides,
-            })),
-          }),
-        ),
+        body.data.actions.map(({ name, from, to, durationMinutes, windowStart, windowEnd }) => ({
+          details: { name, from, to, durationMinutes, windowStart, windowEnd },
+        })),
       )
       return c.json({ imported })
     },

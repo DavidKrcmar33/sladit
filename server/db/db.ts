@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs'
 import pg from 'pg'
 import init001 from './migrations/001_init.sql?raw'
 import groups002 from './migrations/002_groups.sql?raw'
+import friends003 from './migrations/003_friends_invitations.sql?raw'
 
 /**
  * Tenká vrstva nad databází. V produkci Postgres přes `pg`, ve vývoji a testech PGlite
@@ -17,6 +18,7 @@ export interface Db {
 const MIGRATIONS: { name: string; sql: string }[] = [
   { name: '001_init', sql: init001 },
   { name: '002_groups', sql: groups002 },
+  { name: '003_friends_invitations', sql: friends003 },
 ]
 
 export async function migrate(db: Db): Promise<string[]> {

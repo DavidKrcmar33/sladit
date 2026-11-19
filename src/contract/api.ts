@@ -8,6 +8,7 @@ import {
   ShiftSchema,
   SourceFileSchema,
   SourceSchema,
+  TimeStringSchema,
 } from '@/core/schema'
 
 /**
@@ -47,32 +48,55 @@ export const PersonNameSchema = z.object({
 export const OtherParticipantSchema = z.object({
   id: z.string(),
   name: z.string(),
-  /** Člen skupiny, nebo host, kterého přidal organizátor. */
-  kind: z.enum(['member', 'guest']),
+})
+
+/** Pozvaný do akce a jak odpověděl. Do termínu se počítá až po přijetí. */
+export const ActionInviteSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  status: z.enum(['invited', 'accepted', 'declined']),
+})
+
+/** Termín, který organizátor potvrdil. */
+export const ConfirmedSlotSchema = z.object({
+  date: DateStringSchema,
+  start: TimeStringSchema,
+  end: TimeStringSchema,
 })
 
 /** Akce s parametry a lidmi, kteří se jí účastní. */
 export const ActionResourceSchema = z.object({
   id: z.string(),
   details: ActionDetailsSchema,
-  /** Všichni účastníci v pořadí, vlastní i cizí. */
+  /** Účastníci v pořadí: organizátor a ti, kdo pozvánku přijali. */
   participantIds: z.array(z.string()),
-  /** Účastníci, které přihlášený nevlastní: ostatní členové skupiny a hosté organizátora. */
+  /** Účastníci, jejichž rozpis přihlášený nevidí. */
   others: z.array(OtherParticipantSchema),
-  /** Skupina, ve které akce je. Bez skupiny je akce osobní. */
-  groupId: z.string().nullable(),
-  /** Akci upravuje, maže a přidává do ní hosty jen organizátor. */
+  /** Akci upravuje, zve do ní a potvrzuje termín jen organizátor. */
   isOrganizer: z.boolean(),
   organizerName: z.string(),
+  /** Vztah přihlášeného k akci: pořádá ji, je pozvaný, nebo pozvánku přijal. */
+  myStatus: z.enum(['organizer', 'invited', 'accepted']),
+  invites: z.array(ActionInviteSchema),
+  confirmed: ConfirmedSlotSchema.nullable(),
 })
 
 export const ActionsResponseSchema = z.object({ actions: z.array(ActionResourceSchema) })
 export const ActionResponseSchema = z.object({ action: ActionResourceSchema })
 
+const UserIdsSchema = z.array(z.string()).max(50, 'Najednou jde pozvat nejvýš 50 lidí')
+
 export const CreateActionRequestSchema = z.object({
   details: ActionDetailsSchema,
-  groupId: z.string().nullable().optional(),
+  /** Koho rovnou pozvat: přátelé a lidé ze skupin, kde je organizátor členem. */
+  inviteUserIds: UserIdsSchema.default([]),
 })
+
+export const InviteToActionRequestSchema = z.object({
+  userIds: UserIdsSchema.min(1, 'Vyber, koho pozvat'),
+})
+
+export const RespondToActionRequestSchema = z.object({ accept: z.boolean() })
 
 /** Stav dne vůči akci: může, nemůže, nevíme. Nic víc o cizím rozpisu server neprozradí. */
 export const DayAttendanceSchema = z.enum(['available', 'busy', 'unknown'])
@@ -112,8 +136,8 @@ export const GroupNameSchema = z.object({
   name: z.string().trim().min(1, 'Název nesmí být prázdný').max(60, 'Název je příliš dlouhý'),
 })
 
-/** Platná pozvánka. Samotný odkaz se ukáže jen jednou, při založení. */
-export const GroupInviteSchema = z.object({
+/** Platný odkaz s pozvánkou. Samotný odkaz se ukáže jen jednou, při založení. */
+export const InviteLinkSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   expiresAt: z.string(),
@@ -134,7 +158,7 @@ export const GroupSchema = z.object({
   isOwner: z.boolean(),
   members: z.array(GroupMemberSchema),
   /** Platné pozvánky, jen pro zakladatele. */
-  invites: z.array(GroupInviteSchema),
+  invites: z.array(InviteLinkSchema),
 })
 
 export const GroupsResponseSchema = z.object({ groups: z.array(GroupSchema) })
@@ -142,28 +166,55 @@ export const GroupResponseSchema = z.object({ group: GroupSchema })
 
 export const CreateInviteResponseSchema = z.object({
   group: GroupSchema,
-  invite: GroupInviteSchema,
+  invite: InviteLinkSchema,
   /** Odkaz s pozvánkou. Server ho neuloží, zná jen jeho otisk. */
   url: z.string(),
 })
 
-export const InvitePreviewSchema = z.object({
-  groupId: z.string(),
-  groupName: z.string(),
-  ownerName: z.string(),
-  memberCount: z.number(),
-  isMember: z.boolean(),
+// Přátelé
+
+/** Přítel. Vidí o sobě navzájem jen jméno, e-mail ne. */
+export const FriendSchema = z.object({ userId: z.string(), name: z.string() })
+
+export const FriendsResponseSchema = z.object({
+  friends: z.array(FriendSchema),
+  /** Moje platné osobní odkazy „přidej si mě do přátel“. */
+  invites: z.array(InviteLinkSchema),
 })
+
+export const CreateFriendInviteResponseSchema = z.object({
+  invite: InviteLinkSchema,
+  url: z.string(),
+})
+
+// Odkaz s pozvánkou: do skupiny, nebo do přátel. Obojí má adresu /pozvanka/<token>.
+
+export const InvitePreviewSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('group'),
+    groupId: z.string(),
+    groupName: z.string(),
+    ownerName: z.string(),
+    memberCount: z.number(),
+    isMember: z.boolean(),
+  }),
+  z.object({
+    kind: z.literal('friend'),
+    fromName: z.string(),
+    isFriend: z.boolean(),
+    /** Vlastní odkaz: sám sebe si do přátel přidat nejde. */
+    isSelf: z.boolean(),
+  }),
+])
 
 export const InvitePreviewResponseSchema = z.object({ invite: InvitePreviewSchema })
 
-export const UpdateActionRequestSchema = z.object({ details: ActionDetailsSchema })
+export const AcceptInviteResponseSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('group'), group: GroupSchema }),
+  z.object({ kind: z.literal('friend'), friend: FriendSchema }),
+])
 
-/** Host přidaný do akce: člověk bez účtu, jehož rozpis spravuje ten, kdo ho přidal. */
-export const AddGuestResponseSchema = z.object({
-  person: OwnedPersonSchema,
-  action: ActionResourceSchema,
-})
+export const UpdateActionRequestSchema = z.object({ details: ActionDetailsSchema })
 
 /** Část podkladu připravená v prohlížeči (ingest.ts): text, nebo soubor v base64. */
 export const ModelPartSchema = z.union([
@@ -196,7 +247,10 @@ export const UpdateSourceRequestSchema = z.object({
 
 export const SetOverrideRequestSchema = z.object({ shifts: z.array(ShiftSchema).max(10) })
 
-/** Akce z prohlížeče (localStorage) k jednorázovému převzetí do účtu. */
+/**
+ * Akce z prohlížeče (localStorage) k jednorázovému převzetí do účtu. Převezmou se jen parametry
+ * akcí. Lidi z nich ne: každý si teď nahrává rozpis do svého účtu sám.
+ */
 export const ImportRequestSchema = z.object({ actions: z.array(ActionSchema).max(50) })
 export const ImportResponseSchema = z.object({ imported: z.number() })
 
@@ -213,10 +267,16 @@ export type MeResponse = z.infer<typeof MeResponseSchema>
 export type OwnedPerson = z.infer<typeof OwnedPersonSchema>
 export type ActionResource = z.infer<typeof ActionResourceSchema>
 export type OtherParticipant = z.infer<typeof OtherParticipantSchema>
+export type ActionInvite = z.infer<typeof ActionInviteSchema>
+export type ConfirmedSlot = z.infer<typeof ConfirmedSlotSchema>
+export type Friend = z.infer<typeof FriendSchema>
+export type AcceptInviteResponse = z.infer<typeof AcceptInviteResponseSchema>
 export type DayAttendance = z.infer<typeof DayAttendanceSchema>
 export type ActionView = z.infer<typeof ActionViewSchema>
 export type Group = z.infer<typeof GroupSchema>
-export type GroupInvite = z.infer<typeof GroupInviteSchema>
+export type InviteLink = z.infer<typeof InviteLinkSchema>
+/** Starší název, totéž co InviteLink. */
+export type GroupInvite = InviteLink
 export type InvitePreview = z.infer<typeof InvitePreviewSchema>
 export type ReadingRequest = z.infer<typeof ReadingRequestSchema>
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequestSchema>
