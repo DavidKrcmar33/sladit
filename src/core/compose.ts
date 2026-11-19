@@ -39,6 +39,17 @@ export interface ComposedPerson {
   schedule: PersonSchedule | null
 }
 
+/**
+ * Okruh obsazenosti z Google Kalendáře. Kalendář jen přidává „nemůže“: jeho úseky blokují
+ * i v ručně upravený den, ale pokrytí nemá, takže žádný den neudělá známým a nepočítá se mezi
+ * okruhy, které musí den pokrýt.
+ */
+export const CALENDAR_CIRCLE = 'Kalendář z Googlu'
+
+function isCalendar(source: Source): boolean {
+  return source.circle === CALENDAR_CIRCLE
+}
+
 export const PARITY_WARNING =
   'Rozvrh má liché a sudé týdny a není potvrzené, který je který. Do potvrzení se počítá s oběma.'
 
@@ -91,8 +102,8 @@ function groupByCircle(sources: Source[]): Map<string, Source[]> {
 
 /** Dny, které zná každý okruh. */
 function knownDays(sources: Source[]): DateRange[] {
-  const circles = [...groupByCircle(sources).values()].map((group) =>
-    unionRanges(...group.map((source) => source.coverage)),
+  const circles = [...groupByCircle(sources.filter((source) => !isCalendar(source))).values()].map(
+    (group) => unionRanges(...group.map((source) => source.coverage)),
   )
   if (circles.length === 0) return []
   return circles.reduce((known, coverage) => intersectRanges(known, coverage))
@@ -111,7 +122,7 @@ function formatRanges(ranges: DateRange[]): string {
 /** Zdroje stejného okruhu, které pokrývají stejné dny. Může to být nová verze, nebo omyl. */
 function overlapWarnings(sources: Source[], window: Period | undefined): string[] {
   const warnings: string[] = []
-  for (const [circle, group] of groupByCircle(sources)) {
+  for (const [circle, group] of groupByCircle(sources.filter((source) => !isCalendar(source)))) {
     const overlaps: DateRange[] = []
     group.forEach((source, index) => {
       for (const other of group.slice(index + 1)) {
@@ -148,13 +159,16 @@ function withoutDuplicates(shifts: Shift[]): Shift[] {
 export function composeSchedule(person: PersonSources, period?: Period): PersonSchedule | null {
   if (person.sources.length === 0 && person.overrides.length === 0) return null
 
-  const resolved = person.sources.map(resolveParity)
+  const documents = person.sources.filter((source) => !isCalendar(source))
+  const resolved = documents.map(resolveParity)
   const overrideDates = new Set(person.overrides.map((override) => override.date))
   const shifts = withoutDuplicates([
     ...resolved
       .flatMap((result) => result.shifts)
       .filter((shift) => !overrideDates.has(shift.date)),
     ...person.overrides.flatMap((override) => override.shifts),
+    // Kalendář platí i v ručně upravený den: ruční úprava opravuje podklad, ne schůzky.
+    ...person.sources.filter(isCalendar).flatMap((source) => source.shifts),
   ])
   const coverage = unionRanges(knownDays(person.sources), rangesOfDates([...overrideDates]))
 
