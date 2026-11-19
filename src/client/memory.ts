@@ -1,29 +1,55 @@
-import type { ActionResource, OwnedPerson, ReadingRequest, User } from '@/contract/api'
+import type {
+  ActionResource,
+  ConfirmedSlot,
+  OwnedPerson,
+  ReadingRequest,
+  User,
+} from '@/contract/api'
 import { withAnchor } from '@/core/parity'
 import {
   ActionDetailsSchema,
   type Action,
   type ActionDetails,
+  type Person,
   type Shift,
   type SourceContent,
 } from '@/core/schema'
+import { sharedView } from '@/core/sharedView'
 import { BackendError, type Backend } from './backend'
 
 /**
- * Server v paměti prohlížeče. Chová se jako skutečný (server/app.ts) v tom, co aplikace používá:
- * uživatel má člověka sám za sebe, akce ho obsahuje, hosté bez akce zmizí.
- * Slouží testům a ukázce bez přihlášení, kde se nic neukládá.
+ * Server v paměti prohlížeče pro jednoho uživatele. Slouží testům a ukázce bez přihlášení,
+ * kde se nic neukládá. Chová se jako skutečný server (server/app.ts) v tom, co aplikace
+ * používá: uživatel má svůj rozpis a akce, organizátor se akce účastní vždy.
+ *
+ * Ukázka (`sample`): první člověk z ukázkové akce je přihlášený sám, jeho rozpis je jeho.
+ * Ostatní jsou přátelé, kteří pozvánku přijali. Jejich rozpisy má ukázka v paměti, ale ven
+ * pustí jen „může / nemůže / nevíme“, stejně jako server.
  */
 export interface MemoryBackendOptions {
   user: User | null
   /** Čtení podkladů. Bez něj (ukázka) čtení vrátí chybu s vysvětlením. */
   read?: (request: ReadingRequest) => Promise<SourceContent>
   generateId?: () => string
+  sample?: Action
+}
+
+interface StoredAction {
+  id: string
+  details: ActionDetails
+  /** Přátelé z ukázky, kteří pozvánku přijali. */
+  friendIds: string[]
+  confirmed: ConfirmedSlot | null
 }
 
 /** Kopie dat, jako by prošla sítí. Na rozdíl od structuredClone zvládne i reaktivní objekty Vue. */
 function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function detailsOf(action: Action): ActionDetails {
+  const { name, from, to, durationMinutes, windowStart, windowEnd } = action
+  return { name, from, to, durationMinutes, windowStart, windowEnd }
 }
 
 export function memoryBackend(options: MemoryBackendOptions): Backend & {
@@ -33,35 +59,44 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
   let user = options.user
   let counter = 0
   const generateId = options.generateId ?? (() => `m${++counter}`)
-  let people: OwnedPerson[] = []
-  let actions: ActionResource[] = []
+  let self: OwnedPerson | null = null
+  let actions: StoredAction[] = []
+  const [sampleSelf, ...sampleFriends] = options.sample?.people ?? []
+  const friends: Person[] = copy(sampleFriends)
 
   function ensureSelf() {
-    if (user && !people.some((person) => person.isSelf)) {
-      people.unshift({
+    if (user && !self) {
+      self = {
         id: generateId(),
         name: user.name,
         isSelf: true,
-        sources: [],
-        overrides: [],
-      })
+        sources: copy(sampleSelf?.sources ?? []),
+        overrides: copy(sampleSelf?.overrides ?? []),
+      }
     }
   }
   ensureSelf()
+  if (options.sample) {
+    actions.push({
+      id: generateId(),
+      details: detailsOf(options.sample),
+      friendIds: friends.map((friend) => friend.id),
+      confirmed: null,
+    })
+  }
 
   function signedIn(): User {
     if (!user) throw new BackendError('Nejsi přihlášený.', 401)
     return user
   }
 
-  function personOf(personId: string): OwnedPerson {
+  function me(personId: string): OwnedPerson {
     signedIn()
-    const person = people.find((candidate) => candidate.id === personId)
-    if (!person) throw new BackendError('Člověk nenalezen.', 404)
-    return person
+    if (!self || self.id !== personId) throw new BackendError('Člověk nenalezen.', 404)
+    return self
   }
 
-  function actionOf(actionId: string): ActionResource {
+  function stored(actionId: string): StoredAction {
     signedIn()
     const action = actions.find((candidate) => candidate.id === actionId)
     if (!action) throw new BackendError('Akce nenalezena.', 404)
@@ -69,9 +104,8 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
   }
 
   function update(personId: string, change: (person: OwnedPerson) => OwnedPerson): OwnedPerson {
-    const next = change(personOf(personId))
-    people = people.map((person) => (person.id === personId ? next : person))
-    return copy(next)
+    self = change(me(personId))
+    return copy(self)
   }
 
   function checked(details: ActionDetails): ActionDetails {
@@ -80,29 +114,28 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     return parsed.data
   }
 
-  function dropOrphanGuests() {
-    const used = new Set(actions.flatMap((action) => action.participantIds))
-    people = people.filter((person) => person.isSelf || used.has(person.id))
+  function friendsIn(action: StoredAction): Person[] {
+    return friends.filter((friend) => action.friendIds.includes(friend.id))
   }
 
-  const selfId = () => people.find((person) => person.isSelf)?.id
-
-  /** Osobní akce: v paměti je jen jeden uživatel, takže je vždy organizátor a nikdo cizí v ní není. */
-  function resource(details: ActionDetails, participantIds: string[]): ActionResource {
-    return {
-      id: generateId(),
-      details: checked(details),
-      participantIds,
-      others: [],
-      groupId: null,
+  function resource(action: StoredAction): ActionResource {
+    const invited = friendsIn(action)
+    return copy({
+      id: action.id,
+      details: action.details,
+      participantIds: [...(self ? [self.id] : []), ...invited.map((friend) => friend.id)],
+      others: invited.map(({ id, name }) => ({ id, name })),
       isOrganizer: true,
       organizerName: user?.name ?? '',
-    }
+      myStatus: 'organizer' as const,
+      invites: invited.map(({ id, name }) => ({ userId: id, name, status: 'accepted' as const })),
+      confirmed: action.confirmed,
+    })
   }
 
-  function noGroups(): never {
+  function onlyWithAccount(): never {
     signedIn()
-    throw new BackendError('Skupiny jdou jen s účtem. Přihlas se.', 400)
+    throw new BackendError('Tohle jde jen s účtem. Přihlas se.', 400)
   }
 
   return {
@@ -120,19 +153,19 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     async deleteAccount() {
       signedIn()
       user = null
-      people = []
+      self = null
       actions = []
     },
 
     async people() {
       signedIn()
-      return copy(people)
+      return self ? [copy(self)] : []
     },
     async renamePerson(personId, name) {
       return update(personId, (person) => ({ ...person, name }))
     },
     async read(personId, request) {
-      personOf(personId)
+      me(personId)
       if (!options.read) {
         throw new BackendError('V ukázce se podklady nečtou. Přihlas se a vyzkoušej vlastní.', 400)
       }
@@ -193,75 +226,101 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
 
     async actions() {
       signedIn()
-      return copy(actions)
+      return actions.map(resource)
     },
-    async createAction(details, groupId = null) {
+    async createAction(details, inviteUserIds = []) {
       signedIn()
-      if (groupId) noGroups()
-      const self = selfId()
-      const action = resource(details, self ? [self] : [])
+      // V ukázce jde pozvat jen přátele z ukázky a rovnou se počítají, jako by přijali.
+      if (inviteUserIds.some((userId) => !friends.some((friend) => friend.id === userId))) {
+        throw new BackendError('Pozvat jde jen přátele a lidi z tvých skupin.', 400)
+      }
+      const action = {
+        id: generateId(),
+        details: checked(details),
+        friendIds: [...new Set(inviteUserIds)],
+        confirmed: null,
+      }
       actions.push(action)
-      return copy(action)
+      return resource(action)
     },
     async updateAction(actionId, details) {
-      const action = actionOf(actionId)
-      action.details = checked(details)
-      return copy(action)
+      const action = stored(actionId)
+      const next = checked(details)
+      // Potvrzený termín zmizí, když se změní cokoli kromě názvu.
+      const fields = ['from', 'to', 'durationMinutes', 'windowStart', 'windowEnd'] as const
+      if (fields.some((field) => action.details[field] !== next[field])) action.confirmed = null
+      action.details = next
+      return resource(action)
     },
     async deleteAction(actionId) {
-      actionOf(actionId)
+      stored(actionId)
       actions = actions.filter((action) => action.id !== actionId)
-      dropOrphanGuests()
     },
-    async addGuest(actionId, name) {
-      const action = actionOf(actionId)
-      const person = { id: generateId(), name, isSelf: false, sources: [], overrides: [] }
-      people.push(person)
-      action.participantIds.push(person.id)
-      return { person: copy(person), action: copy(action) }
+    async actionView(actionId) {
+      const action = stored(actionId)
+      const invited = friendsIn(action)
+      const people: Person[] = [
+        ...(self ? [{ ...self, files: [] }] : []),
+        ...invited.map((friend) => ({ ...friend, files: [] })),
+      ]
+      const view = sharedView(
+        { id: action.id, ...action.details, people },
+        new Set(invited.map((friend) => friend.id)),
+      )
+      return copy({ actionId: action.id, ...view })
     },
-    async removeParticipant(actionId, personId) {
-      const action = actionOf(actionId)
-      if (!action.participantIds.includes(personId)) {
-        throw new BackendError('Člověk v akci není.', 404)
+    async inviteToAction(actionId, userIds) {
+      const action = stored(actionId)
+      if (userIds.some((userId) => !friends.some((friend) => friend.id === userId))) {
+        throw new BackendError('Pozvat jde jen přátele a lidi z tvých skupin.', 400)
       }
-      action.participantIds = action.participantIds.filter((id) => id !== personId)
-      dropOrphanGuests()
-      return copy(action)
+      action.friendIds = [...new Set([...action.friendIds, ...userIds])]
+      return resource(action)
     },
-    actionView: async () => noGroups(),
+    async cancelInvite(actionId, userId) {
+      const action = stored(actionId)
+      if (!action.friendIds.includes(userId)) throw new BackendError('Pozvánka nenalezena.', 404)
+      action.friendIds = action.friendIds.filter((id) => id !== userId)
+      return resource(action)
+    },
+    respondToAction: async () => onlyWithAccount(),
+    async confirmAction(actionId, slot) {
+      const action = stored(actionId)
+      action.confirmed = slot ? copy(slot) : null
+      return resource(action)
+    },
+
+    async friends() {
+      signedIn()
+      return { friends: friends.map(({ id, name }) => ({ userId: id, name })), invites: [] }
+    },
+    createFriendInvite: async () => onlyWithAccount(),
+    revokeFriendInvite: async () => onlyWithAccount(),
+    removeFriend: async () => onlyWithAccount(),
 
     async groups() {
       signedIn()
       return []
     },
-    createGroup: async () => noGroups(),
-    deleteGroup: async () => noGroups(),
-    leaveGroup: async () => noGroups(),
-    removeMember: async () => noGroups(),
-    createInvite: async () => noGroups(),
-    revokeInvite: async () => noGroups(),
-    invitePreview: async () => noGroups(),
-    acceptInvite: async () => noGroups(),
+    createGroup: async () => onlyWithAccount(),
+    deleteGroup: async () => onlyWithAccount(),
+    leaveGroup: async () => onlyWithAccount(),
+    removeMember: async () => onlyWithAccount(),
+    createInvite: async () => onlyWithAccount(),
+    revokeInvite: async () => onlyWithAccount(),
+    invitePreview: async () => onlyWithAccount(),
+    acceptInvite: async () => onlyWithAccount(),
 
     async importActions(imported: Action[]) {
       signedIn()
+      // Jako server: jen parametry akcí, lidi z nich se nepřevezmou.
       for (const action of imported) {
-        const { name, from, to, durationMinutes, windowStart, windowEnd, people: guests } = action
-        const details = { name, from, to, durationMinutes, windowStart, windowEnd }
-        const participantIds = selfId() ? [selfId()!] : []
-        for (const guest of guests) {
-          const id = generateId()
-          people.push({
-            id,
-            name: guest.name,
-            isSelf: false,
-            sources: copy(guest.sources),
-            overrides: copy(guest.overrides),
-          })
-          participantIds.push(id)
-        }
-        actions.push(resource(details, participantIds))
+        actions.push({
+          id: generateId(),
+          details: checked(detailsOf(action)),
+          friendIds: [],
+          confirmed: null,
+        })
       }
       return imported.length
     },

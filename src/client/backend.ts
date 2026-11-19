@@ -1,7 +1,11 @@
 import type {
+  AcceptInviteResponse,
   ActionResource,
   ActionView,
+  ConfirmedSlot,
+  Friend,
   Group,
+  InviteLink,
   InvitePreview,
   MeResponse,
   OwnedPerson,
@@ -21,6 +25,7 @@ export interface Backend {
   logout(): Promise<void>
   deleteAccount(): Promise<void>
 
+  /** Rozpis přihlášeného (člověk „sám za sebe“). */
   people(): Promise<OwnedPerson[]>
   renamePerson(personId: string, name: string): Promise<OwnedPerson>
   read(personId: string, request: ReadingRequest): Promise<OwnedPerson>
@@ -30,13 +35,21 @@ export interface Backend {
   deleteOverride(personId: string, date: string): Promise<OwnedPerson>
 
   actions(): Promise<ActionResource[]>
-  createAction(details: ActionDetails, groupId?: string | null): Promise<ActionResource>
+  createAction(details: ActionDetails, inviteUserIds?: string[]): Promise<ActionResource>
   updateAction(actionId: string, details: ActionDetails): Promise<ActionResource>
   deleteAction(actionId: string): Promise<void>
-  addGuest(actionId: string, name: string): Promise<{ person: OwnedPerson; action: ActionResource }>
-  removeParticipant(actionId: string, personId: string): Promise<ActionResource>
   /** Návrhy a stav dne ostatních, spočítané na serveru. Jen pro akce s cizími lidmi. */
   actionView(actionId: string): Promise<ActionView>
+  inviteToAction(actionId: string, userIds: string[]): Promise<ActionResource>
+  cancelInvite(actionId: string, userId: string): Promise<ActionResource>
+  /** Odpověď pozvaného. Po odmítnutí akci neuvidí, vrátí se null. */
+  respondToAction(actionId: string, accept: boolean): Promise<ActionResource | null>
+  confirmAction(actionId: string, slot: ConfirmedSlot | null): Promise<ActionResource>
+
+  friends(): Promise<{ friends: Friend[]; invites: InviteLink[] }>
+  createFriendInvite(): Promise<{ invite: InviteLink; url: string }>
+  revokeFriendInvite(inviteId: string): Promise<void>
+  removeFriend(userId: string): Promise<void>
 
   groups(): Promise<Group[]>
   createGroup(name: string): Promise<Group>
@@ -45,8 +58,10 @@ export interface Backend {
   removeMember(groupId: string, userId: string): Promise<Group>
   createInvite(groupId: string): Promise<{ group: Group; url: string }>
   revokeInvite(groupId: string, inviteId: string): Promise<Group>
+
+  /** Odkaz s pozvánkou do skupiny, nebo do přátel. */
   invitePreview(token: string): Promise<InvitePreview>
-  acceptInvite(token: string): Promise<Group>
+  acceptInvite(token: string): Promise<AcceptInviteResponse>
 
   importActions(actions: Action[]): Promise<number>
 }

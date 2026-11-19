@@ -5,7 +5,10 @@ import { memoryBackend } from './client/memory'
 import type {
   ActionResource,
   ActionView,
+  ConfirmedSlot,
+  Friend,
   Group,
+  InviteLink,
   InvitePreview,
   OwnedPerson,
   User,
@@ -31,10 +34,16 @@ import type { Action, DateString, Shift, SourceFile } from './core/schema'
 import { findProposals } from './core/scheduler'
 import { analyzeStability } from './core/sensitivity'
 import { detectSourceFileKind } from './core/sourceFile'
-import { LEGACY_STORAGE_KEY, STORAGE_KEY, loadState, type Step } from './core/storage'
-import { addDays, eachDay } from './core/time'
+import { LEGACY_STORAGE_KEY, STORAGE_KEY, loadState } from './core/storage'
+import { addDays, eachDay, mondayOf } from './core/time'
 
-export type { Step }
+/**
+ * Stav aplikace v prohlížeči. Zdrojem pravdy je server (účet uživatele), tady je jeho kopie
+ * a to, co na server nepatří: vložené a ještě nepřečtené soubory, otevřená stránka, výběr.
+ *
+ * Každý má jeden rozpis („Můj rozvrh“), který si nahraje sám. V akci jsou organizátor
+ * a přátelé, kteří pozvánku přijali. O nich aplikace ví jen „může / nemůže / nevíme“.
+ */
 
 /** Klíč, pod kterým pozvánka z odkazu přečká přihlášení přes Google (sessionStorage). */
 export const INVITE_STORAGE_KEY = 'sladit.pozvanka'
@@ -44,33 +53,35 @@ export function inviteTokenFromPath(pathname: string): string | null {
   return /^\/pozvanka\/([\w-]{16,200})\/?$/.exec(pathname)?.[1] ?? null
 }
 
-/**
- * Stav aplikace v prohlížeči. Zdrojem pravdy je server (účet uživatele), tady je jeho kopie
- * a to, co na server nepatří: rozpracovaný člověk, vložené a ještě nepřečtené soubory, výběr.
- */
-
 type StorageLike = Pick<Storage, 'getItem' | 'removeItem'>
 type WritableStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
-/** Pozvánka do skupiny čekající na odpověď. Náhled je null, dokud nedorazí, nebo když neplatí. */
+export type SessionStatus = 'loading' | 'signedOut' | 'ready' | 'failed'
+
+/** Otevřená stránka hlavní části. */
+export type Page = 'action' | 'schedule' | 'friends' | 'group'
+
+/** Pozvánka do skupiny nebo do přátel čekající na odpověď. Náhled je null, dokud nedorazí. */
 export interface PendingInvite {
   token: string
   preview: InvitePreview | null
   error: string | null
 }
 
-export type ReadStatus = 'pending' | 'reading' | 'done' | 'error'
-
-export type SessionStatus = 'loading' | 'signedOut' | 'ready' | 'failed'
-
-export interface PersonDraft {
-  editingPersonId: string | null
+/** Člověk, kterého jde pozvat do akce: přítel, nebo člen některé z mých skupin. */
+export interface Contact {
+  userId: string
   name: string
-  /** Vložené soubory, které se ještě nečetly. */
-  files: SourceFile[]
+  isFriend: boolean
+  groupNames: string[]
 }
 
-const MIN_PEOPLE_FOR_CALENDAR = 2
+/** Kolik týdnů ukazuje Můj rozvrh a za jak dlouhé období se čtou podklady. */
+const SCHEDULE_WEEKS = 4
+const READING_WEEKS = 12
+/** Denní okno, ve kterém Můj rozvrh ukazuje volno. */
+const SCHEDULE_DAY = { durationMinutes: 60, windowStart: '06:00', windowEnd: '23:00' }
+
 const PASTED_TEXT_NAME = 'Vložený text'
 
 class MissingFilesError extends Error {}
@@ -81,14 +92,6 @@ const NOTHING_TO_READ_ERROR = 'V podkladu není co číst.'
 const RATE_LIMIT_ERROR = 'Došel limit, zkus to za chvíli.'
 const MISSING_FILES_ERROR = 'Podklady je potřeba vložit znovu.'
 const SAVE_ERROR = 'Změnu se nepodařilo uložit.'
-
-function emptyDraft(): PersonDraft {
-  return { editingPersonId: null, name: '', files: [] }
-}
-
-function normalizedName(name: string): string {
-  return name.trim().toLocaleLowerCase('cs')
-}
 
 function readErrorMessage(error: unknown): string {
   if (error instanceof MissingFilesError) return MISSING_FILES_ERROR
@@ -106,6 +109,13 @@ function readErrorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : READ_ERROR
 }
 
+function localToday(): DateString {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
 export interface SessionOptions {
   backend: Backend
   generateId?: () => string
@@ -117,12 +127,15 @@ export interface SessionOptions {
   inviteToken?: string | null
   /** Úložiště, ve kterém pozvánka přečká přihlášení (sessionStorage). */
   inviteStorage?: WritableStorage | null
+  /** Dnešní datum (testy). */
+  today?: () => DateString
 }
 
 export function createSession(options: SessionOptions) {
   const { backend } = options
   const generateId = options.generateId ?? (() => crypto.randomUUID())
   const storage = options.storage ?? null
+  const today = options.today ?? localToday
   const inviteStorage = options.inviteStorage ?? null
   if (options.inviteToken) inviteStorage?.setItem(INVITE_STORAGE_KEY, options.inviteToken)
   let inviteToken = options.inviteToken ?? inviteStorage?.getItem(INVITE_STORAGE_KEY) ?? null
@@ -132,69 +145,100 @@ export function createSession(options: SessionOptions) {
     user: null as User | null,
     fakeGoogle: false,
     demo: options.demo ?? false,
-    /** Lidé, které uživatel vlastní: on sám a jeho hosté, s rozpisy. */
+    page: 'schedule' as Page,
+    /** Můj rozpis: člověk „sám za sebe“ s podklady a ručními úpravami. */
     people: [] as OwnedPerson[],
     actions: [] as ActionResource[],
     selectedActionId: null as string | null,
-    stepByActionId: {} as Record<string, Step>,
-    /** Vložené a ještě nepřečtené soubory podle člověka. Obsah drží jen paměť (fileBlobs). */
-    pendingFiles: {} as Record<string, SourceFile[]>,
-    draft: emptyDraft(),
+    selectedGroupId: null as string | null,
+    groups: [] as Group[],
+    friends: [] as Friend[],
+    friendInvites: [] as InviteLink[],
+    /** Odkaz s pozvánkou, který se ukáže jen jednou, hned po založení. */
+    lastInvite: null as { target: 'friends' | string; url: string } | null,
+    /** Pozvánka z odkazu. Před přihlášením je známý jen token. */
+    invite: null as PendingInvite | null,
+    /** Pohledy ze serveru na akce s cizími lidmi: návrhy a stav dne ostatních. */
+    views: {} as Record<string, ActionView>,
+    /** Vložené a ještě nepřečtené soubory mého rozvrhu. Obsah drží jen paměť (fileBlobs). */
+    pendingFiles: [] as SourceFile[],
+    reading: false,
+    readError: null as string | null,
+    /** První den (pondělí) období, které ukazuje Můj rozvrh. */
+    scheduleFrom: mondayOf(today()),
     selectedDay: null as PersonDay | null,
-    readingByPersonId: {} as Record<string, ReadStatus>,
-    readErrorByPersonId: {} as Record<string, string>,
-    /** Průběh čtení rozpisů, null když se nic nečte. */
-    readProgress: null as { done: number; total: number } | null,
     /** Parametry akce před poslední úpravou, aby šla vrátit. */
     lastActionEdit: null as { actionId: string; previous: NewActionInput } | null,
     /** Poslední chyba při ukládání, ukáže se nahoře. */
     error: null as string | null,
     /** Akce uložené v tomto prohlížeči z doby před účty, které jde převzít. */
     localActions: [] as Action[],
-    groups: [] as Group[],
-    /** Otevřená skupina. Má přednost před vybranou akcí. */
-    selectedGroupId: null as string | null,
-    /** Odkaz s pozvánkou, který se ukáže jen jednou, hned po založení. */
-    lastInvite: null as { groupId: string; url: string } | null,
-    /** Pozvánka z odkazu. Před přihlášením je známý jen token. */
-    invite: null as PendingInvite | null,
-    /** Pohledy ze serveru na akce s cizími lidmi: návrhy a stav dne ostatních. */
-    views: {} as Record<string, ActionView>,
   })
 
   const fileBlobs = new Map<string, File>()
 
-  // Akce ve tvaru, se kterým počítá jádro (core): lidé s rozpisy přímo v akci.
+  // Můj rozvrh
+
+  const me = computed(() => state.people.find((person) => person.isSelf) ?? null)
+
+  /** Můj rozvrh jako „akce“ jen se mnou, aby šel ukázat stejným kalendářem. */
+  const scheduleAction = computed<Action | null>(() => {
+    const person = me.value
+    if (!person) return null
+    return {
+      id: 'muj-rozvrh',
+      name: 'Můj rozvrh',
+      from: state.scheduleFrom,
+      to: addDays(state.scheduleFrom, SCHEDULE_WEEKS * 7 - 1),
+      ...SCHEDULE_DAY,
+      people: [{ ...person, files: state.pendingFiles }],
+    }
+  })
+
+  const scheduleComposed = computed(() =>
+    scheduleAction.value ? composePeople(scheduleAction.value) : [],
+  )
+
+  const scheduleCalendar = computed(() =>
+    scheduleAction.value ? buildCalendar(scheduleAction.value, scheduleComposed.value) : null,
+  )
+
+  const scheduleParityQuestions = computed(() =>
+    scheduleAction.value ? findParityQuestions(scheduleAction.value) : [],
+  )
+
+  const scheduleWarnings = computed(() => findReadingWarnings(scheduleComposed.value))
+
+  const scheduleUncertainDays = computed(() =>
+    scheduleAction.value ? findUncertainDays(scheduleAction.value, scheduleComposed.value) : [],
+  )
+
+  // Akce
+
+  // Akce ve tvaru, se kterým počítá jádro (core): jen lidé, jejichž rozpis znám, tedy já.
   function assemble(resource: ActionResource): Action {
-    const byId = new Map(state.people.map((person) => [person.id, person]))
+    const person = me.value
+    const takesPart = person !== null && resource.participantIds.includes(person.id)
     return {
       id: resource.id,
       ...resource.details,
-      people: resource.participantIds.flatMap((personId) => {
-        const person = byId.get(personId)
-        if (!person) return []
-        const { id, name, sources, overrides } = person
-        return [{ id, name, files: state.pendingFiles[id] ?? [], sources, overrides }]
-      }),
+      people: takesPart ? [{ ...person, files: [] }] : [],
     }
   }
 
-  const actions = computed(() => state.actions.map(assemble))
-
-  const selectedAction = computed(
-    () => actions.value.find((action) => action.id === state.selectedActionId) ?? null,
-  )
-
-  /** Vybraná akce, jak ji poslal server: i s cizími účastníky, skupinou a organizátorem. */
   const selectedResource = computed(
     () => state.actions.find((action) => action.id === state.selectedActionId) ?? null,
+  )
+
+  const selectedAction = computed(() =>
+    selectedResource.value ? assemble(selectedResource.value) : null,
   )
 
   const selectedGroup = computed(
     () => state.groups.find((group) => group.id === state.selectedGroupId) ?? null,
   )
 
-  /** Akci upravuje a přidává do ní lidi jen organizátor. */
+  /** Akci upravuje, zve do ní a potvrzuje termín jen organizátor. */
   const canEditAction = computed(() => selectedResource.value?.isOrganizer ?? false)
 
   /** Návrhy počítá server, když jsou v akci lidé, jejichž rozpis přihlášený nevidí. */
@@ -211,60 +255,23 @@ export function createSession(options: SessionOptions) {
       : null
   })
 
-  /** Jména všech účastníků vybrané akce, vlastních i cizích. */
+  /** Účastníci vybrané akce v pořadí: organizátor a ti, kdo přijali. */
   const participants = computed(() => {
     const resource = selectedResource.value
     if (!resource) return []
     return resource.participantIds.flatMap((personId) => {
-      const own = state.people.find((person) => person.id === personId)
-      if (own) return [{ id: own.id, name: own.name, isPrivate: false }]
+      if (me.value?.id === personId)
+        return [{ id: personId, name: me.value.name, isPrivate: false }]
       const other = resource.others.find((person) => person.id === personId)
       return other ? [{ id: other.id, name: other.name, isPrivate: true }] : []
     })
   })
 
-  /** Položky seznamu akcí: počet lidí včetně cizích a název skupiny. */
-  const actionItems = computed(() =>
-    state.actions.map((action) => ({
-      id: action.id,
-      name: action.details.name,
-      from: action.details.from,
-      to: action.details.to,
-      peopleCount: action.participantIds.length,
-      groupName: state.groups.find((group) => group.id === action.groupId)?.name ?? null,
-    })),
-  )
-
-  const selfPersonId = computed(() => state.people.find((person) => person.isSelf)?.id ?? null)
-
-  const currentStep = computed<Step>(() =>
-    state.selectedActionId ? (state.stepByActionId[state.selectedActionId] ?? 'intake') : 'intake',
-  )
-
-  const isDraftDirty = computed(
-    () =>
-      state.draft.editingPersonId !== null ||
-      state.draft.name.trim() !== '' ||
-      state.draft.files.length > 0,
-  )
-
-  const calendarBlocker = computed<string | null>(() => {
-    if (isDraftDirty.value) return 'Nejdřív dokonči rozpracovaného člověka.'
-    if (participants.value.length < MIN_PEOPLE_FOR_CALENDAR) {
-      return canEditAction.value ? 'Přidej aspoň dva lidi.' : 'V akci je zatím jen jeden člověk.'
-    }
-    return null
-  })
-
-  /** Rozpisy lidí složené ze zdrojů a ručních úprav pro období vybrané akce. */
   const composedPeople = computed(() =>
     selectedAction.value ? composePeople(selectedAction.value) : [],
   )
 
-  /**
-   * Kalendář: vlastní lidé s rozpisem, ostatní jen se stavem dne ze serveru,
-   * v pořadí účastníků akce.
-   */
+  /** Kalendář akce: můj řádek s rozpisem, ostatní jen se stavem dne ze serveru. */
   const calendar = computed<CalendarView | null>(() => {
     const action = selectedAction.value
     if (!action) return null
@@ -289,6 +296,11 @@ export function createSession(options: SessionOptions) {
       : null
   })
 
+  const proposals = computed(() => {
+    if (usesServerView.value) return currentView.value?.proposals ?? []
+    return selectedAction.value ? findProposals(selectedAction.value, composedPeople.value) : []
+  })
+
   /**
    * Nejistá čtení, která mohou změnit nejlepší termín. Nejistá směna zpochybní svůj den
    * a noční i ráno dne dalšího, proto se počítá i den po ní.
@@ -304,7 +316,7 @@ export function createSession(options: SessionOptions) {
     )
   }
 
-  /** Nejistá čtení, nejdřív ta, na kterých stojí nejlepší termín. */
+  /** Moje nejistá čtení v období akce, nejdřív ta, na kterých stojí nejlepší termín. */
   const uncertainDays = computed(() => {
     if (!selectedAction.value) return []
     const days = findUncertainDays(selectedAction.value, composedPeople.value)
@@ -315,14 +327,44 @@ export function createSession(options: SessionOptions) {
 
   const readingWarnings = computed(() => findReadingWarnings(composedPeople.value))
 
-  const proposals = computed(() => {
-    if (usesServerView.value) return currentView.value?.proposals ?? []
-    return selectedAction.value ? findProposals(selectedAction.value, composedPeople.value) : []
-  })
-
   const parityQuestions = computed(() =>
     selectedAction.value ? findParityQuestions(selectedAction.value) : [],
   )
+
+  /** Položky seznamu akcí: počet účastníků, čeká na moji odpověď, potvrzený termín. */
+  const actionItems = computed(() =>
+    state.actions.map((action) => ({
+      id: action.id,
+      name: action.details.name,
+      from: action.details.from,
+      to: action.details.to,
+      peopleCount: action.participantIds.length,
+      waitingForMe: action.myStatus === 'invited',
+      confirmed: action.confirmed,
+    })),
+  )
+
+  /** Koho jde pozvat: přátelé a členové mých skupin, každý jednou. */
+  const contacts = computed<Contact[]>(() => {
+    const byId = new Map<string, Contact>()
+    for (const friend of state.friends) {
+      byId.set(friend.userId, { ...friend, isFriend: true, groupNames: [] })
+    }
+    for (const group of state.groups) {
+      for (const member of group.members) {
+        if (member.isYou) continue
+        const contact = byId.get(member.userId) ?? {
+          userId: member.userId,
+          name: member.name,
+          isFriend: false,
+          groupNames: [],
+        }
+        contact.groupNames.push(group.name)
+        byId.set(member.userId, contact)
+      }
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'cs'))
+  })
 
   // Práce se serverem
 
@@ -332,13 +374,15 @@ export function createSession(options: SessionOptions) {
     state.people = []
     state.actions = []
     state.selectedActionId = null
-    state.pendingFiles = {}
-    state.lastActionEdit = null
-    state.localActions = []
-    state.groups = []
     state.selectedGroupId = null
+    state.groups = []
+    state.friends = []
+    state.friendInvites = []
     state.lastInvite = null
     state.views = {}
+    state.pendingFiles = []
+    state.lastActionEdit = null
+    state.localActions = []
     fileBlobs.clear()
     // Pozvánka z odkazu zůstává: po přihlášení se nabídne.
     state.invite = inviteToken ? { token: inviteToken, preview: null, error: null } : null
@@ -359,28 +403,41 @@ export function createSession(options: SessionOptions) {
     }
   }
 
-  function replacePersonState(person: OwnedPerson) {
+  function replaceMe(person: OwnedPerson) {
     state.people = state.people.map((existing) => (existing.id === person.id ? person : existing))
   }
 
-  function replaceActionState(action: ActionResource) {
-    state.actions = state.actions.map((existing) => (existing.id === action.id ? action : existing))
+  function replaceAction(action: ActionResource) {
+    state.actions = state.actions.some((existing) => existing.id === action.id)
+      ? state.actions.map((existing) => (existing.id === action.id ? action : existing))
+      : [...state.actions, action]
+  }
+
+  function replaceGroup(group: Group) {
+    state.groups = state.groups.some((existing) => existing.id === group.id)
+      ? state.groups.map((existing) => (existing.id === group.id ? group : existing))
+      : [...state.groups, group]
   }
 
   async function reload() {
-    const [people, loaded, groups] = await Promise.all([
+    const [people, loaded, groups, friends] = await Promise.all([
       backend.people(),
       backend.actions(),
       backend.groups(),
+      backend.friends(),
     ])
     state.people = people
     state.actions = loaded
     state.groups = groups
+    state.friends = friends.friends
+    state.friendInvites = friends.invites
     if (!loaded.some((action) => action.id === state.selectedActionId)) {
       state.selectedActionId = loaded[0]?.id ?? null
+      if (state.page === 'action' && !state.selectedActionId) state.page = 'schedule'
     }
     if (!groups.some((group) => group.id === state.selectedGroupId)) {
       state.selectedGroupId = null
+      if (state.page === 'group') state.page = 'schedule'
     }
   }
 
@@ -411,22 +468,17 @@ export function createSession(options: SessionOptions) {
     state.status = 'loading'
     state.error = null
     try {
-      const me = await backend.me()
-      state.fakeGoogle = me.fakeGoogle
-      if (!me.user) {
+      const response = await backend.me()
+      state.fakeGoogle = response.fakeGoogle
+      if (!response.user) {
         signedOut()
         return
       }
-      state.user = me.user
+      state.user = response.user
       await reload()
-      if (state.demo && state.actions.length === 0) {
-        await openSampleAction()
-        // Ukázkový uživatel nemá rozpis, v akci by jen přidal „nevíme“ ke každému dni.
-        const action = state.actions[0]
-        if (action && selfPersonId.value) {
-          replaceActionState(await backend.removeParticipant(action.id, selfPersonId.value))
-        }
-      }
+      // Kdo ještě nemá rozpis, začne Můj rozvrh. Jinak se otevře první akce.
+      const hasSchedule = (state.people[0]?.sources.length ?? 0) > 0
+      state.page = state.selectedActionId && (hasSchedule || state.demo) ? 'action' : 'schedule'
       state.localActions = !state.demo && storage ? (loadState(storage)?.actions ?? []) : []
       state.status = 'ready'
       if (!state.demo) await loadInvite()
@@ -464,74 +516,213 @@ export function createSession(options: SessionOptions) {
     state.localActions = []
   }
 
-  // Skupiny a pozvánky
+  // Stránky
 
-  function replaceGroupState(group: Group) {
-    state.groups = state.groups.some((existing) => existing.id === group.id)
-      ? state.groups.map((existing) => (existing.id === group.id ? group : existing))
-      : [...state.groups, group]
-  }
-
-  function selectGroup(groupId: string | null) {
-    state.selectedGroupId = groupId
+  function open(page: Page) {
+    state.page = page
     state.selectedDay = null
-    if (state.lastInvite?.groupId !== groupId) state.lastInvite = null
+    // Jednorázový odkaz s pozvánkou se ukazuje jen na stránce, kde vznikl.
+    const here = page === 'group' ? state.selectedGroupId : page
+    if (state.lastInvite && state.lastInvite.target !== here) state.lastInvite = null
   }
+
+  function showSchedule() {
+    open('schedule')
+  }
+
+  function showFriends() {
+    open('friends')
+  }
+
+  function selectAction(actionId: string) {
+    state.selectedActionId = actionId
+    open('action')
+  }
+
+  function selectGroup(groupId: string) {
+    state.selectedGroupId = groupId
+    open('group')
+  }
+
+  // Akce
+
+  /** Založí akci a pozve vybrané přátele. Vrací chyby formuláře. */
+  async function createNewAction(
+    input: NewActionInput,
+    inviteUserIds: string[] = [],
+  ): Promise<NewActionErrors | null> {
+    const checked = validateNewAction('nova', input)
+    if (!checked.ok) return checked.errors
+    const action = await guarded(() => backend.createAction(input, inviteUserIds))
+    if (!action) return null
+    replaceAction(action)
+    selectAction(action.id)
+    return null
+  }
+
+  /** Změní parametry vybrané akce. Rozpisy zůstanou, termíny se přepočítají. Vrací chyby formuláře. */
+  async function updateAction(input: NewActionInput): Promise<NewActionErrors | null> {
+    const action = selectedAction.value
+    if (!action) return null
+    const checked = updateActionDetails(action, input)
+    if (!checked.ok) return checked.errors
+    const previous = actionDetails(action)
+    const updated = await guarded(() => backend.updateAction(action.id, input))
+    if (!updated) return null
+    replaceAction(updated)
+    state.lastActionEdit = { actionId: action.id, previous }
+    state.selectedDay = null
+    return null
+  }
+
+  /** Vrátí poslední úpravu parametrů akce. */
+  async function undoActionUpdate() {
+    const edit = state.lastActionEdit
+    if (!edit || edit.actionId !== state.selectedActionId) return
+    const restored = await guarded(() => backend.updateAction(edit.actionId, edit.previous))
+    if (!restored) return
+    replaceAction(restored)
+    state.lastActionEdit = null
+    state.selectedDay = null
+  }
+
+  async function deleteAction() {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const done = await guarded(async () => {
+      await backend.deleteAction(actionId)
+      return true
+    })
+    if (!done) return
+    state.actions = state.actions.filter((action) => action.id !== actionId)
+    state.selectedActionId = state.actions[0]?.id ?? null
+    open(state.selectedActionId ? 'action' : 'schedule')
+  }
+
+  async function inviteToAction(userIds: string[]) {
+    const actionId = state.selectedActionId
+    if (!actionId || userIds.length === 0) return
+    const action = await guarded(() => backend.inviteToAction(actionId, userIds))
+    if (action) replaceAction(action)
+  }
+
+  async function cancelInvite(userId: string) {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const action = await guarded(() => backend.cancelInvite(actionId, userId))
+    if (action) replaceAction(action)
+  }
+
+  /** Odpověď na pozvánku. Po odmítnutí akce zmizí ze seznamu. */
+  async function respondToAction(accept: boolean) {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const result = await guarded(async () => ({
+      action: await backend.respondToAction(actionId, accept),
+    }))
+    if (!result) return
+    if (result.action) {
+      replaceAction(result.action)
+      return
+    }
+    state.actions = state.actions.filter((action) => action.id !== actionId)
+    state.selectedActionId = state.actions[0]?.id ?? null
+    open(state.selectedActionId ? 'action' : 'schedule')
+  }
+
+  /** Organizátor potvrdí termín, nebo potvrzení zruší (null). */
+  async function confirmSlot(slot: ConfirmedSlot | null) {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const action = await guarded(() => backend.confirmAction(actionId, slot))
+    if (action) replaceAction(action)
+  }
+
+  // Přátelé
+
+  /** Osobní odkaz „přidej si mě do přátel“. Ukáže se jen teď, server si ho nepamatuje. */
+  async function createFriendInvite() {
+    const created = await guarded(() => backend.createFriendInvite())
+    if (!created) return
+    state.friendInvites = [...state.friendInvites, created.invite]
+    state.lastInvite = { target: 'friends', url: created.url }
+  }
+
+  async function revokeFriendInvite(inviteId: string) {
+    const done = await guarded(async () => {
+      await backend.revokeFriendInvite(inviteId)
+      return true
+    })
+    if (done) state.friendInvites = state.friendInvites.filter((item) => item.id !== inviteId)
+  }
+
+  async function removeFriend(userId: string) {
+    const done = await guarded(async () => {
+      await backend.removeFriend(userId)
+      return true
+    })
+    if (done) state.friends = state.friends.filter((friend) => friend.userId !== userId)
+  }
+
+  // Skupiny
 
   async function createGroup(name: string): Promise<string | null> {
     const trimmed = name.trim()
     if (!trimmed) return 'Vyplň název skupiny.'
     const group = await guarded(() => backend.createGroup(trimmed))
     if (!group) return state.error
-    replaceGroupState(group)
+    replaceGroup(group)
     selectGroup(group.id)
     return null
   }
 
-  /** Odkaz s pozvánkou se ukáže jen teď, server si ho nepamatuje. */
   async function createInvite(groupId: string) {
     const created = await guarded(() => backend.createInvite(groupId))
     if (!created) return
-    replaceGroupState(created.group)
-    state.lastInvite = { groupId, url: created.url }
+    replaceGroup(created.group)
+    state.lastInvite = { target: groupId, url: created.url }
   }
 
   async function revokeInvite(groupId: string, inviteId: string) {
     const group = await guarded(() => backend.revokeInvite(groupId, inviteId))
-    if (group) replaceGroupState(group)
+    if (group) replaceGroup(group)
   }
 
   async function removeMember(groupId: string, userId: string) {
-    const group = await guarded(async () => {
-      const updated = await backend.removeMember(groupId, userId)
-      // Akce, které člen ve skupině pořádal, zmizely, a s nimi i jeho účast v ostatních.
-      state.actions = await backend.actions()
-      return updated
-    })
-    if (group) replaceGroupState(group)
+    const group = await guarded(() => backend.removeMember(groupId, userId))
+    if (group) replaceGroup(group)
   }
 
-  /** Odchod ze skupiny, nebo její smazání zakladatelem. S ní zmizí akce, které v ní člověk pořádal. */
+  /** Odchod ze skupiny, nebo její smazání zakladatelem. Akce zůstávají. */
   async function leaveGroup(groupId: string, remove = false) {
     const done = await guarded(async () => {
       await (remove ? backend.deleteGroup(groupId) : backend.leaveGroup(groupId))
-      await reload()
+      state.groups = state.groups.filter((group) => group.id !== groupId)
       return true
     })
-    if (done) selectGroup(null)
+    if (done) {
+      state.selectedGroupId = null
+      open('schedule')
+    }
   }
+
+  // Pozvánky odkazem
 
   async function acceptInvite() {
     const token = state.invite?.token
     if (!token) return
-    const group = await guarded(async () => {
-      const joined = await backend.acceptInvite(token)
-      await reload()
-      return joined
-    })
-    if (!group) return
+    const result = await guarded(() => backend.acceptInvite(token))
+    if (!result) return
     forgetInvite()
-    selectGroup(group.id)
+    if (result.kind === 'group') {
+      replaceGroup(result.group)
+      selectGroup(result.group.id)
+    } else {
+      if (!state.friends.some((friend) => friend.userId === result.friend.userId)) {
+        state.friends = [...state.friends, result.friend]
+      }
+      showFriends()
+    }
   }
 
   function declineInvite() {
@@ -558,129 +749,21 @@ export function createSession(options: SessionOptions) {
     }
   }
 
-  // Pohled se přepočítá, když se změní akce nebo rozpis někoho, koho přihlášený vlastní.
+  // Pohled se přepočítá, když se změní akce nebo můj rozpis.
   const viewKey = computed(() => {
     const resource = selectedResource.value
     if (!resource || resource.others.length === 0) return null
-    const own = selectedAction.value?.people.map(({ id, sources, overrides }) => ({
-      id,
-      sources,
-      overrides,
-    }))
-    return JSON.stringify([resource, own, state.status])
+    const mine = me.value ? [me.value.sources, me.value.overrides] : null
+    return JSON.stringify([resource, mine, state.status])
   })
   watch(viewKey, (key) => {
     if (key) void refreshView()
   })
 
-  // Výběr a kroky
+  // Můj rozvrh: podklady, čtení, ruční úpravy
 
-  function forgetReadState(personId: string) {
-    delete state.readingByPersonId[personId]
-    delete state.readErrorByPersonId[personId]
-  }
-
-  function forgetUnreferencedFiles() {
-    const referenced = new Set(state.draft.files.map((file) => file.id))
-    for (const files of Object.values(state.pendingFiles)) {
-      for (const file of files) referenced.add(file.id)
-    }
-    // Přečtené soubory zůstávají v paměti kvůli náhledu v editoru dne.
-    for (const person of state.people) {
-      for (const source of person.sources) {
-        for (const file of source.files) referenced.add(file.id)
-      }
-    }
-    for (const fileId of fileBlobs.keys()) {
-      if (!referenced.has(fileId)) fileBlobs.delete(fileId)
-    }
-  }
-
-  function resetDraft() {
-    state.draft = emptyDraft()
-    forgetUnreferencedFiles()
-  }
-
-  function selectAction(actionId: string) {
-    state.selectedActionId = actionId
-    state.selectedGroupId = null
-    state.selectedDay = null
-    resetDraft()
-  }
-
-  function openAction(actionId: string, step: Step) {
-    state.stepByActionId[actionId] = step
-    selectAction(actionId)
-  }
-
-  function goToStep(step: Step): boolean {
-    if (!state.selectedActionId) return false
-    if (step === 'calendar' && calendarBlocker.value) return false
-    state.stepByActionId[state.selectedActionId] = step
-    return true
-  }
-
-  // Akce
-
-  /** Založí akci, ve skupině se jí účastní všichni členové. Vrací chyby formuláře. */
-  async function createNewAction(
-    input: NewActionInput,
-    groupId: string | null = null,
-  ): Promise<NewActionErrors | null> {
-    const checked = validateNewAction('nova', input)
-    if (!checked.ok) return checked.errors
-    const action = await guarded(() => backend.createAction(input, groupId))
-    if (!action) return null
-    state.actions.push(action)
-    openAction(action.id, 'intake')
-    return null
-  }
-
-  /** Ukázková akce se pěti lidmi se uloží do účtu jako běžná akce. */
-  async function openSampleAction() {
-    const before = new Set(state.actions.map((action) => action.id))
-    const imported = await guarded(async () => {
-      await backend.importActions([structuredClone(sampleAction)])
-      await reload()
-      return true
-    })
-    const created = state.actions.find((action) => !before.has(action.id))
-    if (imported && created) openAction(created.id, 'calendar')
-  }
-
-  /** Změní parametry vybrané akce. Rozpisy zůstanou, termíny se přepočítají. Vrací chyby formuláře. */
-  async function updateAction(input: NewActionInput): Promise<NewActionErrors | null> {
-    const action = selectedAction.value
-    if (!action) return null
-    const checked = updateActionDetails(action, input)
-    if (!checked.ok) return checked.errors
-    const previous = actionDetails(action)
-    const updated = await guarded(() => backend.updateAction(action.id, input))
-    if (!updated) return null
-    replaceActionState(updated)
-    state.lastActionEdit = { actionId: action.id, previous }
-    state.selectedDay = null
-    return null
-  }
-
-  /** Vrátí poslední úpravu parametrů akce. */
-  async function undoActionUpdate() {
-    const edit = state.lastActionEdit
-    if (!edit || edit.actionId !== state.selectedActionId) return
-    const restored = await guarded(() => backend.updateAction(edit.actionId, edit.previous))
-    if (!restored) return
-    replaceActionState(restored)
-    state.lastActionEdit = null
-    state.selectedDay = null
-  }
-
-  // Rozpracovaný člověk
-
-  function setDraftName(name: string) {
-    state.draft.name = name
-  }
-
-  function addFilesToDraft(files: File[]): string[] {
+  /** Vloží soubory k přečtení. Vrací názvy souborů, které neumíme přečíst. */
+  function addFiles(files: File[]): string[] {
     const rejectedNames: string[] = []
     for (const file of files) {
       const kind = detectSourceFileKind(file.name, file.type)
@@ -690,147 +773,28 @@ export function createSession(options: SessionOptions) {
       }
       const id = generateId()
       fileBlobs.set(id, file)
-      state.draft.files.push({ id, name: file.name, kind })
+      state.pendingFiles.push({ id, name: file.name, kind })
     }
+    state.readError = null
     return rejectedNames
   }
 
-  function addTextToDraft(text: string) {
-    addFilesToDraft([new File([text], `${PASTED_TEXT_NAME}.txt`, { type: 'text/plain' })])
+  function addText(text: string) {
+    addFiles([new File([text], `${PASTED_TEXT_NAME}.txt`, { type: 'text/plain' })])
   }
 
-  function removeFileFromDraft(fileId: string) {
-    state.draft.files = state.draft.files.filter((file) => file.id !== fileId)
+  function removePendingFile(fileId: string) {
+    state.pendingFiles = state.pendingFiles.filter((file) => file.id !== fileId)
+    fileBlobs.delete(fileId)
   }
 
-  async function saveDraft(): Promise<string | null> {
-    const action = selectedAction.value
-    if (!action) return 'Není vybraná žádná akce.'
-
-    const { editingPersonId, files } = state.draft
-    const name = state.draft.name.trim()
-    if (!name) return 'Vyplň jméno.'
-
-    const existing = action.people.find((person) => person.id === editingPersonId)
-    if (!existing && !canEditAction.value) return 'Lidi do akce přidává jen organizátor.'
-    const hasSchedule = (existing?.sources.length ?? 0) > 0 || (existing?.overrides.length ?? 0) > 0
-    if (files.length === 0 && !hasSchedule) return 'Vlož aspoň jeden podklad.'
-
-    const nameTaken = participants.value.some(
-      (person) =>
-        person.id !== editingPersonId && normalizedName(person.name) === normalizedName(name),
-    )
-    if (nameTaken) return 'Tohle jméno už v akci je.'
-
-    if (existing) {
-      if (existing.name !== name) {
-        const renamed = await guarded(() => backend.renamePerson(existing.id, name))
-        if (!renamed) return state.error
-        replacePersonState(renamed)
-      }
-      // Koncept drží jen podklady čekající na přečtení. Přečtené zdroje a ruční úpravy zůstávají.
-      const filesChanged =
-        existing.files.length !== files.length ||
-        existing.files.some((file, index) => file.id !== files[index].id)
-      if (filesChanged) forgetReadState(existing.id)
-      state.pendingFiles[existing.id] = [...files]
-    } else {
-      const added = await guarded(() => backend.addGuest(action.id, name))
-      if (!added) return state.error
-      state.people.push(added.person)
-      replaceActionState(added.action)
-      state.pendingFiles[added.person.id] = [...files]
-    }
-    resetDraft()
-    return null
-  }
-
-  function discardDraft() {
-    resetDraft()
-  }
-
-  function editPerson(personId: string) {
-    if (state.readProgress) return
-    const person = selectedAction.value?.people.find((candidate) => candidate.id === personId)
-    if (!person) return
-    state.draft = { editingPersonId: person.id, name: person.name, files: [...person.files] }
-  }
-
-  /** Z kalendáře zpět k podkladům, s člověkem připraveným k úpravě. */
-  function editPersonInIntake(personId: string): boolean {
-    const exists = selectedAction.value?.people.some((person) => person.id === personId)
-    if (!exists || state.readProgress) return false
-    editPerson(personId)
-    return goToStep('intake')
-  }
-
-  /** Odebere člověka z akce. Host, který už v žádné akci není, se smaže i s rozpisem. */
-  async function removeEditedPerson() {
-    const personId = state.draft.editingPersonId
-    const actionId = state.selectedActionId
-    if (!personId || !actionId) return
-    const updated = await guarded(async () => {
-      const action = await backend.removeParticipant(actionId, personId)
-      state.people = await backend.people()
-      return action
-    })
-    if (!updated) return
-    replaceActionState(updated)
-    delete state.pendingFiles[personId]
-    forgetReadState(personId)
-    resetDraft()
-  }
-
-  // Rozpisy
-
-  function selectDay(day: PersonDay | null) {
-    state.selectedDay = day
-  }
-
-  /** Ruční úprava dne. Pokrývá jen ten den a nové čtení ji nepřepíše. */
-  async function saveDayShifts(personId: string, date: DateString, shifts: Shift[]) {
-    const person = await guarded(() => backend.setOverride(personId, date, shifts))
-    if (person) replacePersonState(person)
-  }
-
-  /** Den se zase řídí podklady. */
-  async function clearDayOverride(personId: string, date: DateString) {
-    const person = await guarded(() => backend.deleteOverride(personId, date))
-    if (person) replacePersonState(person)
-  }
-
-  async function removeSource(personId: string, sourceId: string) {
-    const person = await guarded(() => backend.deleteSource(personId, sourceId))
-    if (!person) return
-    replacePersonState(person)
-    forgetUnreferencedFiles()
-  }
-
-  async function changeSourceCircle(personId: string, sourceId: string, circle: string) {
-    const person = await guarded(() => backend.updateSource(personId, sourceId, { circle }))
-    if (person) replacePersonState(person)
-  }
-
-  /** Potvrzení, zda je týden s daným dnem lichý, nebo sudý. */
-  async function answerWeekParity(
-    personId: string,
-    sourceId: string,
-    date: DateString,
-    odd: boolean,
-  ) {
-    const person = await guarded(() =>
-      backend.updateSource(personId, sourceId, { weekParity: { date, odd } }),
-    )
-    if (person) replacePersonState(person)
-  }
-
-  async function readPerson(actionId: string, personId: string) {
-    const action = actions.value.find((candidate) => candidate.id === actionId)
-    const files = state.pendingFiles[personId] ?? []
-    if (!action || files.length === 0) return
-
-    state.readingByPersonId[personId] = 'reading'
-    delete state.readErrorByPersonId[personId]
+  /** Přečte vložené podklady modelem a přidá je k mému rozpisu. Starší zdroje a úpravy zůstanou. */
+  async function readSchedule() {
+    const person = me.value
+    const files = state.pendingFiles
+    if (!person || files.length === 0 || state.reading) return
+    state.reading = true
+    state.readError = null
     try {
       const blobs = files.map((file) => fileBlobs.get(file.id))
       if (blobs.some((blob) => blob === undefined)) throw new MissingFilesError()
@@ -840,57 +804,89 @@ export function createSession(options: SessionOptions) {
       const parts = await Promise.all(
         files.map((file, index) => prepareSource(blobs[index]!, file.kind)),
       )
-      const person = await backend.read(personId, {
-        from: action.from,
-        to: action.to,
-        files,
+      const from = mondayOf(today())
+      const updated = await backend.read(person.id, {
+        from,
+        to: addDays(from, READING_WEEKS * 7 - 1),
+        files: [...files],
         parts,
       })
-      replacePersonState(person)
-      delete state.pendingFiles[personId]
-      state.readingByPersonId[personId] = 'done'
+      replaceMe(updated)
+      state.pendingFiles = []
     } catch (error) {
       if (error instanceof BackendError && error.status === 401) signedOut()
-      state.readingByPersonId[personId] = 'error'
-      state.readErrorByPersonId[personId] = readErrorMessage(error)
-    }
-  }
-
-  async function readPeople(actionId: string, personIds: string[]) {
-    state.readProgress = { done: 0, total: personIds.length }
-    for (const personId of personIds) state.readingByPersonId[personId] = 'pending'
-    try {
-      // Postupně: limity modelu a přehledný průběh.
-      for (const personId of personIds) {
-        await readPerson(actionId, personId)
-        if (state.readProgress) state.readProgress.done++
-      }
+      state.readError = readErrorMessage(error)
     } finally {
-      state.readProgress = null
+      state.reading = false
     }
   }
 
-  /** Přečte nové podklady všech lidí a otevře kalendář. Selhání jednoho ostatní nezastaví. */
-  async function readSchedules() {
-    const action = selectedAction.value
-    if (!action || state.readProgress || calendarBlocker.value) return
-
-    const pending = action.people.filter((person) => person.files.length > 0)
-    if (pending.length > 0) {
-      await readPeople(
-        action.id,
-        pending.map((person) => person.id),
-      )
-    }
-    if (state.selectedActionId === action.id && state.status === 'ready') goToStep('calendar')
+  async function renameMe(name: string): Promise<string | null> {
+    const person = me.value
+    const trimmed = name.trim()
+    if (!person) return null
+    if (!trimmed) return 'Jméno nesmí být prázdné.'
+    const updated = await guarded(() => backend.renamePerson(person.id, trimmed))
+    if (!updated) return state.error
+    replaceMe(updated)
+    return null
   }
 
-  /** Přečte znovu jednoho člověka, krok se nemění. */
-  async function retryPerson(personId: string) {
-    const action = selectedAction.value
-    if (!action || state.readProgress) return
-    if (!action.people.some((person) => person.id === personId)) return
-    await readPeople(action.id, [personId])
+  function selectDay(day: PersonDay | null) {
+    state.selectedDay = day
+  }
+
+  /** Ruční úprava dne. Pokrývá jen ten den a nové čtení ji nepřepíše. */
+  async function saveDayShifts(date: DateString, shifts: Shift[]) {
+    const person = me.value
+    if (!person) return
+    const updated = await guarded(() => backend.setOverride(person.id, date, shifts))
+    if (updated) replaceMe(updated)
+  }
+
+  /** Den se zase řídí podklady. */
+  async function clearDayOverride(date: DateString) {
+    const person = me.value
+    if (!person) return
+    const updated = await guarded(() => backend.deleteOverride(person.id, date))
+    if (updated) replaceMe(updated)
+  }
+
+  async function removeSource(sourceId: string) {
+    const person = me.value
+    if (!person) return
+    const updated = await guarded(() => backend.deleteSource(person.id, sourceId))
+    if (!updated) return
+    replaceMe(updated)
+    // Obsah souborů smazaného zdroje už není potřeba ani pro náhled.
+    const referenced = new Set([
+      ...state.pendingFiles.map((file) => file.id),
+      ...updated.sources.flatMap((source) => source.files.map((file) => file.id)),
+    ])
+    for (const fileId of fileBlobs.keys()) if (!referenced.has(fileId)) fileBlobs.delete(fileId)
+  }
+
+  async function changeSourceCircle(sourceId: string, circle: string) {
+    const person = me.value
+    if (!person) return
+    const updated = await guarded(() => backend.updateSource(person.id, sourceId, { circle }))
+    if (updated) replaceMe(updated)
+  }
+
+  /** Potvrzení, zda je týden s daným dnem lichý, nebo sudý. */
+  async function answerWeekParity(sourceId: string, date: DateString, odd: boolean) {
+    const person = me.value
+    if (!person) return
+    const updated = await guarded(() =>
+      backend.updateSource(person.id, sourceId, { weekParity: { date, odd } }),
+    )
+    if (updated) replaceMe(updated)
+  }
+
+  /** Posune Můj rozvrh o daný počet týdnů. */
+  function shiftSchedule(weeks: number) {
+    state.scheduleFrom = addDays(state.scheduleFrom, weeks * 7)
+    state.selectedDay = null
   }
 
   function fileBlob(fileId: string): File | undefined {
@@ -900,32 +896,49 @@ export function createSession(options: SessionOptions) {
   return {
     state,
     loginUrl: backend.loginUrl,
-    actions,
+    me,
+    scheduleAction,
+    scheduleCalendar,
+    scheduleComposed,
+    scheduleParityQuestions,
+    scheduleWarnings,
+    scheduleUncertainDays,
     actionItems,
-    selectedAction,
+    contacts,
     selectedResource,
+    selectedAction,
     selectedGroup,
     canEditAction,
     usesServerView,
     participants,
-    selfPersonId,
-    currentStep,
-    isDraftDirty,
-    calendarBlocker,
-    calendar,
     composedPeople,
+    calendar,
     stability,
+    proposals,
     uncertainDays,
     pivotalUncertainCount,
     readingWarnings,
-    proposals,
     parityQuestions,
     init,
     logout,
     deleteAccount,
     acceptLocalActions,
     dismissLocalActions,
+    showSchedule,
+    showFriends,
+    selectAction,
     selectGroup,
+    createAction: createNewAction,
+    updateAction,
+    undoActionUpdate,
+    deleteAction,
+    inviteToAction,
+    cancelInvite,
+    respondToAction,
+    confirmSlot,
+    createFriendInvite,
+    revokeFriendInvite,
+    removeFriend,
     createGroup,
     createInvite,
     revokeInvite,
@@ -934,29 +947,18 @@ export function createSession(options: SessionOptions) {
     acceptInvite,
     declineInvite,
     refreshView,
-    createAction: createNewAction,
-    updateAction,
-    undoActionUpdate,
-    openSampleAction,
-    selectAction,
-    goToStep,
-    setDraftName,
-    addFilesToDraft,
-    addTextToDraft,
-    removeFileFromDraft,
-    saveDraft,
-    discardDraft,
-    editPerson,
-    editPersonInIntake,
-    removeEditedPerson,
+    addFiles,
+    addText,
+    removePendingFile,
+    readSchedule,
+    renameMe,
     selectDay,
     saveDayShifts,
     clearDayOverride,
     removeSource,
     changeSourceCircle,
     answerWeekParity,
-    readSchedules,
-    retryPerson,
+    shiftSchedule,
     fileBlob,
   }
 }
@@ -986,7 +988,7 @@ export function useSession(): Session {
     const demo = isDemo()
     session = createSession({
       backend: demo
-        ? memoryBackend({ user: { id: 'ukazka', email: '', name: 'Ty' } })
+        ? memoryBackend({ user: { id: 'ukazka', email: '', name: 'Ty' }, sample: sampleAction })
         : httpBackend(),
       storage: typeof localStorage === 'undefined' ? null : localStorage,
       demo,

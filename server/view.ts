@@ -1,9 +1,6 @@
 import type { ActionResource, ActionView } from '@/contract/api'
-import { composePeople } from '@/core/compose'
 import type { Action } from '@/core/schema'
-import { dayAttendance, findProposals } from '@/core/scheduler'
-import { analyzeStability } from '@/core/sensitivity'
-import { eachDay } from '@/core/time'
+import { sharedView } from '@/core/sharedView'
 import type { ViewPerson } from './db/store'
 
 /**
@@ -28,37 +25,8 @@ export function actionView(
       overrides,
     })),
   }
-  const composed = composePeople(action)
   const foreign = new Set(
     people.filter((person) => person.ownerId !== viewerId).map((person) => person.id),
   )
-  const dates = eachDay(action.from, action.to)
-  const stability = analyzeStability(action, composed)
-
-  return {
-    actionId: action.id,
-    dates,
-    others: composed
-      .filter((person) => foreign.has(person.id))
-      .map((person) => ({
-        personId: person.id,
-        days: dates.map((date) => dayAttendance(action, person.schedule, date)),
-      })),
-    proposals: findProposals(action, composed),
-    stability: {
-      winner: stability.winner,
-      certain: stability.certain,
-      pivots: stability.pivots.map((pivot) =>
-        foreign.has(pivot.personId)
-          ? {
-              personId: pivot.personId,
-              dates: [...new Set(pivot.dates.map((item) => item.date))].map((date) => ({
-                date,
-                reason: 'private' as const,
-              })),
-            }
-          : pivot,
-      ),
-    },
-  }
+  return { actionId: action.id, ...sharedView(action, foreign) }
 }

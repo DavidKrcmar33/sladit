@@ -1,11 +1,14 @@
 import { z } from 'zod'
 import {
+  AcceptInviteResponseSchema,
+  ActionResourceSchema,
   ActionResponseSchema,
   ActionsResponseSchema,
   ActionViewResponseSchema,
-  AddGuestResponseSchema,
+  CreateFriendInviteResponseSchema,
   CreateInviteResponseSchema,
   ErrorResponseSchema,
+  FriendsResponseSchema,
   GroupResponseSchema,
   GroupsResponseSchema,
   ImportResponseSchema,
@@ -17,6 +20,7 @@ import {
 import { BackendError, type Backend } from './backend'
 
 const OkResponseSchema = z.object({ ok: z.literal(true) })
+const MaybeActionResponseSchema = z.object({ action: ActionResourceSchema.nullable() })
 
 /** Server na stejném původu. Cookie relace posílá prohlížeč sám, odpovědi se ověřují schématy. */
 export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args)): Backend {
@@ -80,15 +84,28 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     deleteOverride: (personId, date) => person('DELETE', `/people/${personId}/overrides/${date}`),
 
     actions: () => call(ActionsResponseSchema, 'GET', '/actions').then((data) => data.actions),
-    createAction: (details, groupId = null) => action('POST', '/actions', { details, groupId }),
+    createAction: (details, inviteUserIds = []) =>
+      action('POST', '/actions', { details, inviteUserIds }),
     updateAction: (actionId, details) => action('PATCH', `/actions/${actionId}`, { details }),
     deleteAction: (actionId) => ok('DELETE', `/actions/${actionId}`),
-    addGuest: (actionId, name) =>
-      call(AddGuestResponseSchema, 'POST', `/actions/${actionId}/guests`, { name }),
-    removeParticipant: (actionId, personId) =>
-      action('DELETE', `/actions/${actionId}/participants/${personId}`),
     actionView: (actionId) =>
       call(ActionViewResponseSchema, 'GET', `/actions/${actionId}/view`).then((data) => data.view),
+    inviteToAction: (actionId, userIds) =>
+      action('POST', `/actions/${actionId}/invites`, { userIds }),
+    cancelInvite: (actionId, userId) => action('DELETE', `/actions/${actionId}/invites/${userId}`),
+    respondToAction: (actionId, accept) =>
+      call(MaybeActionResponseSchema, 'POST', `/actions/${actionId}/response`, { accept }).then(
+        (data) => data.action,
+      ),
+    confirmAction: (actionId, slot) =>
+      slot
+        ? action('PUT', `/actions/${actionId}/confirmed`, slot)
+        : action('DELETE', `/actions/${actionId}/confirmed`),
+
+    friends: () => call(FriendsResponseSchema, 'GET', '/friends'),
+    createFriendInvite: () => call(CreateFriendInviteResponseSchema, 'POST', '/friends/invites'),
+    revokeFriendInvite: (inviteId) => ok('DELETE', `/friends/invites/${inviteId}`),
+    removeFriend: (userId) => ok('DELETE', `/friends/${userId}`),
 
     groups: () => call(GroupsResponseSchema, 'GET', '/groups').then((data) => data.groups),
     createGroup: (name) => group('POST', '/groups', { name }),
@@ -98,9 +115,10 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     createInvite: (groupId) =>
       call(CreateInviteResponseSchema, 'POST', `/groups/${groupId}/invites`),
     revokeInvite: (groupId, inviteId) => group('DELETE', `/groups/${groupId}/invites/${inviteId}`),
+
     invitePreview: (token) =>
       call(InvitePreviewResponseSchema, 'GET', invite(token)).then((data) => data.invite),
-    acceptInvite: (token) => group('POST', `${invite(token)}/accept`),
+    acceptInvite: (token) => call(AcceptInviteResponseSchema, 'POST', `${invite(token)}/accept`),
 
     importActions: (actions) =>
       call(ImportResponseSchema, 'POST', '/import', { actions }).then((data) => data.imported),

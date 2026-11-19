@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { browser, testServer } from '../server/testing'
 import { httpBackend } from './client/http'
-import type { ActionResource, Group, OwnedPerson } from './contract/api'
 import type { SourceContent } from './core/schema'
 import {
   createSession,
@@ -26,7 +25,8 @@ const details = {
   windowEnd: '22:00',
 }
 
-const petrContent: SourceContent = {
+/** Annin rozpis: v úterý odpolední do 23:00, jinak volno. */
+const annaContent: SourceContent = {
   circle: 'Práce',
   coverage: [{ from: '2026-11-23', to: '2026-11-29' }],
   shifts: [
@@ -49,35 +49,46 @@ function memoryStorage() {
 function sessionFor(user: Browser, options: Partial<SessionOptions> = {}) {
   const fetcher = ((input: RequestInfo | URL, init?: RequestInit) =>
     user.request(String(input), init ?? {})) as typeof fetch
-  return createSession({ backend: httpBackend(fetcher), ...options })
-}
-
-async function json<T>(response: Response): Promise<T> {
-  return (await response.json()) as T
+  return createSession({ backend: httpBackend(fetcher), today: () => '2026-11-19', ...options })
 }
 
 async function setup() {
-  const server = await testServer({}, async () => petrContent)
+  const server = await testServer({}, async () => annaContent)
   const anna = browser(server.app)
   const eva = browser(server.app)
   await anna.login('anna@example.com', 'Anna')
   return { ...server, anna, eva }
 }
 
-describe('pozvánka v prohlížeči', () => {
+/** Anna a Eva jsou přátelé (přes odkaz) a Anna má přečtený rozpis. */
+async function friends() {
+  const context = await setup()
+  const annaSession = sessionFor(context.anna)
+  await annaSession.init()
+  await annaSession.createFriendInvite()
+  const token = inviteTokenFromPath(new URL(annaSession.state.lastInvite!.url).pathname)!
+  await context.eva.login('eva@example.com', 'Eva')
+  const evaSession = sessionFor(context.eva, { inviteToken: token })
+  await evaSession.init()
+  await evaSession.acceptInvite()
+  annaSession.addFiles([new File(['Út O'], 'anna.txt', { type: 'text/plain' })])
+  await annaSession.readSchedule()
+  await annaSession.init()
+  return { ...context, annaSession, evaSession }
+}
+
+describe('pozvánka odkazem', () => {
   it('reads the token from the invite address only', () => {
     expect(inviteTokenFromPath('/pozvanka/abcdefghijklmnop_-12')).toBe('abcdefghijklmnop_-12')
     expect(inviteTokenFromPath('/pozvanka/kratky')).toBeNull()
     expect(inviteTokenFromPath('/jinde/abcdefghijklmnop_-12')).toBeNull()
   })
 
-  it('keeps the invite through the Google login and joins the group after it', async () => {
+  it('keeps a friend link through the Google login and adds the friend after it', async () => {
     const { anna, eva } = await setup()
     const annaSession = sessionFor(anna)
     await annaSession.init()
-    expect(await annaSession.createGroup('Parta')).toBeNull()
-    const groupId = annaSession.state.selectedGroupId!
-    await annaSession.createInvite(groupId)
+    await annaSession.createFriendInvite()
     const token = inviteTokenFromPath(new URL(annaSession.state.lastInvite!.url).pathname)!
 
     // Eva otevře odkaz nepřihlášená: pozvánka čeká v sessionStorage.
@@ -92,12 +103,37 @@ describe('pozvánka v prohlížeči', () => {
     await eva.login('eva@example.com', 'Eva')
     const after = sessionFor(eva, { inviteStorage: storage })
     await after.init()
-    expect(after.state.invite?.preview).toMatchObject({ groupName: 'Parta', ownerName: 'Anna' })
+    expect(after.state.invite?.preview).toEqual({
+      kind: 'friend',
+      fromName: 'Anna',
+      isFriend: false,
+      isSelf: false,
+    })
 
     await after.acceptInvite()
     expect(after.state.invite).toBeNull()
     expect(storage.items.has(INVITE_STORAGE_KEY)).toBe(false)
-    expect(after.selectedGroup.value).toMatchObject({ name: 'Parta', isOwner: false })
+    expect(after.state.page).toBe('friends')
+    expect(after.state.friends.map((friend) => friend.name)).toEqual(['Anna'])
+  })
+
+  it('joins a group through its link and offers its members as contacts', async () => {
+    const { anna, eva } = await setup()
+    const annaSession = sessionFor(anna)
+    await annaSession.init()
+    await annaSession.createGroup('Parta')
+    await annaSession.createInvite(annaSession.state.selectedGroupId!)
+    const token = inviteTokenFromPath(new URL(annaSession.state.lastInvite!.url).pathname)!
+
+    await eva.login('eva@example.com', 'Eva')
+    const session = sessionFor(eva, { inviteToken: token })
+    await session.init()
+    expect(session.state.invite?.preview).toMatchObject({ kind: 'group', groupName: 'Parta' })
+    await session.acceptInvite()
+    expect(session.selectedGroup.value).toMatchObject({ name: 'Parta', isOwner: false })
+    expect(session.contacts.value).toEqual([
+      { userId: expect.any(String), name: 'Anna', isFriend: false, groupNames: ['Parta'] },
+    ])
   })
 
   it('explains an invite that no longer works and lets it go', async () => {
@@ -116,56 +152,40 @@ describe('pozvánka v prohlížeči', () => {
   })
 })
 
-describe('akce ve skupině v prohlížeči', () => {
-  /** Anna pořádá akci ve skupině s hostem Petrem, Eva je členka bez rozpisu. */
-  async function memberView() {
-    const context = await setup()
-    const { anna, eva } = context
-    const { group } = await json<{ group: Group }>(
-      await anna.send('POST', '/api/groups', { name: 'Parta' }),
-    )
-    const { url } = await json<{ url: string }>(
-      await anna.send('POST', `/api/groups/${group.id}/invites`),
-    )
-    await eva.login('eva@example.com', 'Eva')
-    await eva.send('POST', `/api/invites/${inviteTokenFromPath(new URL(url).pathname)}/accept`)
-    const { action } = await json<{ action: ActionResource }>(
-      await anna.send('POST', '/api/actions', { details, groupId: group.id }),
-    )
-    const { person: petr } = await json<{ person: OwnedPerson }>(
-      await anna.send('POST', `/api/actions/${action.id}/guests`, { name: 'Petr' }),
-    )
-    await anna.send('POST', `/api/people/${petr.id}/readings`, {
-      from: details.from,
-      to: details.to,
-      files: [{ id: 'f1', name: 'petr.txt', kind: 'text' }],
-      parts: [{ part: { text: 'Út O' }, notes: [] }],
-    })
-    const session = sessionFor(eva)
-    await session.init()
-    session.selectAction(action.id)
-    await session.refreshView()
-    return { ...context, session, groupId: group.id, actionId: action.id, petr }
+describe('akce s pozvanými', () => {
+  /** Anna pozve Evu do akce. */
+  async function invited() {
+    const context = await friends()
+    const { annaSession, evaSession } = context
+    const evaId = annaSession.contacts.value.find((contact) => contact.name === 'Eva')!.userId
+    await annaSession.createAction(details, [evaId])
+    await evaSession.init()
+    evaSession.selectAction(evaSession.state.actions[0].id)
+    return context
   }
 
-  it('shows the others only as may / may not / unknown and takes proposals from the server', async () => {
-    const { session, petr } = await memberView()
-    expect(session.canEditAction.value).toBe(false)
-    expect(session.usesServerView.value).toBe(true)
-    expect(session.participants.value.map((person) => [person.name, person.isPrivate])).toEqual([
+  it('shows the invitation and counts the friend only after accepting', async () => {
+    const { evaSession } = await invited()
+    expect(evaSession.actionItems.value).toMatchObject([{ name: 'Pivo', waitingForMe: true }])
+    expect(evaSession.participants.value.map((person) => [person.name, person.isPrivate])).toEqual([
       ['Anna', true],
-      ['Petr', true],
-      ['Eva', false],
     ])
 
-    const rows = session.calendar.value!.rows
-    expect(rows.map((row) => [row.personName, row.isPrivate ?? false])).toEqual([
+    await evaSession.respondToAction(true)
+    expect(evaSession.selectedResource.value?.myStatus).toBe('accepted')
+    expect(evaSession.participants.value.map((person) => [person.name, person.isPrivate])).toEqual([
       ['Anna', true],
-      ['Petr', true],
       ['Eva', false],
     ])
-    const petrRow = rows.find((row) => row.personId === petr.id)!
-    expect(petrRow.days.map((day) => day.attendance)).toEqual([
+  })
+
+  it('shows the others only as may / may not / unknown and recomputes after my own edit', async () => {
+    const { evaSession } = await invited()
+    await evaSession.respondToAction(true)
+    await evaSession.refreshView()
+    const annaRow = evaSession.calendar.value!.rows[0]
+    expect(annaRow.isPrivate).toBe(true)
+    expect(annaRow.days.map((day) => day.attendance)).toEqual([
       'available',
       'busy',
       'available',
@@ -174,34 +194,29 @@ describe('akce ve skupině v prohlížeči', () => {
       'available',
       'available',
     ])
-    // U cizího řádku nejsou směny ani časy, jen výsledek.
-    expect(
-      petrRow.days.every((day) => day.status.kind === 'private' && day.windows.length === 0),
-    ).toBe(true)
-    expect(session.proposals.value[0]).toMatchObject({ date: '2026-11-23', available: [petr.id] })
-    expect(session.calendarBlocker.value).toBeNull()
-  })
-
-  it('lets a member fill in only their own schedule and recomputes the proposals', async () => {
-    const { session } = await memberView()
-    session.setDraftName('Kamarád')
-    expect(await session.saveDraft()).toBe('Lidi do akce přidává jen organizátor.')
-    session.discardDraft()
+    expect(annaRow.days.every((day) => day.windows.length === 0)).toBe(true)
 
     // Eva doplní, že ve středu může: návrhy se přepočítají na serveru samy.
-    const eva = session.selfPersonId.value!
-    await session.saveDayShifts(eva, '2026-11-25', [])
+    await evaSession.saveDayShifts('2026-11-25', [])
     await vi.waitFor(() => {
-      expect(session.proposals.value[0]).toMatchObject({ date: '2026-11-25' })
+      expect(evaSession.proposals.value[0]).toMatchObject({ date: '2026-11-25' })
     })
-    expect(session.proposals.value[0].available).toContain(eva)
+    expect(evaSession.proposals.value[0].available).toContain(evaSession.me.value!.id)
   })
 
-  it('drops the group actions after leaving the group', async () => {
-    const { session, groupId } = await memberView()
-    await session.leaveGroup(groupId)
-    expect(session.state.groups).toEqual([])
-    expect(session.state.actions).toEqual([])
-    expect(session.selectedAction.value).toBeNull()
+  it('drops a declined action from the list', async () => {
+    const { evaSession } = await invited()
+    await evaSession.respondToAction(false)
+    expect(evaSession.state.actions).toEqual([])
+    expect(evaSession.state.page).toBe('schedule')
+  })
+
+  it('lets the organizer confirm a slot that the friend then sees', async () => {
+    const { annaSession, evaSession } = await invited()
+    await evaSession.respondToAction(true)
+    const slot = { date: '2026-11-25', start: '18:00', end: '20:00' }
+    await annaSession.confirmSlot(slot)
+    await evaSession.init()
+    expect(evaSession.state.actions[0].confirmed).toEqual(slot)
   })
 })
