@@ -1,0 +1,55 @@
+{
+  "documentKind": "list",
+  "readability": "good",
+  "people": "one",
+  "legend": "Legenda chybí, časy značek odhadnuty podle běžného slovníku.",
+  "weekParity": "unstated",
+  "coverage": [{ "from": "2026-09-14", "to": "2026-09-21" }],
+  "dated": [
+    {
+      "date": "2026-09-14",
+      "weekday": "none",
+      "start": "22:00",
+      "end": "06:00",
+      "label": "N",
+      "raw": "N",
+      "uncertain": true,
+      "source": "řádek „14.9. N“"
+    },
+    {
+      "date": "2026-09-15",
+      "weekday": "none",
+      "start": "22:00",
+      "end": "06:00",
+      "label": "N",
+      "raw": "N",
+      "uncertain": true,
+      "source": "řádek „15.9. N“"
+    },
+    {
+      "date": "2026-09-18",
+      "weekday": "none",
+      "start": "06:00",
+      "end": "14:00",
+      "label": "R",
+      "raw": "R",
+      "uncertain": true,
+      "source": "řádek „18.9. R“"
+    },
+    {
+      "date": "2026-09-21",
+      "weekday": "none",
+      "start": "14:00",
+      "end": "22:00",
+      "label": "14-22",
+      "raw": "14-22",
+      "uncertain": false,
+      "source": "řádek „21.9. 14-22“"
+    }
+  ],
+  "weekly": [],
+  "warnings": [
+    "Časy odhadnuty podle slovníku.",
+    "19. 9. je v podkladu uvedeno jen „?“, blok nebyl přidán."
+  ]
+}

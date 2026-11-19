@@ -1,0 +1,9 @@
+Příklad 1. Období: 2026-03-02 až 2026-03-08.
+
+Rozpis kavárna Rynek, týden 10
+Legenda: R = 7-15, O = 15-23, V = volno
+
+Jméno     Po  Út  St  Čt  Pá  So  Ne
+Klára     R   R   V   O   O   V   V
+Marek     O   V   O   O   R   R   V
+Tereza    V   R   R   V   O   O   R

@@ -1,0 +1,11 @@
+{
+  "documentKind": "table",
+  "readability": "good",
+  "people": "many",
+  "legend": "R = 7-15, O = 15-23, V = volno.",
+  "weekParity": "unstated",
+  "coverage": [{ "from": "2026-03-02", "to": "2026-03-08" }],
+  "dated": [],
+  "weekly": [],
+  "warnings": ["Podklad obsahuje rozpisy více lidí. Každý člověk má mít vlastní podklad."]
+}

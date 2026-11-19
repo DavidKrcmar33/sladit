@@ -1,0 +1,89 @@
+{
+  "documentKind": "timetable",
+  "readability": "good",
+  "people": "one",
+  "legend": "Týdenní rozvrh, časy u bloků. Poznámky: volné dny u jednotlivých předmětů, lichý týden.",
+  "weekParity": "calendar",
+  "coverage": [{ "from": "2026-09-21", "to": "2026-12-20" }],
+  "dated": [],
+  "weekly": [
+    {
+      "weekday": "mon",
+      "weeks": "every",
+      "exceptDates": ["2026-10-12"],
+      "start": "15:00",
+      "end": "16:50",
+      "label": "ŠK",
+      "raw": "Vyčíslitelnost a složitost (Q22)",
+      "uncertain": false,
+      "source": "Po, 15:00–16:50"
+    },
+    {
+      "weekday": "wed",
+      "weeks": "every",
+      "exceptDates": [],
+      "start": "09:00",
+      "end": "10:50",
+      "label": "ŠK",
+      "raw": "Business Intelligence (Q15)",
+      "uncertain": false,
+      "source": "St, 9:00–10:50"
+    },
+    {
+      "weekday": "wed",
+      "weeks": "every",
+      "exceptDates": [],
+      "start": "13:00",
+      "end": "14:50",
+      "label": "ŠK",
+      "raw": "Umělá inteligence (Q07)",
+      "uncertain": false,
+      "source": "St, 13:00–14:50"
+    },
+    {
+      "weekday": "wed",
+      "weeks": "every",
+      "exceptDates": [],
+      "start": "15:00",
+      "end": "16:50",
+      "label": "ŠK",
+      "raw": "Strategický management v AJ (Q01) / Strojové učení (Q06)",
+      "uncertain": true,
+      "source": "St, 15:00–16:50 (dva řádky)"
+    },
+    {
+      "weekday": "wed",
+      "weeks": "every",
+      "exceptDates": [],
+      "start": "17:00",
+      "end": "18:50",
+      "label": "ŠK",
+      "raw": "Vyčíslitelnost a složitost (Q23)",
+      "uncertain": false,
+      "source": "St, 17:00–18:50"
+    },
+    {
+      "weekday": "thu",
+      "weeks": "odd",
+      "exceptDates": [],
+      "start": "09:00",
+      "end": "10:50",
+      "label": "ŠK",
+      "raw": "Strategický management v AJ (Q25)",
+      "uncertain": false,
+      "source": "Čt, 9:00–10:50"
+    },
+    {
+      "weekday": "thu",
+      "weeks": "every",
+      "exceptDates": ["2026-10-15"],
+      "start": "16:00",
+      "end": "16:50",
+      "label": "ŠK",
+      "raw": "Modelování a simulace (Q05)",
+      "uncertain": false,
+      "source": "Čt, 16:00–16:50"
+    }
+  ],
+  "warnings": ["St 15:00–16:50: ve stejný čas jsou dva předměty, vrácen jeden blok."]
+}
