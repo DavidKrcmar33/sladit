@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Group } from '@/contract/api'
-import { formatDateRange } from '@/ui/format'
 import UiButton from './UiButton.vue'
 
 const props = defineProps<{
   group: Group
-  actions: { id: string; name: string; from: string; to: string; peopleCount: number }[]
   /** Odkaz s pozvánkou, ukáže se jen hned po založení. */
   inviteUrl: string | null
 }>()
@@ -16,7 +14,6 @@ const emit = defineEmits<{
   removeMember: [userId: string]
   leave: []
   remove: []
-  openAction: [actionId: string]
   createAction: []
 }>()
 
@@ -52,31 +49,15 @@ async function copyInvite() {
       <div class="flex flex-col gap-1">
         <h1 id="group-title" class="text-2xl font-semibold tracking-tight">{{ group.name }}</h1>
         <p class="text-[15px] text-muted">
-          Akce ve skupině vidí všichni členové. U ostatních uvidíš jen, zda v daný den můžou,
-          nemůžou, nebo to nevíme. Jejich směny ani rozvrh nikdo jiný nevidí.
+          Skupina je seznam lidí, které můžeš pozvat do akce najednou. Každý pozvánku přijme sám a
+          ostatní z jeho rozvrhu uvidí jen, zda v daný den může.
         </p>
       </div>
 
-      <div class="flex flex-col gap-2">
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-base font-semibold">Akce</h2>
-          <UiButton variant="dashed" @click="emit('createAction')">Nová akce ve skupině</UiButton>
-        </div>
-        <p v-if="actions.length === 0" class="text-muted">Ve skupině zatím není žádná akce.</p>
-        <ul v-else class="flex flex-col gap-1">
-          <li v-for="action in actions" :key="action.id">
-            <button
-              type="button"
-              class="flex w-full flex-col gap-0.5 rounded-lg border border-line bg-white px-3 py-2 text-left hover:bg-panel"
-              @click="emit('openAction', action.id)"
-            >
-              <span class="font-semibold">{{ action.name }}</span>
-              <span class="text-xs text-muted">
-                {{ formatDateRange(action.from, action.to) }} · Lidé: {{ action.peopleCount }}
-              </span>
-            </button>
-          </li>
-        </ul>
+      <div>
+        <UiButton variant="primary" @click="emit('createAction')">
+          Nová akce s celou skupinou
+        </UiButton>
       </div>
 
       <div class="flex flex-col gap-2 border-t border-line pt-4">
@@ -91,10 +72,10 @@ async function copyInvite() {
         <div v-else role="alertdialog" aria-label="Potvrzení" class="flex flex-col gap-2">
           <p class="text-warn">
             <template v-if="confirming === 'remove'">
-              Smaže se skupina i všechny její akce. Rozpisy členů zůstanou. Vrátit to nejde.
+              Smaže se skupina. Akce i rozpisy členů zůstanou. Vrátit to nejde.
             </template>
             <template v-else>
-              Akce, které ve skupině pořádáš, se smažou.
+              Akce zůstanou, jen tě ostatní nebudou moct zvát přes skupinu.
               <template v-if="group.isOwner && group.members.length > 1">
                 Skupinu převezme nejdéle přítomný člen.
               </template>

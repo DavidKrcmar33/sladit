@@ -36,7 +36,7 @@ function login() {
         role="status"
         class="rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
       >
-        Máš pozvánku do skupiny. Přihlas se a hned se k ní můžeš přidat.
+        Máš pozvánku. Přihlas se a hned ji uvidíš.
       </p>
       <p v-if="loginError" role="alert" class="font-medium text-warn">{{ loginError }}</p>
       <UiButton variant="primary" @click="login">Přihlásit přes Google</UiButton>

@@ -2,6 +2,8 @@
 import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 import { ACCEPTED_FILE_TYPES } from '@/core/sourceFile'
 
+/** Kompaktní varianta do úzkého panelu: bez ilustrace, jen rámeček a menší tlačítko. */
+const { compact = false } = defineProps<{ compact?: boolean }>()
 const emit = defineEmits<{ files: [files: File[]] }>()
 
 const zone = useTemplateRef<HTMLElement>('zone')
@@ -56,22 +58,28 @@ defineExpose({ openFilePicker })
 <template>
   <div
     ref="zone"
-    class="relative flex w-full max-w-xl items-center justify-center"
+    :class="[
+      'relative flex w-full max-w-xl items-center justify-center',
+      compact && 'rounded-xl border-2 border-dashed py-5',
+      compact && (isDraggingOver ? 'border-accent bg-accent-soft' : 'border-outline'),
+    ]"
     @dragenter.prevent="isDraggingOver = true"
     @dragover.prevent
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
   >
     <div
+      v-if="!compact"
       aria-hidden="true"
       class="absolute inset-0 m-auto size-68 animate-orbit rounded-full border-[1.5px] border-dashed border-line-strong motion-reduce:animate-none"
     />
     <div
+      v-if="!compact"
       aria-hidden="true"
       class="absolute inset-0 m-auto size-51 animate-orbit-reverse rounded-full border-[1.5px] border-dashed border-accent-ring motion-reduce:animate-none"
     />
 
-    <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+    <div v-if="!compact" aria-hidden="true" class="pointer-events-none absolute inset-0">
       <div
         class="absolute top-[8%] left-[4%] flex w-36 -rotate-9 flex-col gap-2 rounded-lg border border-line-strong bg-white p-2.5 shadow-md"
       >
@@ -107,7 +115,8 @@ defineExpose({ openFilePicker })
     <button
       type="button"
       :class="[
-        'relative flex size-36 flex-col items-center justify-center rounded-full text-center text-base leading-snug font-semibold text-white transition-transform',
+        'relative flex flex-col items-center justify-center rounded-full text-center leading-snug font-semibold text-white transition-transform',
+        compact ? 'size-24 text-sm' : 'size-36 text-base',
         'bg-[radial-gradient(circle,#050b0a_0,var(--color-void)_55%,var(--color-accent)_100%)]',
         'shadow-[0_0_0_6px_var(--color-accent-soft),0_18px_40px_rgb(19_36_34/0.18)]',
         'focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-accent',

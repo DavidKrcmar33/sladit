@@ -25,7 +25,7 @@ function submit() {
       Skupiny
     </h2>
     <p v-if="groups.length === 0" class="px-2 text-muted">
-      Skupina sdílí akce s kamarády. Každý si nahraje svůj rozpis.
+      Skupina je seznam lidí, které pozveš do akce najednou.
     </p>
     <ul class="flex flex-col gap-1">
       <li v-for="group in groups" :key="group.id">

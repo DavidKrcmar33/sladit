@@ -477,7 +477,8 @@ export function createSession(options: SessionOptions) {
       state.user = response.user
       await reload()
       // Kdo ještě nemá rozpis, začne Můj rozvrh. Jinak se otevře první akce.
-      const hasSchedule = (state.people[0]?.sources.length ?? 0) > 0
+      const mine = state.people.find((person) => person.isSelf)
+      const hasSchedule = (mine?.sources.length ?? 0) + (mine?.overrides.length ?? 0) > 0
       state.page = state.selectedActionId && (hasSchedule || state.demo) ? 'action' : 'schedule'
       state.localActions = !state.demo && storage ? (loadState(storage)?.actions ?? []) : []
       state.status = 'ready'

@@ -1,15 +1,29 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { ConfirmedSlot } from '@/contract/api'
 import type { Proposal } from '@/core/schema'
 import type { Stability } from '@/core/sensitivity'
 import { describeStability, formatDayLong, formatTimeWindow } from '@/ui/format'
+import UiButton from './UiButton.vue'
 
 const props = defineProps<{
   proposals: Proposal[]
   people: { id: string; name: string }[]
   /** Zda se nejlepší termín může změnit, až se doplní chybějící a ověří nejistá data. */
   stability: Stability | null
+  /** Organizátor může termín potvrdit. */
+  canConfirm?: boolean
+  confirmed?: ConfirmedSlot | null
 }>()
+const emit = defineEmits<{ confirm: [proposal: Proposal] }>()
+
+function isConfirmed(proposal: Proposal): boolean {
+  return (
+    props.confirmed?.date === proposal.date &&
+    props.confirmed.start === proposal.start &&
+    props.confirmed.end === proposal.end
+  )
+}
 
 const stabilityNote = computed(() =>
   props.stability?.winner ? describeStability(props.stability, nameOf) : null,
@@ -76,6 +90,15 @@ function namesOf(personIds: string[]): string {
         >
           {{ stabilityNote }}
         </p>
+        <p v-if="isConfirmed(proposal)" class="font-semibold text-accent-dark">Potvrzeno</p>
+        <UiButton
+          v-else-if="canConfirm"
+          :variant="index === 0 ? 'primary' : 'secondary'"
+          class="mt-1 self-start"
+          @click="emit('confirm', proposal)"
+        >
+          Potvrdit tento termín
+        </UiButton>
       </li>
     </ol>
   </section>

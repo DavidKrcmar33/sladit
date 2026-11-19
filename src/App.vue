@@ -11,25 +11,27 @@ import GroupPanel from '@/ui/components/GroupPanel.vue'
 import InviteDialog from '@/ui/components/InviteDialog.vue'
 import LoginScreen from '@/ui/components/LoginScreen.vue'
 import NewActionDialog from '@/ui/components/NewActionDialog.vue'
-import NoActionState from '@/ui/components/NoActionState.vue'
 import UiButton from '@/ui/components/UiButton.vue'
-import CalendarStep from '@/ui/steps/CalendarStep.vue'
-import IntakeStep from '@/ui/steps/IntakeStep.vue'
+import ActionPage from '@/ui/pages/ActionPage.vue'
+import FriendsPage from '@/ui/pages/FriendsPage.vue'
+import MySchedulePage from '@/ui/pages/MySchedulePage.vue'
 
 const {
   state,
   loginUrl,
   actionItems,
+  contacts,
   selectedAction,
   selectedResource,
   selectedGroup,
-  currentStep,
-  calendarBlocker,
   init,
   logout,
   deleteAccount,
   acceptLocalActions,
   dismissLocalActions,
+  showSchedule,
+  showFriends,
+  selectAction,
   selectGroup,
   createGroup,
   createInvite,
@@ -41,16 +43,14 @@ const {
   createAction,
   updateAction,
   undoActionUpdate,
-  openSampleAction,
-  selectAction,
-  goToStep,
+  deleteAction,
 } = useSession()
 
 /** Otevřený formulář akce: nová, nebo úprava vybrané. */
 const actionDialog = ref<'create' | 'edit' | null>(null)
 const actionErrors = ref<NewActionErrors>({})
-/** Skupina předvyplněná ve formuláři nové akce. */
-const dialogGroupId = ref<string | null>(null)
+/** Předvybraní pozvaní ve formuláři nové akce, třeba celá skupina. */
+const dialogInvitees = ref<string[]>([])
 
 const editedDetails = computed(() =>
   actionDialog.value === 'edit' && selectedAction.value
@@ -60,25 +60,34 @@ const editedDetails = computed(() =>
 const canUndoEdit = computed(
   () => state.lastActionEdit !== null && state.lastActionEdit.actionId === state.selectedActionId,
 )
-const selectedGroupName = computed(
-  () => state.groups.find((group) => group.id === selectedResource.value?.groupId)?.name ?? null,
-)
-const groupActions = computed(() =>
-  actionItems.value.filter(
-    (item) =>
-      state.actions.find((action) => action.id === item.id)?.groupId === state.selectedGroupId,
-  ),
-)
+const showsAction = computed(() => state.page === 'action' && selectedAction.value !== null)
 
-function openActionDialog(mode: 'create' | 'edit', groupId: string | null = null) {
+function navClass(active: boolean) {
+  return [
+    'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left font-semibold',
+    active ? 'border-line bg-white' : 'border-transparent hover:bg-white/60',
+  ]
+}
+
+function openActionDialog(mode: 'create' | 'edit', invitees: string[] = []) {
   actionErrors.value = {}
-  dialogGroupId.value = groupId
+  dialogInvitees.value = invitees
   actionDialog.value = mode
 }
 
-async function submitAction(input: NewActionInput, groupId: string | null) {
+function createWithGroup() {
+  const members = selectedGroup.value?.members.filter((member) => !member.isYou) ?? []
+  openActionDialog(
+    'create',
+    members.map((member) => member.userId),
+  )
+}
+
+async function submitAction(input: NewActionInput, inviteUserIds: string[]) {
   const errors =
-    actionDialog.value === 'edit' ? await updateAction(input) : await createAction(input, groupId)
+    actionDialog.value === 'edit'
+      ? await updateAction(input)
+      : await createAction(input, inviteUserIds)
   if (errors) {
     actionErrors.value = errors
   } else {
@@ -119,16 +128,35 @@ async function submitGroup(name: string) {
     <AppShell>
       <template #sidebar>
         <p class="px-2 text-xl font-semibold tracking-tight">Sladit</p>
+        <nav aria-label="Moje" class="flex flex-col gap-1">
+          <button
+            type="button"
+            :class="navClass(state.page === 'schedule')"
+            :aria-current="state.page === 'schedule' ? 'page' : undefined"
+            @click="showSchedule"
+          >
+            Můj rozvrh
+          </button>
+          <button
+            type="button"
+            :class="navClass(state.page === 'friends')"
+            :aria-current="state.page === 'friends' ? 'page' : undefined"
+            @click="showFriends"
+          >
+            Přátelé
+            <span class="text-xs font-normal text-muted">{{ state.friends.length }}</span>
+          </button>
+        </nav>
         <ActionList
           :actions="actionItems"
-          :selected-action-id="state.selectedGroupId ? null : state.selectedActionId"
+          :selected-action-id="state.page === 'action' ? state.selectedActionId : null"
           @select="selectAction"
           @create="openActionDialog('create')"
         />
         <GroupList
           v-if="!state.demo"
           :groups="state.groups"
-          :selected-group-id="state.selectedGroupId"
+          :selected-group-id="state.page === 'group' ? state.selectedGroupId : null"
           @select="selectGroup"
           @create="submitGroup"
         />
@@ -141,18 +169,15 @@ async function submitGroup(name: string) {
         />
       </template>
 
-      <template v-if="selectedAction && !selectedGroup" #header>
+      <template v-if="showsAction && selectedAction && selectedResource" #header>
         <ActionHeader
           :action="selectedAction"
-          :current-step="currentStep"
-          :calendar-blocker="calendarBlocker"
           :can-undo-edit="canUndoEdit"
-          :is-organizer="selectedResource?.isOrganizer ?? true"
-          :organizer-name="selectedResource?.organizerName ?? ''"
-          :group-name="selectedGroupName"
-          @navigate="goToStep"
+          :is-organizer="selectedResource.isOrganizer"
+          :organizer-name="selectedResource.organizerName"
           @edit="openActionDialog('edit')"
           @undo-edit="undoActionUpdate"
+          @delete="deleteAction"
         />
       </template>
 
@@ -163,7 +188,7 @@ async function submitGroup(name: string) {
       >
         <p>
           V tomto prohlížeči jsou uložené akce z doby před účty ({{ state.localActions.length }}).
-          Převzít je do účtu?
+          Převzít je do účtu? Převezmou se jen jejich parametry, lidi pozveš znovu.
         </p>
         <div class="flex gap-2">
           <UiButton variant="primary" @click="acceptLocalActions">Převzít</UiButton>
@@ -178,23 +203,21 @@ async function submitGroup(name: string) {
         {{ state.error }}
       </p>
 
+      <ActionPage v-if="showsAction" :key="state.selectedActionId ?? ''" />
+      <FriendsPage v-else-if="state.page === 'friends'" />
       <GroupPanel
-        v-if="selectedGroup"
+        v-else-if="state.page === 'group' && selectedGroup"
         :key="selectedGroup.id"
         :group="selectedGroup"
-        :actions="groupActions"
-        :invite-url="state.lastInvite?.groupId === selectedGroup.id ? state.lastInvite.url : null"
+        :invite-url="state.lastInvite?.target === selectedGroup.id ? state.lastInvite.url : null"
         @create-invite="createInvite(selectedGroup.id)"
         @revoke-invite="revokeInvite(selectedGroup.id, $event)"
         @remove-member="removeMember(selectedGroup.id, $event)"
         @leave="leaveGroup(selectedGroup.id)"
         @remove="leaveGroup(selectedGroup.id, true)"
-        @open-action="selectAction"
-        @create-action="openActionDialog('create', selectedGroup.id)"
+        @create-action="createWithGroup"
       />
-      <IntakeStep v-else-if="selectedAction && currentStep === 'intake'" />
-      <CalendarStep v-else-if="selectedAction" />
-      <NoActionState v-else @create="openActionDialog('create')" @open-sample="openSampleAction" />
+      <MySchedulePage v-else />
     </AppShell>
 
     <NewActionDialog
@@ -202,8 +225,9 @@ async function submitGroup(name: string) {
       :key="actionDialog"
       :errors="actionErrors"
       :initial="editedDetails"
+      :contacts="contacts"
       :groups="state.groups"
-      :initial-group-id="dialogGroupId"
+      :initial-invitees="dialogInvitees"
       @submit="submitAction"
       @close="actionDialog = null"
     />

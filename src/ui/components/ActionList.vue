@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateRange } from '@/ui/format'
+import { formatDateRange, formatDayShort } from '@/ui/format'
 import UiButton from './UiButton.vue'
 
 defineProps<{
@@ -9,8 +9,9 @@ defineProps<{
     from: string
     to: string
     peopleCount: number
-    /** Skupina, ve které akce je, null u osobní akce. */
-    groupName: string | null
+    /** Pozvánka čeká na moji odpověď. */
+    waitingForMe: boolean
+    confirmed: { date: string } | null
   }[]
   selectedActionId: string | null
 }>()
@@ -39,11 +40,21 @@ const emit = defineEmits<{ select: [actionId: string]; create: [] }>()
           ]"
           @click="emit('select', action.id)"
         >
-          <span class="font-semibold">{{ action.name }}</span>
+          <span class="flex items-center justify-between gap-2">
+            <span class="font-semibold">{{ action.name }}</span>
+            <span
+              v-if="action.waitingForMe"
+              class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
+            >
+              pozvánka
+            </span>
+          </span>
           <span class="text-xs text-muted">
             {{ formatDateRange(action.from, action.to) }} · Lidé: {{ action.peopleCount }}
           </span>
-          <span v-if="action.groupName" class="text-xs text-muted">{{ action.groupName }}</span>
+          <span v-if="action.confirmed" class="text-xs font-medium text-accent-dark">
+            Potvrzeno: {{ formatDayShort(action.confirmed.date) }}
+          </span>
         </button>
       </li>
     </ul>

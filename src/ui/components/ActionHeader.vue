@@ -1,28 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref } from 'vue'
 import type { Action } from '@/core/schema'
-import type { Step } from '@/session'
 import { formatDateRange, formatDuration, formatTimeWindow } from '@/ui/format'
-import StepIndicator from './StepIndicator.vue'
 import UiButton from './UiButton.vue'
 
-const props = defineProps<{
+defineProps<{
   action: Action
-  currentStep: Step
-  calendarBlocker: string | null
   /** Poslední úpravu akce jde vrátit. */
   canUndoEdit: boolean
-  /** Akci upravuje jen organizátor. Ostatní uvidí, kdo ji pořádá. */
+  /** Akci upravuje a maže jen organizátor. Ostatní uvidí, kdo ji pořádá. */
   isOrganizer: boolean
   organizerName: string
-  groupName: string | null
 }>()
-const emit = defineEmits<{ navigate: [step: Step]; edit: []; undoEdit: [] }>()
+const emit = defineEmits<{ edit: []; undoEdit: []; delete: [] }>()
 
-const steps = computed(() => [
-  { id: 'intake' as const, label: 'Podklady', available: true },
-  { id: 'calendar' as const, label: 'Kalendář a termín', available: !props.calendarBlocker },
-])
+const confirmingDelete = ref(false)
 </script>
 
 <template>
@@ -36,11 +28,7 @@ const steps = computed(() => [
           {{ formatDateRange(action.from, action.to) }} ·
           {{ formatDuration(action.durationMinutes) }} · mezi
           {{ formatTimeWindow(action.windowStart, action.windowEnd) }}
-        </p>
-        <p v-if="groupName || !isOrganizer" class="text-muted">
-          <template v-if="groupName">Skupina {{ groupName }}</template>
-          <template v-if="groupName && !isOrganizer"> · </template>
-          <template v-if="!isOrganizer">pořádá {{ organizerName }}</template>
+          <template v-if="!isOrganizer"> · pořádá {{ organizerName }}</template>
         </p>
       </div>
       <UiButton v-if="isOrganizer" variant="ghost" @click="emit('edit')">Upravit akci</UiButton>
@@ -49,10 +37,18 @@ const steps = computed(() => [
         <UiButton variant="ghost" @click="emit('undoEdit')">Vrátit</UiButton>
       </p>
     </div>
-    <StepIndicator
-      :steps="steps"
-      :current-step-id="currentStep"
-      @select="emit('navigate', $event)"
-    />
+    <template v-if="isOrganizer">
+      <div
+        v-if="confirmingDelete"
+        role="alertdialog"
+        aria-label="Smazat akci"
+        class="flex items-center gap-2"
+      >
+        <span class="text-warn">Smazat akci pro všechny?</span>
+        <UiButton variant="danger" @click="emit('delete')">Smazat</UiButton>
+        <UiButton @click="confirmingDelete = false">Nechat</UiButton>
+      </div>
+      <UiButton v-else variant="danger" @click="confirmingDelete = true">Smazat akci</UiButton>
+    </template>
   </header>
 </template>

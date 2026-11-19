@@ -1,39 +1,71 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PendingInvite } from '@/session'
 import UiButton from './UiButton.vue'
 import UiDialog from './UiDialog.vue'
 
-defineProps<{ invite: PendingInvite }>()
+const props = defineProps<{ invite: PendingInvite }>()
 const emit = defineEmits<{ accept: []; decline: [] }>()
+
+const preview = computed(() => props.invite.preview)
+
+/** Odkaz, který není co přijmout: vlastní odkaz, už přátelé, už člen. */
+const nothingToAccept = computed(
+  () =>
+    preview.value !== null &&
+    (preview.value.kind === 'group'
+      ? preview.value.isMember
+      : preview.value.isFriend || preview.value.isSelf),
+)
 </script>
 
 <template>
-  <UiDialog title="Pozvánka do skupiny" @close="emit('decline')">
+  <UiDialog
+    :title="preview?.kind === 'friend' ? 'Žádost o přátelství' : 'Pozvánka do skupiny'"
+    @close="emit('decline')"
+  >
     <p v-if="invite.error" role="alert" class="font-medium text-warn">{{ invite.error }}</p>
-    <p v-else-if="!invite.preview" class="text-muted">Načítám pozvánku…</p>
-    <template v-else-if="invite.preview.isMember">
-      <p>
-        Ve skupině <strong>{{ invite.preview.groupName }}</strong> už jsi.
+    <p v-else-if="!preview" class="text-muted">Načítám pozvánku…</p>
+
+    <template v-else-if="preview.kind === 'group'">
+      <p v-if="preview.isMember">
+        Ve skupině <strong>{{ preview.groupName }}</strong> už jsi.
       </p>
-    </template>
-    <template v-else>
-      <p>
-        <strong>{{ invite.preview.ownerName }}</strong> tě zve do skupiny
-        <strong>{{ invite.preview.groupName }}</strong> (členové: {{ invite.preview.memberCount }}).
-      </p>
-      <p class="text-muted">
-        Ostatní uvidí tvé jméno a u akcí ve skupině jen to, zda v daný den můžeš, nemůžeš, nebo to
-        nevíme. Tvé směny ani rozvrh neuvidí. E-mail se jim neukazuje.
-      </p>
-    </template>
-    <div class="flex justify-end gap-3">
-      <template v-if="invite.preview && !invite.preview.isMember && !invite.error">
-        <UiButton @click="emit('decline')">Teď ne</UiButton>
-        <UiButton variant="primary" @click="emit('accept')">Přidat se</UiButton>
+      <template v-else>
+        <p>
+          <strong>{{ preview.ownerName }}</strong> tě zve do skupiny
+          <strong>{{ preview.groupName }}</strong> (členové: {{ preview.memberCount }}).
+        </p>
+        <p class="text-muted">
+          Členové tě budou moct zvát do akcí. Z tvého rozvrhu uvidí jen, zda v daný den můžeš. Tvé
+          směny ani e-mail neuvidí.
+        </p>
       </template>
-      <UiButton v-else-if="invite.preview?.isMember" variant="primary" @click="emit('accept')">
-        Otevřít skupinu
-      </UiButton>
+    </template>
+
+    <template v-else>
+      <p v-if="preview.isSelf">Tohle je tvůj vlastní odkaz. Pošli ho kamarádům.</p>
+      <p v-else-if="preview.isFriend">
+        S <strong>{{ preview.fromName }}</strong> už jste přátelé.
+      </p>
+      <template v-else>
+        <p>
+          <strong>{{ preview.fromName }}</strong> si tě chce přidat do přátel.
+        </p>
+        <p class="text-muted">
+          Přátelé se můžou zvát do akcí. Z tvého rozvrhu uvidí jen, zda v daný den můžeš. Tvé směny
+          ani e-mail neuvidí.
+        </p>
+      </template>
+    </template>
+
+    <div class="flex justify-end gap-3">
+      <template v-if="preview && !nothingToAccept && !invite.error">
+        <UiButton @click="emit('decline')">Teď ne</UiButton>
+        <UiButton variant="primary" @click="emit('accept')">
+          {{ preview.kind === 'friend' ? 'Přidat do přátel' : 'Přidat se' }}
+        </UiButton>
+      </template>
       <UiButton v-else @click="emit('decline')">Zavřít</UiButton>
     </div>
   </UiDialog>
