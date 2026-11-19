@@ -7,7 +7,11 @@ import { formatDuration } from '@/ui/format'
 import UiButton from './UiButton.vue'
 import UiDialog from './UiDialog.vue'
 
-defineProps<{ errors: NewActionErrors }>()
+const props = defineProps<{
+  errors: NewActionErrors
+  /** Hodnoty upravované akce. Bez nich se zakládá nová. */
+  initial?: NewActionInput
+}>()
 const emit = defineEmits<{ submit: [input: NewActionInput]; close: [] }>()
 
 const DURATION_OPTIONS = Array.from({ length: 16 }, (_, index) => (index + 1) * 30)
@@ -22,18 +26,24 @@ function localToday(): DateString {
 
 const today = localToday()
 
-const input = reactive<NewActionInput>({
-  name: '',
-  from: today,
-  to: addDays(today, DEFAULT_PERIOD_DAYS - 1),
-  durationMinutes: 180,
-  windowStart: '16:00',
-  windowEnd: '23:00',
-})
+const isEditing = props.initial !== undefined
+
+const input = reactive<NewActionInput>(
+  props.initial
+    ? { ...props.initial }
+    : {
+        name: '',
+        from: today,
+        to: addDays(today, DEFAULT_PERIOD_DAYS - 1),
+        durationMinutes: 180,
+        windowStart: '16:00',
+        windowEnd: '23:00',
+      },
+)
 </script>
 
 <template>
-  <UiDialog title="Nová akce" @close="emit('close')">
+  <UiDialog :title="isEditing ? 'Upravit akci' : 'Nová akce'" @close="emit('close')">
     <form class="flex flex-col gap-4" novalidate @submit.prevent="emit('submit', { ...input })">
       <div class="flex flex-col gap-1.5">
         <label for="action-name" class="font-medium">Název</label>
@@ -61,6 +71,7 @@ const input = reactive<NewActionInput>({
             {{ formatDuration(minutes) }}
           </option>
         </select>
+        <p v-if="errors.durationMinutes" class="text-xs text-warn">{{ errors.durationMinutes }}</p>
       </div>
 
       <fieldset class="flex flex-col gap-1.5">
@@ -86,7 +97,9 @@ const input = reactive<NewActionInput>({
 
       <div class="mt-2 flex justify-end gap-3">
         <UiButton @click="emit('close')">Zrušit</UiButton>
-        <UiButton variant="primary" type="submit">Založit akci</UiButton>
+        <UiButton variant="primary" type="submit">
+          {{ isEditing ? 'Uložit změny' : 'Založit akci' }}
+        </UiButton>
       </div>
     </form>
   </UiDialog>

@@ -11,9 +11,13 @@ const props = defineProps<{
   date: DateString
   shifts: Shift[]
   isKnown: boolean
+  /** Den je upravený ručně a podklady se pro něj nepoužívají. */
+  hasOverride: boolean
   sources: PreviewSource[]
+  warnings: string[]
+  availabilityNote: string | null
 }>()
-const emit = defineEmits<{ save: [shifts: Shift[]]; close: [] }>()
+const emit = defineEmits<{ save: [shifts: Shift[]]; reset: []; close: [] }>()
 
 interface ShiftRow {
   key: number
@@ -21,6 +25,7 @@ interface ShiftRow {
   start: string
   end: string
   raw: string
+  source?: string
 }
 
 let nextRowKey = 0
@@ -31,6 +36,7 @@ const rows = ref<ShiftRow[]>(
     start: shift.start,
     end: shift.end,
     raw: shift.raw,
+    source: shift.source,
   })),
 )
 const error = ref<string | null>(null)
@@ -82,7 +88,7 @@ function save() {
           Tuto směnu jsme nepřečetli jistě. Zkontroluj ji podle podkladu.
         </p>
         <p v-else-if="!isKnown" class="leading-relaxed text-muted">
-          Pro tento den rozpis chybí. Doplň směnu, nebo označ den jako volný.
+          Pro tento den rozpis chybí nebo je neúplný. Doplň směnu, nebo označ den jako volný.
         </p>
         <p v-else-if="rows.length === 0" class="leading-relaxed text-muted">Tento den má volno.</p>
         <span v-else />
@@ -95,6 +101,13 @@ function save() {
           <UiIcon name="close" />
         </button>
       </div>
+
+      <p v-if="availabilityNote" class="font-medium">{{ availabilityNote }}</p>
+
+      <p v-if="hasOverride" class="flex flex-wrap items-center gap-x-2 text-muted">
+        Den je upravený ručně, nový podklad ho nepřepíše.
+        <UiButton variant="ghost" @click="emit('reset')">Vrátit podle podkladů</UiButton>
+      </p>
 
       <div v-if="rows.length > 0" class="grid grid-cols-[4.5rem_1fr_1fr_2.75rem] items-end gap-2">
         <span class="text-xs font-medium text-muted">Typ</span>
@@ -128,8 +141,19 @@ function save() {
           >
             <UiIcon name="close" />
           </button>
+          <p v-if="row.source || row.raw" class="col-span-4 -mt-1 text-xs text-muted">
+            V podkladu: {{ [row.raw, row.source].filter(Boolean).join(' · ') }}
+          </p>
         </template>
       </div>
+
+      <ul
+        v-if="warnings.length > 0"
+        class="flex flex-col gap-1 text-warn"
+        aria-label="Poznámky ke čtení"
+      >
+        <li v-for="warning in warnings" :key="warning">{{ warning }}</li>
+      </ul>
 
       <p v-if="error" role="alert" class="font-medium text-warn">{{ error }}</p>
 

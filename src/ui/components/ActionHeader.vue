@@ -4,9 +4,16 @@ import type { Action } from '@/core/schema'
 import type { Step } from '@/session'
 import { formatDateRange, formatDuration, formatTimeWindow } from '@/ui/format'
 import StepIndicator from './StepIndicator.vue'
+import UiButton from './UiButton.vue'
 
-const props = defineProps<{ action: Action; currentStep: Step; calendarBlocker: string | null }>()
-const emit = defineEmits<{ navigate: [step: Step] }>()
+const props = defineProps<{
+  action: Action
+  currentStep: Step
+  calendarBlocker: string | null
+  /** Poslední úpravu akce jde vrátit. */
+  canUndoEdit: boolean
+}>()
+const emit = defineEmits<{ navigate: [step: Step]; edit: []; undoEdit: [] }>()
 
 const steps = computed(() => [
   { id: 'intake' as const, label: 'Podklady', available: true },
@@ -18,12 +25,19 @@ const steps = computed(() => [
   <header
     class="flex flex-wrap items-center justify-between gap-4 border-b border-line px-8 py-3.5"
   >
-    <div class="flex flex-col gap-0.5">
-      <p class="text-xl font-semibold tracking-tight">{{ action.name }}</p>
-      <p class="text-muted">
-        {{ formatDateRange(action.from, action.to) }} ·
-        {{ formatDuration(action.durationMinutes) }} · mezi
-        {{ formatTimeWindow(action.windowStart, action.windowEnd) }}
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <div class="flex flex-col gap-0.5">
+        <p class="text-xl font-semibold tracking-tight">{{ action.name }}</p>
+        <p class="text-muted">
+          {{ formatDateRange(action.from, action.to) }} ·
+          {{ formatDuration(action.durationMinutes) }} · mezi
+          {{ formatTimeWindow(action.windowStart, action.windowEnd) }}
+        </p>
+      </div>
+      <UiButton variant="ghost" @click="emit('edit')">Upravit akci</UiButton>
+      <p v-if="canUndoEdit" class="flex items-center gap-2 text-muted" aria-live="polite">
+        Akce upravena.
+        <UiButton variant="ghost" @click="emit('undoEdit')">Vrátit</UiButton>
       </p>
     </div>
     <StepIndicator

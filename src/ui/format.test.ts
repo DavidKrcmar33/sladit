@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { CalendarDay } from '@/core/calendar'
 import {
+  describeAvailability,
   describeCalendarDay,
+  describeStability,
   formatDateRange,
   formatDayHeader,
   formatDayLong,
+  formatDayShort,
   formatDuration,
+  formatFreeWindows,
   formatShiftTime,
   formatTimeWindow,
 } from './format'
@@ -72,12 +76,34 @@ describe('describeCalendarDay', () => {
   const nightShift = { date: '2026-11-24', start: '22:00', end: '06:00', label: 'N', raw: 'N' }
 
   it.each<[CalendarDay, string]>([
-    [{ status: { kind: 'free' }, attendance: 'available' }, 'volno, může'],
-    [{ status: { kind: 'unknown' }, attendance: 'unknown' }, 'rozpis chybí'],
+    [
+      { status: { kind: 'free' }, attendance: 'available', windows: [], isPartial: false },
+      'volno, může',
+    ],
+    [
+      {
+        status: { kind: 'unknown', shifts: [] },
+        attendance: 'unknown',
+        windows: [],
+        isPartial: false,
+      },
+      'rozpis chybí',
+    ],
+    [
+      {
+        status: { kind: 'unknown', shifts: [{ ...nightShift, uncertain: false }] },
+        attendance: 'busy',
+        windows: [],
+        isPartial: false,
+      },
+      'rozpis chybí, směna N 22–6',
+    ],
     [
       {
         status: { kind: 'working', shifts: [{ ...nightShift, uncertain: false }] },
         attendance: 'busy',
+        windows: [],
+        isPartial: false,
       },
       'směna N 22–6, nemůže',
     ],
@@ -85,10 +111,118 @@ describe('describeCalendarDay', () => {
       {
         status: { kind: 'working', shifts: [{ ...nightShift, uncertain: true }] },
         attendance: 'available',
+        windows: [],
+        isPartial: false,
       },
       'směna N 22–6, nejisté čtení, může',
     ],
+    [
+      {
+        status: { kind: 'free' },
+        attendance: 'available',
+        windows: [{ start: '20:00', end: '23:00' }],
+        isPartial: true,
+      },
+      'volno, může jen 20:00–23:00',
+    ],
   ])('describes %o as %s', (day, expected) => {
     expect(describeCalendarDay(day)).toBe(expected)
+  })
+})
+
+describe('describeAvailability', () => {
+  const free = { status: { kind: 'free' } } as const
+
+  it('names the times of a partly free day', () => {
+    expect(
+      describeAvailability({
+        ...free,
+        attendance: 'available',
+        windows: [
+          { start: '08:00', end: '11:00' },
+          { start: '14:00', end: '23:00' },
+        ],
+        isPartial: true,
+      }),
+    ).toBe('Vejde se jen v čase 08:00–11:00, 14:00–23:00.')
+  })
+
+  it('says when the person does not fit into the daily window', () => {
+    expect(
+      describeAvailability({ ...free, attendance: 'busy', windows: [], isPartial: false }),
+    ).toBe('V denním okně akce se nevejde.')
+  })
+
+  it('has nothing to add for a fully free or unknown day', () => {
+    expect(
+      describeAvailability({
+        ...free,
+        attendance: 'available',
+        windows: [{ start: '16:00', end: '23:00' }],
+        isPartial: false,
+      }),
+    ).toBeNull()
+    expect(
+      describeAvailability({ ...free, attendance: 'unknown', windows: [], isPartial: false }),
+    ).toBeNull()
+  })
+})
+
+describe('formatFreeWindows', () => {
+  it('shows the first window and counts the others', () => {
+    expect(formatFreeWindows([{ start: '20:00', end: '23:00' }])).toBe('20–23')
+    expect(
+      formatFreeWindows([
+        { start: '08:00', end: '11:00' },
+        { start: '14:00', end: '23:00' },
+      ]),
+    ).toBe('8–11 +1')
+    expect(formatFreeWindows([])).toBe('')
+  })
+})
+
+describe('describeStability', () => {
+  const names: Record<string, string> = { petr: 'Petr', hana: 'Hana' }
+  const nameOf = (id: string) => names[id]
+  const winner = {
+    date: '2026-11-27',
+    start: '16:00',
+    end: '19:00',
+    available: [],
+    missing: [],
+    unknown: [],
+  }
+
+  it('says a certain date is certain', () => {
+    expect(describeStability({ winner, certain: true, pivots: [] }, nameOf)).toBe(
+      'Jistý podle přečtených dat.',
+    )
+  })
+
+  it('names the people, days and reasons a fragile date depends on', () => {
+    const text = describeStability(
+      {
+        winner,
+        certain: false,
+        pivots: [
+          { personId: 'petr', dates: [{ date: '2026-11-26', reason: 'missing' }] },
+          {
+            personId: 'hana',
+            dates: [
+              { date: '2026-11-27', reason: 'uncertain' },
+              { date: '2026-11-28', reason: 'missing' },
+            ],
+          },
+        ],
+      },
+      nameOf,
+    )
+    expect(text).toBe(
+      'Může se změnit. Záleží na: Petr (čt 26. 11., chybí rozpis), Hana (pá 27. 11., nejisté čtení; so 28. 11., chybí rozpis).',
+    )
+  })
+
+  it('formats a short date for a sentence', () => {
+    expect(formatDayShort('2026-11-30')).toBe('po 30. 11.')
   })
 })

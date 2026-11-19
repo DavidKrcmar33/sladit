@@ -1,8 +1,23 @@
 <script setup lang="ts">
-import type { Person, Proposal } from '@/core/schema'
-import { formatDayLong, formatTimeWindow } from '@/ui/format'
+import { computed } from 'vue'
+import type { Proposal } from '@/core/schema'
+import type { Stability } from '@/core/sensitivity'
+import { describeStability, formatDayLong, formatTimeWindow } from '@/ui/format'
 
-const props = defineProps<{ proposals: Proposal[]; people: Person[] }>()
+const props = defineProps<{
+  proposals: Proposal[]
+  people: { id: string; name: string }[]
+  /** Zda se nejlepší termín může změnit, až se doplní chybějící a ověří nejistá data. */
+  stability: Stability | null
+}>()
+
+const stabilityNote = computed(() =>
+  props.stability?.winner ? describeStability(props.stability, nameOf) : null,
+)
+
+function nameOf(personId: string): string {
+  return props.people.find((person) => person.id === personId)?.name ?? personId
+}
 
 function namesOf(personIds: string[]): string {
   return personIds
@@ -51,6 +66,15 @@ function namesOf(personIds: string[]): string {
         </p>
         <p v-if="proposal.unknown.length" class="text-muted">
           Neznámo: {{ namesOf(proposal.unknown) }}
+        </p>
+        <p
+          v-if="index === 0 && stabilityNote"
+          :class="[
+            'border-t border-line pt-1.5',
+            stability?.certain ? 'text-accent-dark' : 'text-warn',
+          ]"
+        >
+          {{ stabilityNote }}
         </p>
       </li>
     </ol>

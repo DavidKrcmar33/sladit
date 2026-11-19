@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue'
+import type { Source } from '@/core/schema'
 import type { PersonDraft } from '@/session'
 import PasteTextDialog from './PasteTextDialog.vue'
 import SourceDropZone from './SourceDropZone.vue'
 import SourceFileChip from './SourceFileChip.vue'
 import UiButton from './UiButton.vue'
 
-const props = defineProps<{ draft: PersonDraft; isDirty: boolean; error: string | null }>()
+const props = defineProps<{
+  draft: PersonDraft
+  /** Už přečtené podklady upravovaného člověka. */
+  sources: Source[]
+  isDirty: boolean
+  error: string | null
+}>()
 const emit = defineEmits<{
+  removeSource: [sourceId: string]
   rename: [name: string]
   addFiles: [files: File[]]
   addText: [text: string]
@@ -57,7 +65,34 @@ function submitText(text: string) {
       </div>
 
       <div class="flex w-full max-w-2xl flex-col items-center gap-3 border-t border-line pt-3">
-        <p class="font-semibold">Vložené podklady: {{ draft.files.length }}</p>
+        <template v-if="sources.length > 0">
+          <p class="font-semibold">Přečtené podklady: {{ sources.length }}</p>
+          <p class="text-center text-muted">
+            Nový podklad se k nim přidá. Když je náhradou staršího, starší odeber. Ruční úpravy dnů
+            zůstanou.
+          </p>
+          <ul class="flex max-w-full flex-wrap justify-center gap-2">
+            <li
+              v-for="source in sources"
+              :key="source.id"
+              class="flex max-w-full items-center gap-2 rounded-lg border border-line bg-white py-1 pr-1 pl-3"
+            >
+              <span class="truncate">
+                {{ source.circle }}: {{ source.files.map((file) => file.name).join(', ') }}
+              </span>
+              <UiButton
+                variant="danger"
+                :aria-label="`Odebrat přečtený podklad ${source.files.map((file) => file.name).join(', ')}`"
+                @click="emit('removeSource', source.id)"
+              >
+                Odebrat
+              </UiButton>
+            </li>
+          </ul>
+        </template>
+        <p class="font-semibold">
+          {{ sources.length > 0 ? 'Nové podklady' : 'Vložené podklady' }}: {{ draft.files.length }}
+        </p>
         <ul v-if="draft.files.length > 0" class="flex max-w-full flex-wrap justify-center gap-2">
           <li v-for="file in draft.files" :key="file.id" class="max-w-full">
             <SourceFileChip :file="file" @remove="emit('removeFile', file.id)" />

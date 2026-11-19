@@ -2,7 +2,7 @@
 import UiButton from './UiButton.vue'
 import UiIcon from './UiIcon.vue'
 
-defineProps<{ summary: string; actionLabel: string; blocker: string | null }>()
+defineProps<{ summary: string; actionLabel: string; blocker: string | null; busy?: boolean }>()
 const emit = defineEmits<{ continue: [] }>()
 </script>
 
@@ -16,12 +16,12 @@ const emit = defineEmits<{ continue: [] }>()
     </div>
     <UiButton
       variant="primary"
-      :disabled="blocker !== null"
+      :disabled="blocker !== null || busy"
       :aria-describedby="blocker ? 'step-footer-blocker' : undefined"
       @click="emit('continue')"
     >
       {{ actionLabel }}
-      <UiIcon name="arrow-right" :size="18" />
+      <UiIcon v-if="!busy" name="arrow-right" :size="18" />
     </UiButton>
   </footer>
 </template>

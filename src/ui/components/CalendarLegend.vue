@@ -5,6 +5,10 @@
       Může
     </li>
     <li class="flex items-center gap-2">
+      <span class="size-3.5 rounded-sm border-2 border-accent-ring bg-accent-soft" />
+      Může jen část okna
+    </li>
+    <li class="flex items-center gap-2">
       <span class="size-3.5 rounded-sm bg-shift" />
       Nemůže
     </li>
@@ -16,6 +20,6 @@
       <span class="size-3.5 rounded-sm bg-hatch" />
       Rozpis chybí
     </li>
-    <li>V buňce je směna z rozpisu.</li>
+    <li>V buňce je směna z rozpisu a u částečně volného dne i čas, kdy se vejde.</li>
   </ul>
 </template>
