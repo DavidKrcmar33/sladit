@@ -6,6 +6,10 @@
 # zavislosti a build
 node_modules
 dist
+dist-server
+
+# lokální databáze pro vývoj (PGlite)
+.local
 
 # editor a system
 .DS_Store

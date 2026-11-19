@@ -1,10 +1,4 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {
-  readonly VITE_GEMINI_API_KEY: string
-  readonly VITE_GEMINI_MODEL: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
-}
+// Prohlížeč nedostává žádné proměnné prostředí. Klíče k modelu a Googlu čte jen server
+// (server/config.ts, src/llm/config.ts), aby se nedostaly do sestavené aplikace.
