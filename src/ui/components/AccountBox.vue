@@ -25,7 +25,10 @@ const confirmingDelete = ref(false)
         Smazat účet
       </UiButton>
       <div v-else role="alertdialog" aria-label="Smazat účet" class="flex flex-col gap-2 px-2">
-        <p class="text-warn">Smaže se účet, tvůj rozpis, hosté i akce. Vrátit to nejde.</p>
+        <p class="text-warn">
+          Smaže se účet, tvůj rozpis, hosté i akce. Skupiny, které vedeš, převezme další člen.
+          Vrátit to nejde.
+        </p>
         <div class="flex gap-2">
           <UiButton variant="danger" @click="emit('deleteAccount')">Smazat</UiButton>
           <UiButton @click="confirmingDelete = false">Nechat</UiButton>

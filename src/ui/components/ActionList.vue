@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import type { Action } from '@/core/schema'
 import { formatDateRange } from '@/ui/format'
 import UiButton from './UiButton.vue'
 
-defineProps<{ actions: Action[]; selectedActionId: string | null }>()
+defineProps<{
+  actions: {
+    id: string
+    name: string
+    from: string
+    to: string
+    peopleCount: number
+    /** Skupina, ve které akce je, null u osobní akce. */
+    groupName: string | null
+  }[]
+  selectedActionId: string | null
+}>()
 const emit = defineEmits<{ select: [actionId: string]; create: [] }>()
 </script>
 
@@ -31,8 +41,9 @@ const emit = defineEmits<{ select: [actionId: string]; create: [] }>()
         >
           <span class="font-semibold">{{ action.name }}</span>
           <span class="text-xs text-muted">
-            {{ formatDateRange(action.from, action.to) }} · Lidé: {{ action.people.length }}
+            {{ formatDateRange(action.from, action.to) }} · Lidé: {{ action.peopleCount }}
           </span>
+          <span v-if="action.groupName" class="text-xs text-muted">{{ action.groupName }}</span>
         </button>
       </li>
     </ul>

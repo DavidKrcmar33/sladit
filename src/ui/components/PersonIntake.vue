@@ -13,6 +13,9 @@ const props = defineProps<{
   sources: Source[]
   isDirty: boolean
   error: string | null
+  /** Přidávat a odebírat lidi smí jen organizátor. Ostatní si upraví jen sebe. */
+  canManagePeople: boolean
+  organizerName: string
 }>()
 const emit = defineEmits<{
   removeSource: [sourceId: string]
@@ -23,6 +26,7 @@ const emit = defineEmits<{
   save: []
   discard: []
   removePerson: []
+  editSelf: []
 }>()
 
 const dropZone = useTemplateRef<InstanceType<typeof SourceDropZone>>('dropZone')
@@ -37,7 +41,20 @@ function submitText(text: string) {
 
 <template>
   <div class="flex min-h-0 flex-col">
+    <section
+      v-if="!isEditing && !canManagePeople"
+      aria-labelledby="intake-title"
+      class="flex flex-col items-center gap-4 pt-6 text-center"
+    >
+      <h1 id="intake-title" class="text-2xl font-semibold tracking-tight">Tvůj rozpis</h1>
+      <p class="max-w-md text-muted">
+        Lidi do akce přidává {{ organizerName }}. Ty sem nahraješ svůj rozpis, ostatní z něj uvidí
+        jen, kdy můžeš.
+      </p>
+      <UiButton variant="primary" @click="emit('editSelf')">Nahrát můj rozpis</UiButton>
+    </section>
     <form
+      v-else
       class="flex min-h-0 flex-1 flex-col items-center gap-4"
       aria-labelledby="intake-title"
       @submit.prevent="emit('save')"
@@ -100,7 +117,11 @@ function submitText(text: string) {
         </ul>
         <p v-if="error" role="alert" class="font-medium text-warn">{{ error }}</p>
         <div class="flex flex-wrap justify-center gap-3">
-          <UiButton v-if="isEditing" variant="danger" @click="emit('removePerson')">
+          <UiButton
+            v-if="isEditing && canManagePeople"
+            variant="danger"
+            @click="emit('removePerson')"
+          >
             Odebrat člověka
           </UiButton>
           <UiButton v-if="isDirty" @click="emit('discard')">

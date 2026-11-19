@@ -3,7 +3,13 @@ import { computed } from 'vue'
 import type { CalendarDay } from '@/core/calendar'
 import { formatFreeWindows, formatShiftSummary } from '@/ui/format'
 
-const props = defineProps<{ day: CalendarDay; label: string; selected: boolean }>()
+const props = defineProps<{
+  day: CalendarDay
+  label: string
+  selected: boolean
+  /** Den člověka, jehož rozpis přihlášený nevidí: jde přečíst, ne otevřít. */
+  readonly?: boolean
+}>()
 const emit = defineEmits<{ select: [] }>()
 
 const shifts = computed(() => ('shifts' in props.day.status ? props.day.status.shifts : []))
@@ -56,7 +62,20 @@ const colorClasses = computed(() => {
 </script>
 
 <template>
+  <div
+    v-if="readonly"
+    role="img"
+    :aria-label="label"
+    :title="label"
+    :class="[
+      'flex h-13 w-full min-w-18 cursor-default flex-col items-center justify-center rounded-md px-1 text-[13px] leading-tight font-medium whitespace-nowrap',
+      colorClasses,
+    ]"
+  >
+    <span v-if="content">{{ content }}</span>
+  </div>
   <button
+    v-else
     type="button"
     :aria-label="label"
     :title="label"

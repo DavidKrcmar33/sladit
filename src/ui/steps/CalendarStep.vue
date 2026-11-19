@@ -26,6 +26,9 @@ const {
   readingWarnings,
   proposals,
   parityQuestions,
+  participants,
+  canEditAction,
+  usesServerView,
   selectDay,
   saveDayShifts,
   clearDayOverride,
@@ -87,10 +90,15 @@ function answerParity(question: ParityQuestion, odd: boolean) {
         <div class="flex flex-col gap-1">
           <h1 id="calendar-title" class="text-2xl font-semibold tracking-tight">Kalendář</h1>
           <p class="text-[15px] text-muted">
-            Klikni na kterýkoli den a oprav ho. Pod jménem jde upravit podklady.
+            <template v-if="usesServerView">
+              Svůj den opravíš kliknutím. U ostatních vidíš jen, zda můžou.
+            </template>
+            <template v-else>
+              Klikni na kterýkoli den a oprav ho. Pod jménem jde upravit podklady.
+            </template>
           </p>
         </div>
-        <UiButton variant="dashed" @click="goToStep('intake')">
+        <UiButton v-if="canEditAction" variant="dashed" @click="goToStep('intake')">
           <UiIcon name="plus" />
           Přidat člověka
         </UiButton>
@@ -111,7 +119,7 @@ function answerParity(question: ParityQuestion, odd: boolean) {
 
       <ReadingWarnings v-if="readingWarnings.length > 0" :items="readingWarnings" />
 
-      <p v-if="people.length === 0" class="text-muted">V akci zatím nikdo není.</p>
+      <p v-if="participants.length === 0" class="text-muted">V akci zatím nikdo není.</p>
       <template v-else-if="calendar">
         <CalendarGrid
           :calendar="calendar"
@@ -140,7 +148,7 @@ function answerParity(question: ParityQuestion, odd: boolean) {
     </section>
 
     <aside class="min-w-0 max-w-sm flex-[1_1_300px]">
-      <ProposalList :proposals="proposals" :people="composedPeople" :stability="stability" />
+      <ProposalList :proposals="proposals" :people="participants" :stability="stability" />
     </aside>
   </div>
 </template>

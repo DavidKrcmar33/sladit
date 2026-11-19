@@ -35,7 +35,11 @@ function cellLabel(personName: string, date: string, day: CalendarDay): string {
         <tr v-for="row in calendar.rows" :key="row.personId">
           <th scope="row" class="max-w-28 pr-2 text-left font-medium">
             <span class="block truncate">{{ row.personName }}</span>
+            <span v-if="row.isPrivate" class="block text-xs font-normal text-muted">
+              jen může / nemůže
+            </span>
             <button
+              v-else
               type="button"
               :aria-label="`Upravit podklady: ${row.personName}`"
               class="text-xs font-normal text-muted underline hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
@@ -49,6 +53,7 @@ function cellLabel(personName: string, date: string, day: CalendarDay): string {
               :day="day"
               :label="cellLabel(row.personName, calendar.dates[index], day)"
               :selected="isSelected(row.personId, calendar.dates[index])"
+              :readonly="row.isPrivate ?? false"
               @select="emit('select', { personId: row.personId, date: calendar.dates[index] })"
             />
           </td>

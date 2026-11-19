@@ -9,6 +9,9 @@ const {
   state,
   selfPersonId,
   selectedAction,
+  selectedResource,
+  canEditAction,
+  participants,
   isDraftDirty,
   calendarBlocker,
   setDraftName,
@@ -28,6 +31,7 @@ const {
 const error = ref<string | null>(null)
 
 const people = computed(() => selectedAction.value?.people ?? [])
+const others = computed(() => selectedResource.value?.others ?? [])
 const editedSources = computed(
   () => people.value.find((person) => person.id === state.draft.editingPersonId)?.sources ?? [],
 )
@@ -45,7 +49,7 @@ const summary = computed(() => {
       person.sources.reduce((count, source) => count + source.files.length, 0),
     0,
   )
-  return `Lidé: ${people.value.length} · Podklady: ${fileCount}`
+  return `Lidé: ${participants.value.length} · Podklady: ${fileCount}`
 })
 
 function addFiles(files: File[]) {
@@ -63,6 +67,12 @@ function withClearedError(action: () => void) {
   error.value = null
   action()
 }
+
+/** Člen akce, kterou nepořádá, upravuje jen sám sebe. */
+function editSelf() {
+  const personId = selfPersonId.value
+  if (personId) withClearedError(() => editPerson(personId))
+}
 </script>
 
 <template>
@@ -74,6 +84,9 @@ function withClearedError(action: () => void) {
         :sources="editedSources"
         :is-dirty="isDraftDirty"
         :error="error"
+        :can-manage-people="canEditAction"
+        :organizer-name="selectedResource?.organizerName ?? ''"
+        @edit-self="editSelf"
         @rename="setDraftName"
         @add-files="addFiles"
         @add-text="withClearedError(() => addTextToDraft($event))"
@@ -86,6 +99,7 @@ function withClearedError(action: () => void) {
       <PeoplePanel
         class="max-w-sm flex-[1_1_300px]"
         :people="people"
+        :others="others"
         :self-person-id="selfPersonId"
         :editing-person-id="state.draft.editingPersonId"
         :can-edit="!isDraftDirty && !isReading"

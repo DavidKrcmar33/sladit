@@ -12,6 +12,10 @@ const props = defineProps<{
   calendarBlocker: string | null
   /** Poslední úpravu akce jde vrátit. */
   canUndoEdit: boolean
+  /** Akci upravuje jen organizátor. Ostatní uvidí, kdo ji pořádá. */
+  isOrganizer: boolean
+  organizerName: string
+  groupName: string | null
 }>()
 const emit = defineEmits<{ navigate: [step: Step]; edit: []; undoEdit: [] }>()
 
@@ -33,8 +37,13 @@ const steps = computed(() => [
           {{ formatDuration(action.durationMinutes) }} · mezi
           {{ formatTimeWindow(action.windowStart, action.windowEnd) }}
         </p>
+        <p v-if="groupName || !isOrganizer" class="text-muted">
+          <template v-if="groupName">Skupina {{ groupName }}</template>
+          <template v-if="groupName && !isOrganizer"> · </template>
+          <template v-if="!isOrganizer">pořádá {{ organizerName }}</template>
+        </p>
       </div>
-      <UiButton variant="ghost" @click="emit('edit')">Upravit akci</UiButton>
+      <UiButton v-if="isOrganizer" variant="ghost" @click="emit('edit')">Upravit akci</UiButton>
       <p v-if="canUndoEdit" class="flex items-center gap-2 text-muted" aria-live="polite">
         Akce upravena.
         <UiButton variant="ghost" @click="emit('undoEdit')">Vrátit</UiButton>

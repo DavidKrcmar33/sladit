@@ -2,7 +2,12 @@
 import { computed } from 'vue'
 import UiButton from './UiButton.vue'
 
-const props = defineProps<{ loginUrl: string; fakeGoogle: boolean }>()
+const props = defineProps<{
+  loginUrl: string
+  fakeGoogle: boolean
+  /** Otevřený odkaz s pozvánkou do skupiny. Po přihlášení se nabídne. */
+  hasInvite: boolean
+}>()
 
 const LOGIN_ERRORS: Record<string, string> = {
   chyba: 'Přihlášení se nepovedlo. Zkus to znovu.',
@@ -25,6 +30,13 @@ function login() {
       <h1 class="text-3xl font-semibold tracking-tight">Sladit</h1>
       <p class="text-base text-muted">
         Nahraj svůj rozpis směn nebo rozvrh v jakékoli podobě a najdi termín, kdy můžou všichni.
+      </p>
+      <p
+        v-if="hasInvite"
+        role="status"
+        class="rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
+      >
+        Máš pozvánku do skupiny. Přihlas se a hned se k ní můžeš přidat.
       </p>
       <p v-if="loginError" role="alert" class="font-medium text-warn">{{ loginError }}</p>
       <UiButton variant="primary" @click="login">Přihlásit přes Google</UiButton>

@@ -6,6 +6,9 @@ import AccountBox from '@/ui/components/AccountBox.vue'
 import ActionHeader from '@/ui/components/ActionHeader.vue'
 import ActionList from '@/ui/components/ActionList.vue'
 import AppShell from '@/ui/components/AppShell.vue'
+import GroupList from '@/ui/components/GroupList.vue'
+import GroupPanel from '@/ui/components/GroupPanel.vue'
+import InviteDialog from '@/ui/components/InviteDialog.vue'
 import LoginScreen from '@/ui/components/LoginScreen.vue'
 import NewActionDialog from '@/ui/components/NewActionDialog.vue'
 import NoActionState from '@/ui/components/NoActionState.vue'
@@ -16,8 +19,10 @@ import IntakeStep from '@/ui/steps/IntakeStep.vue'
 const {
   state,
   loginUrl,
-  actions,
+  actionItems,
   selectedAction,
+  selectedResource,
+  selectedGroup,
   currentStep,
   calendarBlocker,
   init,
@@ -25,6 +30,14 @@ const {
   deleteAccount,
   acceptLocalActions,
   dismissLocalActions,
+  selectGroup,
+  createGroup,
+  createInvite,
+  revokeInvite,
+  removeMember,
+  leaveGroup,
+  acceptInvite,
+  declineInvite,
   createAction,
   updateAction,
   undoActionUpdate,
@@ -36,6 +49,8 @@ const {
 /** Otevřený formulář akce: nová, nebo úprava vybrané. */
 const actionDialog = ref<'create' | 'edit' | null>(null)
 const actionErrors = ref<NewActionErrors>({})
+/** Skupina předvyplněná ve formuláři nové akce. */
+const dialogGroupId = ref<string | null>(null)
 
 const editedDetails = computed(() =>
   actionDialog.value === 'edit' && selectedAction.value
@@ -45,20 +60,35 @@ const editedDetails = computed(() =>
 const canUndoEdit = computed(
   () => state.lastActionEdit !== null && state.lastActionEdit.actionId === state.selectedActionId,
 )
+const selectedGroupName = computed(
+  () => state.groups.find((group) => group.id === selectedResource.value?.groupId)?.name ?? null,
+)
+const groupActions = computed(() =>
+  actionItems.value.filter(
+    (item) =>
+      state.actions.find((action) => action.id === item.id)?.groupId === state.selectedGroupId,
+  ),
+)
 
-function openActionDialog(mode: 'create' | 'edit') {
+function openActionDialog(mode: 'create' | 'edit', groupId: string | null = null) {
   actionErrors.value = {}
+  dialogGroupId.value = groupId
   actionDialog.value = mode
 }
 
-async function submitAction(input: NewActionInput) {
+async function submitAction(input: NewActionInput, groupId: string | null) {
   const errors =
-    actionDialog.value === 'edit' ? await updateAction(input) : await createAction(input)
+    actionDialog.value === 'edit' ? await updateAction(input) : await createAction(input, groupId)
   if (errors) {
     actionErrors.value = errors
   } else {
     actionDialog.value = null
   }
+}
+
+async function submitGroup(name: string) {
+  const error = await createGroup(name)
+  if (error) state.error = error
 }
 </script>
 
@@ -74,6 +104,7 @@ async function submitAction(input: NewActionInput) {
     v-else-if="state.status === 'signedOut'"
     :login-url="loginUrl"
     :fake-google="state.fakeGoogle"
+    :has-invite="state.invite !== null"
   />
 
   <main
@@ -89,10 +120,17 @@ async function submitAction(input: NewActionInput) {
       <template #sidebar>
         <p class="px-2 text-xl font-semibold tracking-tight">Sladit</p>
         <ActionList
-          :actions="actions"
-          :selected-action-id="state.selectedActionId"
+          :actions="actionItems"
+          :selected-action-id="state.selectedGroupId ? null : state.selectedActionId"
           @select="selectAction"
           @create="openActionDialog('create')"
+        />
+        <GroupList
+          v-if="!state.demo"
+          :groups="state.groups"
+          :selected-group-id="state.selectedGroupId"
+          @select="selectGroup"
+          @create="submitGroup"
         />
         <AccountBox
           :name="state.user?.name ?? ''"
@@ -103,12 +141,15 @@ async function submitAction(input: NewActionInput) {
         />
       </template>
 
-      <template v-if="selectedAction" #header>
+      <template v-if="selectedAction && !selectedGroup" #header>
         <ActionHeader
           :action="selectedAction"
           :current-step="currentStep"
           :calendar-blocker="calendarBlocker"
           :can-undo-edit="canUndoEdit"
+          :is-organizer="selectedResource?.isOrganizer ?? true"
+          :organizer-name="selectedResource?.organizerName ?? ''"
+          :group-name="selectedGroupName"
           @navigate="goToStep"
           @edit="openActionDialog('edit')"
           @undo-edit="undoActionUpdate"
@@ -137,7 +178,21 @@ async function submitAction(input: NewActionInput) {
         {{ state.error }}
       </p>
 
-      <IntakeStep v-if="selectedAction && currentStep === 'intake'" />
+      <GroupPanel
+        v-if="selectedGroup"
+        :key="selectedGroup.id"
+        :group="selectedGroup"
+        :actions="groupActions"
+        :invite-url="state.lastInvite?.groupId === selectedGroup.id ? state.lastInvite.url : null"
+        @create-invite="createInvite(selectedGroup.id)"
+        @revoke-invite="revokeInvite(selectedGroup.id, $event)"
+        @remove-member="removeMember(selectedGroup.id, $event)"
+        @leave="leaveGroup(selectedGroup.id)"
+        @remove="leaveGroup(selectedGroup.id, true)"
+        @open-action="selectAction"
+        @create-action="openActionDialog('create', selectedGroup.id)"
+      />
+      <IntakeStep v-else-if="selectedAction && currentStep === 'intake'" />
       <CalendarStep v-else-if="selectedAction" />
       <NoActionState v-else @create="openActionDialog('create')" @open-sample="openSampleAction" />
     </AppShell>
@@ -147,8 +202,17 @@ async function submitAction(input: NewActionInput) {
       :key="actionDialog"
       :errors="actionErrors"
       :initial="editedDetails"
+      :groups="state.groups"
+      :initial-group-id="dialogGroupId"
       @submit="submitAction"
       @close="actionDialog = null"
+    />
+
+    <InviteDialog
+      v-if="state.invite"
+      :invite="state.invite"
+      @accept="acceptInvite"
+      @decline="declineInvite"
     />
   </template>
 </template>
