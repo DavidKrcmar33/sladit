@@ -3,7 +3,7 @@
 AI nástroj, který z rozpisů směn v libovolném formátu (Excel, fotka, screenshot, PDF, text) najde společný termín pro skupinu.
 Semestrální projekt do předmětu Umělá inteligence.
 
-> Stav: přihlášení přes Google, rozpisy a akce v účtu, skupiny s pozvánkou odkazem (ostatní vidí jen může, nemůže, nevíme), čtení rozpisů přes server (Gemini nebo Claude), výpočet termínů a měření fungují. Poslední měření na vygenerovaných podkladech: 121 ze 121 směn správně, správný termín u 23 z 23 skupin (model `claude-opus-5-5`). Skutečné fotky rozpisů v testovací sadě zatím nejsou. Google Kalendář se připravuje.
+> Stav: přihlášení přes Google, rozpisy a akce v účtu, skupiny s pozvánkou odkazem (ostatní vidí jen může, nemůže, nevíme), čtení rozpisů přes server (Gemini nebo Claude), výpočet termínů a měření fungují. Poslední měření na vygenerovaných podkladech: 121 ze 121 směn správně, správný termín u 23 z 23 skupin (model `claude-opus-5-5`). Skutečné fotky rozpisů v testovací sadě zatím nejsou. Aplikace je nasazená na Railway, viz [docs/BACKEND.md](docs/BACKEND.md). Google Kalendář se připravuje.
 
 ## Spuštění
 

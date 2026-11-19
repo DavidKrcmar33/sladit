@@ -2,7 +2,7 @@
 
 Jak funguje serverová část Sladitu: přihlášení, ukládání rozpisů a akcí, čtení modelem přes server a nasazení na internet. Popis čtení rozpisů je v [PIPELINE.md](PIPELINE.md).
 
-> Stav k 19. 11. 2026: hotové jsou fáze 3 a 4 (přihlášení, rozpisy a akce v účtu, čtení přes server, převzetí dat z prohlížeče, skupiny s pozvánkou odkazem a sdílení jen tří stavů). Google Kalendář (fáze 5) zatím není.
+> Stav k 19. 11. 2026: hotové jsou fáze 3 a 4 (přihlášení, rozpisy a akce v účtu, čtení přes server, převzetí dat z prohlížeče, skupiny s pozvánkou odkazem a sdílení jen tří stavů). Aplikace je nasazená na https://sladit-production.up.railway.app a přihlášení přes Google tam funguje (viz [Současné nasazení](#současné-nasazení)). Google Kalendář (fáze 5) zatím není.
 
 ## Proč server
 
@@ -162,23 +162,48 @@ Doporučení z 19. 11. 2026: Railway, plán Hobby za 5 USD měsíčně (zahrnuje
 
 Heroku se studentským kreditem by vyšlo zdarma, ale jeho směrovač ukončí požadavek, který do 30 sekund nevrátí první bajt. Čtení modelem trvá déle a vyžadovalo by frontu úloh.
 
-1. Účet na railway.com, plán Hobby.
-2. **Nový projekt** z GitHub repozitáře (nebo prázdný a pak `railway up` z pracovního stromu).
-3. **Databáze.** V projektu „+ New“, Database, PostgreSQL. Do služby s aplikací přidej proměnnou `DATABASE_URL` jako odkaz na databázi (Railway nabídne `${{Postgres.DATABASE_URL}}`).
-4. **Proměnné služby:**
+1. Účet na railway.com. Zkušební verze stačí na vyzkoušení, pro trvalý provoz plán Hobby.
+2. **Databáze.** V projektu „+ New“, Database, PostgreSQL. Veřejný přístup (Public Networking, TCP Proxy) u databáze nezapínej, aplikace se k ní připojí po vnitřní síti Railway.
+3. **Služba s aplikací.** „+ New“, Empty Service (nebo rovnou GitHub Repository). V Settings, Networking dej Generate Domain: adresu potřebuješ dřív než klienta v Googlu.
+4. **Region.** Výchozí je US East. V Settings, Scale přepni aplikaci i databázi na EU West (Amsterdam), obě musí být ve stejném regionu. Přesun databáze s daty způsobí krátký výpadek.
+5. **Proměnné služby** (Variables, Raw Editor jde použít pro netajné hodnoty, tajné vlož každou zvlášť):
    - `NODE_ENV=production`
    - `APP_ORIGIN=https://<adresa služby>`, bez lomítka na konci
+   - `DATABASE_URL=${{Postgres.DATABASE_URL}}` (odkaz na databázi)
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` z produkčního projektu Google
-   - `LLM_PROVIDER` a klíč k modelu (`ANTHROPIC_API_KEY`, nebo `GEMINI_API_KEY` a `GEMINI_MODEL`)
+   - `LLM_PROVIDER` a klíč k modelu (`ANTHROPIC_API_KEY` a případně `ANTHROPIC_MODEL`, nebo `GEMINI_API_KEY` a `GEMINI_MODEL`)
    - volitelně `ALLOWED_EMAILS`, `READ_LIMIT_PER_USER_PER_DAY`, `READ_LIMIT_TOTAL_PER_DAY`
-5. **Veřejná adresa.** Settings, Networking, Generate Domain. Tu dej do `APP_ORIGIN` a do redirect URI v Googlu.
-6. **Sestavení a start** Railway pozná sám: `npm run build` a `npm start`. Verze Node je v `package.json` (`engines`). Migrace databáze spustí server při startu. Kontrola běhu je `GET /api/health`.
+6. **Zdroj.** Settings, Source, Connect Repo a větev `main`. Railway musí mít na GitHubu přístup k repozitáři (aplikace Railway na GitHubu). Ke cizímu repozitáři ho musí povolit jeho vlastník.
+7. **Kontrola běhu.** Settings, Deploy, Healthcheck Path: `/api/health`. Nová verze se pak pustí ven, až když server odpovídá.
+8. **Sestavení a start** Railway (Railpack) pozná sám: `npm install`, `npm run build` a `npm start`. Verzi Node bere nejdřív z `.nvmrc` (proto je tam `22`), až potom z `engines` v `package.json`. Migrace databáze spustí server při startu.
+
+Změny v Railway se nejdřív jen připraví a projeví se až po „Deploy“ nahoře. Před potvrzením se podívej do „Details“, co čeká: jednou tam bylo omylem připravené smazání databáze. Pozor, Details ukazuje hodnoty proměnných i s klíči.
+
+Bez kompletního nastavení server záměrně nenastartuje a v Deploy Logs řekne proč, třeba „Chybí GOOGLE_CLIENT_ID a GOOGLE_CLIENT_SECRET“.
 
 Zálohy databáze na plánu Hobby Railway podle dostupných informací automaticky nedělá. Před ukázkou nebo odevzdáním si zálohu udělej sám: `pg_dump "$DATABASE_URL" > zaloha.sql`.
+
+## Současné nasazení
+
+Stav k 19. 11. 2026.
+
+| Co              | Jak                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| Adresa          | https://sladit-production.up.railway.app                                                              |
+| Hosting         | Railway, zkušební verze (30 dní nebo 5 USD), služby `sladit` a `Postgres`, region EU West (Amsterdam) |
+| Zdroj kódu      | Soukromá kopie repozitáře u jednoho člena týmu, větev `main`. Každý push do ní spustí nové nasazení.  |
+| Model           | Claude (`claude-opus-5-5`), klíč jen v proměnných Railway                                             |
+| Přihlášení      | Produkční projekt „Sladit“ v Google Cloudu, režim Testing, jen `openid email profile`                 |
+| Kdo se přihlásí | Jen testovací uživatelé zapsaní v Google (Audience) a zároveň uvedení v `ALLOWED_EMAILS`              |
+
+Ověřeno po nasazení: `/api/health` odpovídá (databáze připojená, migrace proběhly), přihlášení přes Google funguje, bez přihlášení API vrací `401`, změny bez hlavičky Origin nebo z cizí stránky `403`, falešný Google v produkci neexistuje, přesměrování na Google má správnou redirect URI, PKCE a cookie s `HttpOnly`, `Secure` a `SameSite`. JavaScript pro prohlížeč neobsahuje žádný klíč.
+
+Nového člena týmu pustíš dovnitř ve dvou krocích: přidej jeho e-mail do Test users v Google Auth Platform (Audience) a do `ALLOWED_EMAILS` v Railway.
 
 ## Co zatím chybí
 
 - Google Kalendář: obsazenost a zápis potvrzeného termínu (fáze 5).
 - Člen skupiny se nemůže z jedné akce ve skupině odhlásit. Účastní se všech, dokud ve skupině je.
 - Pohled ze serveru se obnoví při otevření akce a po vlastní změně. Změnu rozpisu jiného člena uvidíš až po přepnutí na jinou akci a zpět nebo po obnovení stránky.
-- Nasazení zatím neproběhlo, čeká na účty v Google Cloudu a na Railway.
+- Nasazení běží ze soukromé kopie repozitáře. Až bude práce ve společném repozitáři, přepni v Railway zdroj služby na něj (vlastník repozitáře musí Railway povolit přístup).
+- Po skončení zkušební verze Railway je potřeba plán Hobby (platební karta).
