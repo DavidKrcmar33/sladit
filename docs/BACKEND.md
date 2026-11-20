@@ -161,7 +161,7 @@ Založ dva projekty: jeden pro vývoj (adresa `http://localhost:5173`) a jeden p
 2. **Kalendář.** APIs & Services, Library, Google Calendar API, Enable.
 3. **Obrazovka souhlasu.** Google Auth Platform, Branding, Get Started. Vyplň název aplikace a kontaktní e-mail, v Audience zvol External.
 4. **Testovací uživatelé.** Audience, Test users, Add users: e-maily týmu.
-5. **Oprávnění.** Data Access, Add or remove scopes: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`. Pro kalendář přidej `.../auth/calendar.freebusy` a `.../auth/calendar.app.created` (objeví se až po zapnutí Google Calendar API). Zapiš si, do které tabulky je Console zařadila (necitlivá, nebo citlivá): u citlivých uvidí uživatel varování o neověřené aplikaci.
+5. **Oprávnění.** Data Access, Add or remove scopes: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`. Pro kalendář přidej `.../auth/calendar.freebusy` a `.../auth/calendar.app.created` (objeví se až po zapnutí Google Calendar API). Console je 20. 11. 2026 zařadila obě mezi necitlivá, takže kvůli nim uživatel neuvidí varování o citlivých oprávněních.
 6. **Klient.** Google Auth Platform, Clients, Create Client, typ Web application. Do Authorized redirect URIs zadej přesně:
    - vývoj: `http://localhost:5173/api/auth/google/callback`
    - produkce: `https://<adresa z hostingu>/api/auth/google/callback`
@@ -219,7 +219,7 @@ Nového člena týmu pustíš dovnitř ve dvou krocích: přidej jeho e-mail do 
 
 ## Co zatím chybí
 
-- Google Kalendář v produkci: zapnout Google Calendar API a přidat dvě oprávnění v Google Cloudu, vložit `TOKEN_ENCRYPTION_KEY` do Railway.
+- Google Kalendář v produkci: Google Calendar API je zapnuté a obě oprávnění přidaná (20. 11. 2026), chybí ještě `TOKEN_ENCRYPTION_KEY` v Railway.
 - Návrhy a upozornění od AI (fáze 7), třeba „dlouho jste se neviděli“.
 - Pohled ze serveru se obnoví při otevření akce a po vlastní změně. Změnu rozpisu jiného člena uvidíš až po přepnutí na jinou akci a zpět nebo po obnovení stránky.
 - Nasazení běží ze soukromé kopie repozitáře. Až bude práce ve společném repozitáři, přepni v Railway zdroj služby na něj (vlastník repozitáře musí Railway povolit přístup).
