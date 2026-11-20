@@ -45,11 +45,23 @@ function blockKey(shift: Pick<Shift, 'raw' | 'start' | 'end'>): string {
   return `${shift.raw}|${shift.start}|${shift.end}`
 }
 
+/**
+ * Poznámky modelu o chybějící platnosti („Podklad neuvádí období platnosti“). Model je píše
+ * vlastními slovy, proto podle slov. Po odpovědi na období už neplatí.
+ */
+const PERIOD_NOTE = /platnost|obdob/i
+
 /** Odpovědi, které mění samotné čtení: platnost a dny, kdy podklad neplatí. */
 function patchReading(reading: Reading, answers: SourceAnswer[]): Reading {
   let next = reading
   for (const answer of answers) {
-    if (answer.kind === 'period') next = { ...next, coverage: [answer.range] }
+    if (answer.kind === 'period') {
+      next = {
+        ...next,
+        coverage: [answer.range],
+        warnings: next.warnings.filter((warning) => !PERIOD_NOTE.test(warning)),
+      }
+    }
     if (answer.kind === 'days-off') {
       const off = new Set(answer.dates)
       next = {

@@ -152,6 +152,20 @@ describe('doptání: odpovědi', () => {
     expect(built.coverage).toEqual([{ from: '2026-11-16', to: '2026-11-29' }])
   })
 
+  it('drops the notes of the model about the missing period once it is answered', () => {
+    const reading = timetable({
+      warnings: ['Podklad neuvádí období platnosti rozpisu.', 'Buňka C3 je špatně čitelná.'],
+    })
+    const asRead = buildSource(basis(reading), [])
+    expect(asRead.warnings).toContain('Podklad neuvádí období platnosti rozpisu.')
+
+    const answered = buildSource(basis(reading), [
+      { kind: 'period', range: { from: '2026-11-16', to: '2026-11-29' } },
+    ])
+    expect(answered.warnings).toContain('Buňka C3 je špatně čitelná.')
+    expect(answered.warnings.join(' ')).not.toMatch(/platnost/i)
+  })
+
   it('lets a later period answer replace an earlier one', () => {
     const built = buildSource(basis(), [
       { kind: 'period', range: { from: '2026-11-23', to: '2026-12-31' } },
