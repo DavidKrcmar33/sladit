@@ -398,9 +398,10 @@ describe('doptání v prohlížeči', () => {
       { from: 'me', text: 'Platí 16.–22. 11. 2026.' },
     ])
 
-    // Zavřené okno se samo neotevře, Upřesnit ho vrátí.
+    // Zavřené okno se samo neotevře, nad kalendářem zůstane připomínka a Odpovědět ho vrátí.
     session.closeReview()
     expect(session.reviewSource.value).toBeNull()
+    expect(session.waitingReviews.value.map((waiting) => waiting.id)).toEqual([source.id])
     session.openReview(source.id)
     expect(session.reviewSource.value?.id).toBe(source.id)
   })

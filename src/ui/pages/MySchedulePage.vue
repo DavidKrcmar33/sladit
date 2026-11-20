@@ -40,6 +40,7 @@ const {
   shiftSchedule,
   fileBlob,
   reviewSource,
+  waitingReviews,
   openReview,
   closeReview,
   answerReview,
@@ -76,6 +77,11 @@ const reviewParity = computed(() =>
 const otherParity = computed(() =>
   scheduleParityQuestions.value.filter((question) => question.sourceId !== reviewSource.value?.id),
 )
+
+function questionsLeft(count: number): string {
+  if (count === 1) return 'zbývá 1 otázka'
+  return count < 5 ? `zbývají ${count} otázky` : `zbývá ${count} otázek`
+}
 
 function answerReviewSource(answers: SourceAnswer[], echo: string) {
   if (reviewSource.value) void answerReview(reviewSource.value.id, answers, echo)
@@ -159,6 +165,18 @@ function answerParity(question: ParityQuestion, odd: boolean) {
         @discard="discardReviewProposal"
         @close="closeReview"
       />
+      <div
+        v-for="source in waitingReviews"
+        :key="source.id"
+        role="status"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-accent-soft py-1.5 pr-1.5 pl-4 text-accent-dark"
+      >
+        <p>
+          <span class="font-semibold">Doptání:</span> u podkladu {{ fileNames(source.files) }}
+          {{ questionsLeft(source.questions?.length ?? 0) }}
+        </p>
+        <UiButton variant="ghost" @click="openReview(source.id)">Odpovědět</UiButton>
+      </div>
       <UncertainNotice
         v-if="scheduleUncertainDays.length > 0"
         :count="scheduleUncertainDays.length"

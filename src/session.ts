@@ -206,10 +206,8 @@ export function createSession(options: SessionOptions) {
     pending: null as PendingWork | null,
     /** Doptání k podkladu. Rozhovor a návrh od AI platí jen pro tuto návštěvu. */
     review: {
-      /** Podklad, který člověk otevřel sám (Upřesnit). Jinak se okno otevře u otázek samo. */
+      /** Podklad v otevřeném okně doptání. Okno se otevře samo po čtení, jinak tlačítkem. */
       sourceId: null as string | null,
-      /** Podklady, u kterých okno zavřel, i když otázky zbývají. */
-      dismissed: [] as string[],
       messages: {} as Record<string, ReviewMessage[]>,
       /** Návrh změn od AI, čeká na potvrzení. */
       proposal: null as (ClarifyResponse & { sourceId: string }) | null,
@@ -252,26 +250,22 @@ export function createSession(options: SessionOptions) {
 
   const scheduleWarnings = computed(() => findReadingWarnings(scheduleComposed.value))
 
+  /** Podklad v otevřeném okně doptání. Starší podklady bez uloženého čtení se doptat nedají. */
+  const reviewSource = computed(
+    () =>
+      me.value?.sources.find((source) => source.id === state.review.sourceId && source.questions) ??
+      null,
+  )
+
   /**
-   * Podklad v okně doptání: ten, který člověk otevřel, jinak poslední s otevřenými otázkami
-   * (po čtení se okno otevře samo). Starší podklady bez uloženého čtení otázky nemají.
+   * Podklady, u kterých zbývají otázky, ale okno je zavřené. Nad kalendářem se jen připomenou,
+   * aby okno nevyskakovalo při každé návštěvě.
    */
-  const reviewSource = computed(() => {
-    const sources = me.value?.sources ?? []
-    if (state.review.sourceId) {
-      return (
-        sources.find((source) => source.id === state.review.sourceId && source.questions) ?? null
-      )
-    }
-    return (
-      [...sources]
-        .reverse()
-        .find(
-          (source) =>
-            (source.questions?.length ?? 0) > 0 && !state.review.dismissed.includes(source.id),
-        ) ?? null
-    )
-  })
+  const waitingReviews = computed(() =>
+    (me.value?.sources ?? []).filter(
+      (source) => (source.questions?.length ?? 0) > 0 && source.id !== state.review.sourceId,
+    ),
+  )
 
   const scheduleUncertainDays = computed(() =>
     scheduleAction.value ? findUncertainDays(scheduleAction.value, scheduleComposed.value) : [],
@@ -469,7 +463,6 @@ export function createSession(options: SessionOptions) {
     state.calendar = null
     state.review = {
       sourceId: null,
-      dismissed: [],
       messages: {},
       proposal: null,
       sending: false,
@@ -999,8 +992,14 @@ export function createSession(options: SessionOptions) {
         files: [...files],
         parts,
       })
+      const before = new Set(person.sources.map((source) => source.id))
       replaceMe(updated)
       state.pendingFiles = []
+      // Má-li nový podklad otázky, okno doptání vyskočí hned po čtení.
+      const added = updated.sources.find(
+        (source) => !before.has(source.id) && (source.questions?.length ?? 0) > 0,
+      )
+      if (added) openReview(added.id)
     } catch (error) {
       if (error instanceof BackendError && error.status === 401) signedOut()
       state.readError = readErrorMessage(error)
@@ -1075,13 +1074,10 @@ export function createSession(options: SessionOptions) {
 
   function openReview(sourceId: string) {
     state.review.sourceId = sourceId
-    state.review.dismissed = state.review.dismissed.filter((id) => id !== sourceId)
     state.review.error = null
   }
 
   function closeReview() {
-    const sourceId = reviewSource.value?.id
-    if (sourceId) state.review.dismissed.push(sourceId)
     state.review.sourceId = null
     state.review.proposal = null
     state.review.error = null
@@ -1178,6 +1174,7 @@ export function createSession(options: SessionOptions) {
     scheduleWarnings,
     scheduleUncertainDays,
     reviewSource,
+    waitingReviews,
     actionItems,
     contacts,
     selectedResource,
