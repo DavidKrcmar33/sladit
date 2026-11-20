@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { formatDateRange, formatDayShort } from '@/ui/format'
-import UiButton from './UiButton.vue'
+import SidebarSection from './SidebarSection.vue'
 
-defineProps<{
+const props = defineProps<{
   actions: {
     id: string
     name: string
@@ -16,16 +17,25 @@ defineProps<{
   selectedActionId: string | null
 }>()
 const emit = defineEmits<{ select: [actionId: string]; create: [] }>()
+
+/** Ve sbaleném seznamu nesmí čekající pozvánka zapadnout. */
+const waitingBadge = computed(() => {
+  const count = props.actions.filter((action) => action.waitingForMe).length
+  if (count === 0) return null
+  if (count === 1) return '1 pozvánka'
+  return count < 5 ? `${count} pozvánky` : `${count} pozvánek`
+})
 </script>
 
 <template>
-  <nav aria-labelledby="action-list-title" class="flex flex-col gap-1">
-    <h2
-      id="action-list-title"
-      class="px-2 pb-1.5 text-xs font-medium tracking-wider text-muted uppercase"
-    >
-      Akce
-    </h2>
+  <SidebarSection
+    id="action-list"
+    title="Akce"
+    :count="actions.length"
+    add-label="Nová akce"
+    :badge="waitingBadge"
+    @add="emit('create')"
+  >
     <p v-if="actions.length === 0" class="px-2 text-muted">Zatím žádné akce.</p>
     <ul class="flex flex-col gap-1">
       <li v-for="action in actions" :key="action.id">
@@ -58,6 +68,5 @@ const emit = defineEmits<{ select: [actionId: string]; create: [] }>()
         </button>
       </li>
     </ul>
-  </nav>
-  <UiButton variant="dashed" @click="emit('create')">Nová akce</UiButton>
+  </SidebarSection>
 </template>
