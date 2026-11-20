@@ -50,6 +50,8 @@ const {
 } = useSession()
 
 const leaving = ref(false)
+/** Přijetí pozvánky: nejdřív souhlas se sdílením toho, kdy můžu. */
+const consenting = ref(false)
 
 const resource = computed(() => selectedResource.value!)
 const takesPart = computed(() => resource.value.myStatus !== 'invited')
@@ -121,14 +123,28 @@ function confirm(proposal: Proposal) {
         role="status"
         class="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-accent bg-white px-4 py-3"
       >
-        <p>
-          <strong>{{ resource.organizerName }}</strong> tě zve. Když pozvánku přijmeš, započítá se
-          tvůj rozvrh a ostatní uvidí, kdy můžeš.
-        </p>
-        <div class="flex gap-2">
-          <UiButton variant="primary" @click="respondToAction(true)">Přijmout</UiButton>
-          <UiButton @click="respondToAction(false)">Odmítnout</UiButton>
-        </div>
+        <template v-if="!consenting">
+          <p>
+            <strong>{{ resource.organizerName }}</strong> tě zve do akce
+            <strong>{{ resource.details.name }}</strong>.
+          </p>
+          <div class="flex gap-2">
+            <UiButton variant="primary" @click="consenting = true">Přijmout</UiButton>
+            <UiButton @click="respondToAction(false)">Odmítnout</UiButton>
+          </div>
+        </template>
+        <template v-else>
+          <p>
+            Souhlasíš se sdílením svého kalendáře v této akci? Ostatní uvidí jen, kdy můžeš (může /
+            nemůže / nevíme). Tvé směny, události ani podklady neuvidí.
+          </p>
+          <div class="flex gap-2">
+            <UiButton variant="primary" @click="respondToAction(true)">
+              Souhlasím, přijmout
+            </UiButton>
+            <UiButton @click="consenting = false">Zpět</UiButton>
+          </div>
+        </template>
       </div>
 
       <SlotBanner
