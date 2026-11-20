@@ -111,7 +111,7 @@ LLM_VERIFY_MODEL=<id modelu>
 
 ## Doptání po čtení
 
-Co z podkladu jistě vyčíst nejde, se aplikace po čtení zeptá v okně „Doptání k podkladu“ nad kalendářem (Můj rozvrh). Otázky vznikají pravidly z čtení, ne modelem (`findQuestions` v `src/llm/review.ts`):
+Co z podkladu jistě vyčíst nejde, se aplikace zeptá v okně „Doptání k podkladu“, které po čtení vyskočí přes stránku. Když ho člověk zavře, nad kalendářem zůstane připomínka se zbývajícími otázkami. Otázky vznikají pravidly z čtení, ne modelem (`findQuestions` v `src/llm/review.ts`):
 
 | Otázka                    | Kdy vznikne                                                              | Odpovědi                            |
 | ------------------------- | ------------------------------------------------------------------------ | ----------------------------------- |
@@ -120,7 +120,7 @@ Co z podkladu jistě vyčíst nejde, se aplikace po čtení zeptá v okně „Do
 | Je to tak? (nejistý blok) | Nejisté čtení. Stejný text a časy jsou jedna otázka pro všechny výskyty. | Ano, Jiný čas, Není to směna, Nevím |
 | Lichý, nebo sudý týden?   | Jako dřív (`findParityQuestions`), jen v okně doptání.                   | Lichý, Sudý                         |
 
-Server u podkladu uloží strukturální čtení (`basis`: jedno nebo dvě čtení, hledané období, poznámky) a všechny odpovědi. Po každé odpovědi se podklad přepočítá znovu od začátku (`buildSource`): odpovědi upraví čtení (platnost, volné dny), pak převod na data, porovnání dvou čtení, opravy bloků a svátků a kontroly. Výsledek proto nezávisí na pořadí odpovědí a samotné čtení (`extractWithReport`) jde stejnou cestou bez odpovědí. Podklady přečtené před doptáním čtení uložené nemají a doptat se k nim nejde.
+Server u podkladu uloží strukturální čtení (`basis`: jedno nebo dvě čtení, hledané období, poznámky) a všechny odpovědi. Po každé odpovědi se podklad přepočítá znovu od začátku (`buildSource`): odpovědi upraví čtení (platnost, volné dny), pak převod na data, porovnání dvou čtení, opravy bloků a svátků a kontroly. Výsledek proto nezávisí na pořadí odpovědí a samotné čtení (`extractWithReport`) jde stejnou cestou bez odpovědí. Po odpovědi na období vypadnou i poznámky modelu o chybějící platnosti. Server při startu přepočítá všechny podklady s doptáním, takže se oprava přepočtu projeví i u už zodpovězených. Podklady přečtené před doptáním čtení uložené nemají a doptat se k nim nejde.
 
 ### Odpověď vlastními slovy
 
@@ -152,7 +152,7 @@ Plánovač (`core/scheduler.ts`) pak rozhoduje takto: „nemůže“, kdykoli do
 | Místo údaje v podkladu          | Řádek „V podkladu: …“ pod směnou v editoru dne.                                   |
 | Skrytý obsah v Excelu           | Věta v panelu „Poznámky ke čtení“, že se skryté listy, řádky nebo sloupce nečtou. |
 | Rozvrh s lichými a sudými týdny | Otázka „Týden 23.–29. 11. je lichý, nebo sudý?“ v okně doptání nad kalendářem.    |
-| Bez data, nejistota, svátky     | Okno „Doptání k podkladu“ nad kalendářem, znovu ho otevře „Upřesnit“ u podkladu.  |
+| Bez data, nejistota, svátky     | Okno „Doptání k podkladu“ přes stránku. Připomínka nad kalendářem a „Upřesnit“.   |
 | Okruh podkladu                  | Výběr Práce, Škola, Další práce u podkladu v panelu Kdo jde.                      |
 | Ruční úprava dne                | V editoru dne věta „Den je upravený ručně“ a tlačítko „Vrátit podle podkladů“.    |
 | Nečitelný podklad, limit, chyba | Hláška u člověka v kroku Podklady a tlačítko „Zkusit znovu“.                      |
