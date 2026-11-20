@@ -2,7 +2,7 @@
 
 Jak funguje serverová část Sladitu: přihlášení, ukládání rozpisů a akcí, čtení modelem přes server a nasazení na internet. Popis čtení rozpisů je v [PIPELINE.md](PIPELINE.md).
 
-> Stav k 20. 11. 2026: hotové jsou fáze 3 až 5 (přihlášení, vlastní rozpis v účtu, čtení přes server, převzetí dat z prohlížeče, přátelé a skupiny přes odkaz, akce s pozvanými, potvrzení termínu a sdílení jen tří stavů). Aplikace je nasazená na https://sladit-production.up.railway.app a přihlášení přes Google tam funguje (viz [Současné nasazení](#současné-nasazení)). Google Kalendář (fáze 6) zatím není.
+> Stav k 20. 11. 2026: hotové jsou fáze 3 až 6 (přihlášení, vlastní rozpis v účtu, čtení přes server, převzetí dat z prohlížeče, přátelé a skupiny přes odkaz, akce s pozvanými, potvrzení termínu, sdílení jen tří stavů a Google Kalendář). Aplikace je nasazená na https://sladit-production.up.railway.app a přihlášení přes Google tam funguje (viz [Současné nasazení](#současné-nasazení)). Google Kalendář je hotový v kódu, v produkci ho zapne až klíč `TOKEN_ENCRYPTION_KEY` a nastavení v Google Cloudu (viz návody).
 
 ## Proč server
 
@@ -43,22 +43,24 @@ Frontend i API jsou na stejném původu (stejná adresa), takže není potřeba 
 
 Migrace jsou v `server/db/migrations/`, spouští je server sám při startu (`migrate` v `server/db/db.ts`). Nová změna schématu je nový soubor a nový řádek v seznamu `MIGRATIONS`, staré migrace se nemění.
 
-| Tabulka          | Co drží                                                                                                     |
-| ---------------- | ----------------------------------------------------------------------------------------------------------- |
-| `users`          | Účet podle účtu Google: `google_sub`, e-mail, jméno.                                                        |
-| `sessions`       | Přihlášení. V databázi je jen otisk tokenu (SHA-256), samotný token má jen cookie v prohlížeči.             |
-| `oauth_states`   | Rozpracované přihlášení: náhodný `state` a ověřovač PKCE. Platí 15 minut a jde použít jen jednou.           |
-| `people`         | Rozpis uživatele (`is_self`). Hosté z doby před fází 5 tu zůstali, aplikace je už nepoužívá.                |
-| `sources`        | Přečtený podklad: okruh, názvy souborů, pokrytí, směny, poznámky, parita (JSON podle `src/core/schema.ts`). |
-| `day_overrides`  | Ruční úprava jednoho dne. Nové čtení ji nepřepíše.                                                          |
-| `actions`        | Akce: období, délka, denní okno, organizátor a potvrzený termín (`confirmed_*`).                            |
-| `action_invites` | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`.         |
-| `friendships`    | Přátelství, vzájemné. Dvojice je uložená jednou, menší id první.                                            |
-| `friend_invites` | Osobní odkaz „přidej si mě do přátel“: jen otisk tokenu, platnost 7 dní, případné zrušení.                  |
-| `groups`         | Skupina: seznam lidí, které jde pozvat do akce najednou.                                                    |
-| `memberships`    | Členství s rolí `owner` (zakladatel) nebo `member`.                                                         |
-| `invites`        | Odkaz s pozvánkou do skupiny: jen otisk tokenu, platnost 7 dní, případné zrušení.                           |
-| `read_usage`     | Počet čtení modelem za den podle času v Praze, kvůli limitům.                                               |
+| Tabulka                | Co drží                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `users`                | Účet podle účtu Google: `google_sub`, e-mail, jméno.                                                                                             |
+| `sessions`             | Přihlášení. V databázi je jen otisk tokenu (SHA-256), samotný token má jen cookie v prohlížeči.                                                  |
+| `oauth_states`         | Rozpracované přihlášení: náhodný `state` a ověřovač PKCE. Platí 15 minut a jde použít jen jednou.                                                |
+| `people`               | Rozpis uživatele (`is_self`). Hosté z doby před fází 5 tu zůstali, aplikace je už nepoužívá.                                                     |
+| `sources`              | Přečtený podklad: okruh, názvy souborů, pokrytí, směny, poznámky, parita (JSON podle `src/core/schema.ts`).                                      |
+| `day_overrides`        | Ruční úprava jednoho dne. Nové čtení ji nepřepíše.                                                                                               |
+| `actions`              | Akce: období, délka, denní okno, organizátor a potvrzený termín (`confirmed_*`).                                                                 |
+| `action_invites`       | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`.                                              |
+| `friendships`          | Přátelství, vzájemné. Dvojice je uložená jednou, menší id první.                                                                                 |
+| `friend_invites`       | Osobní odkaz „přidej si mě do přátel“: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                       |
+| `groups`               | Skupina: seznam lidí, které jde pozvat do akce najednou.                                                                                         |
+| `memberships`          | Členství s rolí `owner` (zakladatel) nebo `member`.                                                                                              |
+| `invites`              | Odkaz s pozvánkou do skupiny: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                                |
+| `read_usage`           | Počet čtení modelem za den podle času v Praze, kvůli limitům.                                                                                    |
+| `calendar_connections` | Připojený Google Kalendář: zašifrovaný obnovovací token, souhlas se zápisem, automatický zápis, stav, kalendář „Sladit“ a obsazenost (jen časy). |
+| `calendar_events`      | Událost zapsaná z potvrzené akce (kalendář a id události), aby šla změnit nebo smazat.                                                           |
 
 Účastníci akce jsou organizátor a ti, kdo pozvánku přijali. Pozvat jde přátele a lidi ze skupin, kde je organizátor členem. Tabulka `action_participants` a hosté z doby před fází 5 zůstaly v databázi, ale nepoužívají se. Migrace 003 převedla akce ve skupinách z fáze 4 na přijaté pozvánky.
 
@@ -95,6 +97,10 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `POST /groups/:id/invites`                             | Nový odkaz s pozvánkou. Odkaz je v odpovědi jen tentokrát.         |
 | `DELETE /groups/:id/invites/:inviteId`                 | Zrušení pozvánky.                                                  |
 | `GET /invites/:token`, `POST /invites/:token/accept`   | Náhled a přijetí odkazu: do skupiny (`kind: group`), nebo přátel.  |
+| `GET`, `PATCH`, `DELETE /calendar`                     | Stav kalendáře, automatický zápis, odpojení (odvolá přístup).      |
+| `GET /calendar/connect`                                | Souhlas s kalendářem u Googlu, návrat přes stejné přesměrování.    |
+| `POST /calendar/sync`                                  | Načíst obsazenost hned (jinak nejvýš jednou za 10 minut).          |
+| `POST`, `DELETE /actions/:id/calendar`                 | Potvrzený termín do mého kalendáře a jeho odebrání.                |
 | `POST /import`                                         | Jednorázové převzetí akcí uložených v prohlížeči z doby před účty. |
 | `GET /health`                                          | Kontrola pro hosting.                                              |
 
@@ -121,7 +127,7 @@ Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`).
 
 **Zbytkové riziko.** Kdo smí měnit denní okno akce, může opakovanou změnou odhadnout, kdy končí cizí směny. Proto akci upravuje jen organizátor. Detekci takového zkoušení server nemá. Podobně trochu prozradí čas nejlepšího návrhu, když nezačíná na začátku okna.
 
-**Přihlášení.** OAuth 2.0 s autorizačním kódem na serveru, s `state` (proti podstrčenému přihlášení je uložený v databázi i v cookie prohlížeče) a s PKCE. Z účtu Google se bere jen `openid email profile`. O kalendář se bude žádat zvlášť, až ho uživatel připojí (fáze 6). Relace je náhodný token v cookie `HttpOnly`, `SameSite=Lax` a v produkci `Secure`, platí 30 dní.
+**Přihlášení.** OAuth 2.0 s autorizačním kódem na serveru, s `state` (proti podstrčenému přihlášení je uložený v databázi i v cookie prohlížeče) a s PKCE. Z účtu Google se bere jen `openid email profile`. O kalendář se žádá zvlášť, až ho uživatel připojuje (viz Google Kalendář). Relace je náhodný token v cookie `HttpOnly`, `SameSite=Lax` a v produkci `Secure`, platí 30 dní.
 
 **Požadavky z cizí stránky (CSRF).** Server přijme změnu (`POST`, `PATCH`, `PUT`, `DELETE`) jen s hlavičkou `Origin` rovnou adrese aplikace, nebo bez ní se `Sec-Fetch-Site: same-origin`. Cookie navíc má `SameSite=Lax`.
 
@@ -129,13 +135,17 @@ Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`).
 
 **Tajemství.** Klíče jsou jen v proměnných prostředí serveru, v repozitáři žádné nejsou. Žádný klíč nesmí mít jméno začínající `VITE_`: takové proměnné Vite může vložit do aplikace pro prohlížeč. Server dřívější názvy s touto předponou ještě přečte, ale při startu vypíše, které je potřeba přejmenovat. Sestavení v `dist/` klíč neobsahuje, ověřeno 19. 11. 2026.
 
-**Vývojové přihlášení.** `GOOGLE_FAKE=1` zapne falešný Google s formulářem na e-mail a jméno. V produkci (`NODE_ENV=production`) server s tímto nastavením odmítne nastartovat.
+**Google Kalendář.** Aplikace žádá jen `calendar.freebusy` (kdy je člověk obsazený, bez názvů a popisů událostí) a `calendar.app.created` (zápis jen do kalendáře „Sladit“, který si sama založí, ostatní kalendáře nevidí ani nemění). Obnovovací token je v databázi zašifrovaný (AES-256-GCM, klíč `TOKEN_ENCRYPTION_KEY` jen v proměnných prostředí). Obsazenost se čte nejvýš jednou za 10 minut na 13 týdnů a v rozpisu je okruh, který jen přidává „nemůže“: nepokrývá dny a ostatní z něj vidí jen tři stavy. Potvrzenou akci zapíše server jen tomu, kdo má zapnutý automatický zápis, ostatní se aplikace zeptá. Změna názvu události změní, zrušení potvrzení, odmítnutí, zrušení pozvánky nebo smazání akce je smaže. Odpojení a smazání účtu odvolá přístup u Googlu. V režimu Testing Google přístup ke kalendáři po 7 dnech odvolá, aplikace to pozná a nabídne připojit znovu. Bez klíče je kalendář vypnutý a zbytek aplikace běží (`server/calendar/`, testy v `server/calendar.test.ts`).
+
+**Vývojové přihlášení.** `GOOGLE_FAKE=1` zapne falešný Google s formulářem na e-mail a jméno a falešný kalendář se souhlasem jedním kliknutím (obsazenost prázdná, klíč k tokenům vývojový). V produkci (`NODE_ENV=production`) server s tímto nastavením odmítne nastartovat.
 
 ## Vývoj
 
 1. `npm install`
 2. Do `.env` (podle `.env.example`) doplň klíč k modelu a `GOOGLE_FAKE=1`.
 3. `npm run dev` spustí frontend (Vite, http://localhost:5173) a server (port 8787) najednou.
+
+Server se po změně v `server/`, `src/core`, `src/contract` nebo `src/llm` restartuje jako nový proces: starý se zastaví, zavře databázi a skončí, teprve pak se spustí nový (`scripts/dev.mjs`). Nepouštěj server přes `vite-node --watch`. Ten ho spouští znovu ve stejném procesu, nad adresářem PGlite pak můžou běžet dvě instance a databázi poškodí.
 
 Bez `DATABASE_URL` běží databáze PGlite v adresáři `.local/pglite` (Postgres v procesu, nic se neinstaluje). Smazáním adresáře začneš s prázdnou databází. Testy serveru (`npm test`) běží nad PGlite v paměti a s falešným Googlem, model nevolají.
 
@@ -148,10 +158,10 @@ Ověřeno v dokumentaci Googlu k 19. 11. 2026. Nastavení se teď jmenuje Google
 Založ dva projekty: jeden pro vývoj (adresa `http://localhost:5173`) a jeden pro nasazenou aplikaci. Zásady Googlu chtějí, aby produkční klient neobsahoval testovací adresy.
 
 1. **Projekt.** console.cloud.google.com, nabídka, IAM & Admin, Create a Project.
-2. **Kalendář** (až pro fázi 5). APIs & Services, Library, Google Calendar API, Enable.
+2. **Kalendář.** APIs & Services, Library, Google Calendar API, Enable.
 3. **Obrazovka souhlasu.** Google Auth Platform, Branding, Get Started. Vyplň název aplikace a kontaktní e-mail, v Audience zvol External.
 4. **Testovací uživatelé.** Audience, Test users, Add users: e-maily týmu.
-5. **Oprávnění.** Data Access, Add or remove scopes: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`. Pro fázi 5 přibudou `.../auth/calendar.freebusy` a `.../auth/calendar.app.created`. Až je přidáš, zapiš si, do které tabulky je Console zařadila (necitlivá, nebo citlivá). Dokumentace to neříká a závisí na tom, co uživatelé uvidí.
+5. **Oprávnění.** Data Access, Add or remove scopes: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`. Pro kalendář přidej `.../auth/calendar.freebusy` a `.../auth/calendar.app.created` (objeví se až po zapnutí Google Calendar API). Zapiš si, do které tabulky je Console zařadila (necitlivá, nebo citlivá): u citlivých uvidí uživatel varování o neověřené aplikaci.
 6. **Klient.** Google Auth Platform, Clients, Create Client, typ Web application. Do Authorized redirect URIs zadej přesně:
    - vývoj: `http://localhost:5173/api/auth/google/callback`
    - produkce: `https://<adresa z hostingu>/api/auth/google/callback`
@@ -178,6 +188,7 @@ Heroku se studentským kreditem by vyšlo zdarma, ale jeho směrovač ukončí p
    - `DATABASE_URL=${{Postgres.DATABASE_URL}}` (odkaz na databázi)
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` z produkčního projektu Google
    - `LLM_PROVIDER` a klíč k modelu (`ANTHROPIC_API_KEY` a případně `ANTHROPIC_MODEL`, nebo `GEMINI_API_KEY` a `GEMINI_MODEL`)
+   - `TOKEN_ENCRYPTION_KEY`: 32 náhodných bajtů v base64 pro šifrování tokenů ke kalendáři. Vyrobíš ho u sebe příkazem `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` a vložíš rovnou do Railway. Když ho později změníš, připojené kalendáře je potřeba připojit znovu.
    - volitelně `ALLOWED_EMAILS`, `READ_LIMIT_PER_USER_PER_DAY`, `READ_LIMIT_TOTAL_PER_DAY`
 6. **Zdroj.** Settings, Source, Connect Repo a větev `main`. Railway musí mít na GitHubu přístup k repozitáři (aplikace Railway na GitHubu). Ke cizímu repozitáři ho musí povolit jeho vlastník.
 7. **Kontrola běhu.** Settings, Deploy, Healthcheck Path: `/api/health`. Nová verze se pak pustí ven, až když server odpovídá.
@@ -208,7 +219,7 @@ Nového člena týmu pustíš dovnitř ve dvou krocích: přidej jeho e-mail do 
 
 ## Co zatím chybí
 
-- Google Kalendář (fáze 6): obsazenost z kalendáře a zápis potvrzeného termínu. Automatický zápis půjde zapnout, kdo ho zapnutý nemá, toho se aplikace po potvrzení zeptá.
+- Google Kalendář v produkci: zapnout Google Calendar API a přidat dvě oprávnění v Google Cloudu, vložit `TOKEN_ENCRYPTION_KEY` do Railway.
 - Návrhy a upozornění od AI (fáze 7), třeba „dlouho jste se neviděli“.
 - Pohled ze serveru se obnoví při otevření akce a po vlastní změně. Změnu rozpisu jiného člena uvidíš až po přepnutí na jinou akci a zpět nebo po obnovení stránky.
 - Nasazení běží ze soukromé kopie repozitáře. Až bude práce ve společném repozitáři, přepni v Railway zdroj služby na něj (vlastník repozitáře musí Railway povolit přístup).
