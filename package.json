@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:web": "vite",
-    "dev:api": "vite-node --watch server/main.ts",
+    "dev:api": "vite-node server/main.ts",
     "build": "vue-tsc --noEmit && vite build && vite build --ssr server/main.ts --outDir dist-server",
     "start": "NODE_ENV=production node dist-server/main.js",
     "preview": "vite preview",
