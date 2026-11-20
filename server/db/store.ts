@@ -17,12 +17,15 @@ import {
   ParitySchema,
   ShiftSchema,
   SourceFileSchema,
+  SourceQuestionSchema,
   type ActionDetails,
   type DayOverride,
   type Shift,
   type Source,
 } from '@/core/schema'
 import { CALENDAR_CIRCLE } from '@/core/compose'
+import { SourceAnswerSchema, type SourceAnswer } from '@/core/review'
+import { ReviewBasisSchema, type BuiltSource, type ReviewBasis } from '@/llm/review'
 import type { Db } from './db'
 
 /**
@@ -36,6 +39,9 @@ import type { Db } from './db'
 
 /** Nejvíc členů ve skupině. Pozvánka je odkaz, který se může dostat dál, než měl. */
 export const MAX_GROUP_MEMBERS = 50
+
+/** Nejvíc uložených odpovědí u jednoho podkladu. Starší se zahodí, novější je přepíšou stejně. */
+const MAX_ANSWERS = 100
 
 /** Člověk v akci i s rozpisem. Jen pro výpočet na serveru, nikdy se neposílá celý ven. */
 export interface ViewPerson extends OwnedPerson {
@@ -51,7 +57,13 @@ const SourceRowSchema = z.object({
   shifts: z.array(ShiftSchema),
   warnings: z.array(z.string()),
   parity: ParitySchema,
+  questions: z.array(SourceQuestionSchema).default([]),
+  /** Podklad má uložené čtení, takže se k němu jde doptat (migrace 005). */
+  reviewable: z.boolean().default(false),
 })
+
+const SOURCE_COLUMNS =
+  's.id, s.person_id, s.circle, s.files, s.coverage, s.shifts, s.warnings, s.parity, s.questions, s.basis is not null as reviewable'
 
 interface PersonRow {
   id: string
@@ -110,8 +122,18 @@ function json(value: unknown): string {
 }
 
 function toSource(row: unknown): Source {
-  const { id, circle, files, coverage, shifts, warnings, parity } = SourceRowSchema.parse(row)
-  return { id, circle, files, coverage, shifts, warnings, parity }
+  const { id, circle, files, coverage, shifts, warnings, parity, questions, reviewable } =
+    SourceRowSchema.parse(row)
+  return {
+    id,
+    circle,
+    files,
+    coverage,
+    shifts,
+    warnings,
+    parity,
+    ...(reviewable ? { questions } : {}),
+  }
 }
 
 function isoTime(value: Date | string): string {
@@ -193,7 +215,7 @@ export function createStore(db: Db) {
     if (rows.length === 0) return []
     const ids = rows.map((row) => row.id)
     const sources = await db.query(
-      'select id, person_id, circle, files, coverage, shifts, warnings, parity from sources where person_id = any($1) order by position',
+      `select ${SOURCE_COLUMNS} from sources s where s.person_id = any($1) order by s.position`,
       [ids],
     )
     const overrides = await db.query<{ person_id: string; date: string; shifts: unknown }>(
@@ -535,10 +557,16 @@ export function createStore(db: Db) {
       return rows.length > 0
     },
 
-    async addSource(ownerId: string, personId: string, source: Source): Promise<boolean> {
+    /** Uloží přečtený podklad. Se strukturálním čtením (`basis`) se k němu jde později doptat. */
+    async addSource(
+      ownerId: string,
+      personId: string,
+      source: Source,
+      basis: ReviewBasis | null = null,
+    ): Promise<boolean> {
       const rows = await db.query(
-        `insert into sources (id, person_id, circle, files, coverage, shifts, warnings, parity)
-         select $3, p.id, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb
+        `insert into sources (id, person_id, circle, files, coverage, shifts, warnings, parity, basis, questions)
+         select $3, p.id, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb
          from people p where p.owner_id = $1 and p.id = $2
          returning id`,
         [
@@ -551,9 +579,71 @@ export function createStore(db: Db) {
           json(source.shifts),
           json(source.warnings),
           json(source.parity),
+          basis ? json(basis) : null,
+          json(source.questions ?? []),
         ],
       )
       return rows.length > 0
+    },
+
+    /** Podklad i se čtením a dosavadními odpověďmi, pro doptání. Jen vlastníkův. */
+    async sourceReview(
+      ownerId: string,
+      personId: string,
+      sourceId: string,
+    ): Promise<{ source: Source; basis: ReviewBasis | null; answers: SourceAnswer[] } | null> {
+      const [row] = await db.query<{ basis: unknown; answers: unknown }>(
+        `select ${SOURCE_COLUMNS}, s.basis, s.answers
+         from sources s join people p on p.id = s.person_id
+         where p.owner_id = $1 and s.person_id = $2 and s.id = $3`,
+        [ownerId, personId, sourceId],
+      )
+      if (!row) return null
+      return {
+        source: toSource(row),
+        basis: row.basis ? ReviewBasisSchema.parse(row.basis) : null,
+        answers: z.array(SourceAnswerSchema).parse(row.answers),
+      }
+    },
+
+    /**
+     * Přidá odpovědi a uloží přepočtený podklad. Přepočet běží v transakci se zamčeným řádkem,
+     * takže dvě odpovědi naráz se nepřepíšou.
+     */
+    async answerSource(
+      ownerId: string,
+      personId: string,
+      sourceId: string,
+      added: SourceAnswer[],
+      build: (basis: ReviewBasis, answers: SourceAnswer[]) => BuiltSource,
+    ): Promise<'saved' | 'missing' | 'not-reviewable'> {
+      return db.transaction(async (tx) => {
+        const [row] = await tx.query<{ basis: unknown; answers: unknown }>(
+          `select s.basis, s.answers from sources s join people p on p.id = s.person_id
+           where p.owner_id = $1 and s.person_id = $2 and s.id = $3 for update of s`,
+          [ownerId, personId, sourceId],
+        )
+        if (!row) return 'missing' as const
+        if (!row.basis) return 'not-reviewable' as const
+        const answers = [...z.array(SourceAnswerSchema).parse(row.answers), ...added].slice(
+          -MAX_ANSWERS,
+        )
+        const built = build(ReviewBasisSchema.parse(row.basis), answers)
+        await tx.query(
+          `update sources set coverage = $2::jsonb, shifts = $3::jsonb, warnings = $4::jsonb,
+             questions = $5::jsonb, answers = $6::jsonb
+           where id = $1`,
+          [
+            sourceId,
+            json(built.coverage),
+            json(built.shifts),
+            json(built.warnings),
+            json(built.questions),
+            json(answers),
+          ],
+        )
+        return 'saved' as const
+      })
     },
 
     async updateSource(
@@ -564,7 +654,7 @@ export function createStore(db: Db) {
     ): Promise<boolean> {
       return db.transaction(async (tx) => {
         const [row] = await tx.query(
-          `select s.id, s.person_id, s.circle, s.files, s.coverage, s.shifts, s.warnings, s.parity
+          `select ${SOURCE_COLUMNS}
            from sources s join people p on p.id = s.person_id
            where p.owner_id = $1 and s.person_id = $2 and s.id = $3 for update`,
           [ownerId, personId, sourceId],

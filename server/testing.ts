@@ -1,6 +1,7 @@
 import type { SourceContent } from '@/core/schema'
+import type { ClarifyInput, ClarifyResult } from '@/llm/clarify'
 import type { ExtractInput } from '@/llm/extract'
-import { createApp } from './app'
+import { createApp, type ReadResult } from './app'
 import { fakeGoogle } from './auth/google'
 import { fakeCalendar } from './calendar/api'
 import { serverConfigFromEnv, type ServerConfig } from './config'
@@ -23,9 +24,15 @@ export const readContent: SourceContent = {
 
 export async function testServer(
   env: Record<string, string> = {},
-  extract: (input: ExtractInput) => Promise<SourceContent> = async () => readContent,
+  /** Falešné čtení: stačí obsah zdroje, nebo i strukturální čtení pro doptání. */
+  extract: (input: ExtractInput) => Promise<SourceContent | ReadResult> = async () => readContent,
   /** Hodiny serveru, třeba pro vypršení pozvánky. */
   now?: () => Date,
+  /** Falešné doptání vlastními slovy. */
+  clarify: (input: ClarifyInput) => Promise<ClarifyResult> = async () => ({
+    reply: 'Nerozuměl jsem.',
+    answers: [],
+  }),
 ) {
   const db = await pgliteDb()
   await migrate(db)
@@ -38,7 +45,19 @@ export async function testServer(
   })
   const store = createStore(db)
   const calendar = fakeCalendar(ORIGIN)
-  const app = createApp({ config, store, google: fakeGoogle(ORIGIN), extract, now, calendar })
+  const read = async (input: ExtractInput): Promise<ReadResult> => {
+    const result = await extract(input)
+    return 'basis' in result ? result : { source: result, basis: null }
+  }
+  const app = createApp({
+    config,
+    store,
+    google: fakeGoogle(ORIGIN),
+    extract: read,
+    clarify,
+    now,
+    calendar,
+  })
   return { app, db, store, config, calendar }
 }
 

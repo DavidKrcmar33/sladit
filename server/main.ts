@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { serve } from '@hono/node-server'
-import { depsFromConfig, extractSchedule } from '@/llm/extract'
+import { clarifyAnswers } from '@/llm/clarify'
+import { depsFromConfig, extractWithReport } from '@/llm/extract'
 import { createApp } from './app'
 import { fakeGoogle, realGoogle } from './auth/google'
 import { fakeCalendar, realCalendar } from './calendar/api'
@@ -48,7 +49,11 @@ async function start() {
     store,
     google,
     calendar,
-    extract: (input) => extractSchedule(input, extractDeps),
+    extract: async (input) => {
+      const { source, basis } = await extractWithReport(input, extractDeps)
+      return { source, basis }
+    },
+    clarify: (input) => clarifyAnswers(input, extractDeps),
     clientDir: config.production ? './dist' : undefined,
   })
 

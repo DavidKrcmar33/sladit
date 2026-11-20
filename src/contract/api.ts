@@ -10,6 +10,7 @@ import {
   SourceSchema,
   TimeStringSchema,
 } from '@/core/schema'
+import { SourceAnswerSchema } from '@/core/review'
 
 /**
  * Tvar dat mezi prohlížečem a serverem. Oba konce je ověřují stejnými schématy:
@@ -250,6 +251,25 @@ export const UpdateSourceRequestSchema = z.object({
   weekParity: z.object({ date: DateStringSchema, odd: z.boolean() }).optional(),
 })
 
+/** Odpovědi na doptání k podkladu (z tlačítek, nebo potvrzený návrh od AI). */
+export const AnswerSourceRequestSchema = z.object({
+  answers: z.array(SourceAnswerSchema).min(1).max(10),
+})
+
+/** Doptání vlastními slovy: věta, kterou AI převede na odpovědi. */
+export const ClarifyRequestSchema = z.object({
+  message: z.string().trim().min(1, 'Napiš, co se má změnit.').max(500, 'Zpráva je příliš dlouhá.'),
+})
+
+/** Návrh od AI. Nic se neuloží, dokud ho člověk nepotvrdí odesláním odpovědí. */
+export const ClarifyResponseSchema = z.object({
+  /** Krátká věta, co AI pochopila, nebo doplňující otázka. */
+  reply: z.string(),
+  answers: z.array(SourceAnswerSchema),
+  /** Co se v rozpisu po potvrzení změní, spočítané kódem. */
+  changes: z.array(z.string()),
+})
+
 export const SetOverrideRequestSchema = z.object({ shifts: z.array(ShiftSchema).max(10) })
 
 /**
@@ -300,5 +320,6 @@ export type GroupInvite = InviteLink
 export type InvitePreview = z.infer<typeof InvitePreviewSchema>
 export type ReadingRequest = z.infer<typeof ReadingRequestSchema>
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequestSchema>
+export type ClarifyResponse = z.infer<typeof ClarifyResponseSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 export type CalendarStatus = z.infer<typeof CalendarStatusSchema>

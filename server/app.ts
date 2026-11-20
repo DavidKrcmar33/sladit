@@ -6,6 +6,8 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { z } from 'zod'
 import {
   AddMemberSchema,
+  AnswerSourceRequestSchema,
+  ClarifyRequestSchema,
   ConfirmedSlotSchema,
   CreateActionRequestSchema,
   GroupNameSchema,
@@ -24,7 +26,9 @@ import {
 import { withAnchor } from '@/core/parity'
 import { DateStringSchema, type SourceContent } from '@/core/schema'
 import { toMinutes } from '@/core/time'
+import type { ClarifyInput, ClarifyResult } from '@/llm/clarify'
 import type { ExtractInput } from '@/llm/extract'
+import { buildSource, describeChanges, type ReviewBasis } from '@/llm/review'
 import { codeChallengeOf, fakeGoogleCode, randomToken, type GoogleAuth } from './auth/google'
 import { fakeCalendarCode, type CalendarApi } from './calendar/api'
 import { createCalendarService } from './calendar/service'
@@ -39,7 +43,9 @@ export interface AppDeps {
   store: Store
   google: GoogleAuth
   /** Čtení podkladů modelem (src/llm/extract.ts). V testech se nahrazuje. */
-  extract: (input: ExtractInput) => Promise<SourceContent>
+  extract: (input: ExtractInput) => Promise<ReadResult>
+  /** Doptání vlastními slovy (src/llm/clarify.ts). V testech se nahrazuje. */
+  clarify: (input: ClarifyInput) => Promise<ClarifyResult>
   now?: () => Date
   /** Adresář se sestaveným frontendem. Bez něj server podává jen API (vývoj, testy). */
   clientDir?: string
@@ -47,7 +53,16 @@ export interface AppDeps {
   calendar?: CalendarApi | null
 }
 
+/** Přečtený podklad a strukturální čtení, ze kterého ho jde po doptání přepočítat. */
+export interface ReadResult {
+  source: SourceContent
+  basis: ReviewBasis | null
+}
+
 type Env = { Variables: { user: User } }
+
+const NOT_REVIEWABLE =
+  'Tento podklad je přečtený starší verzí aplikace a doptat se k němu nejde. Nahraj ho znovu.'
 
 const SESSION_COOKIE = 'sladit_session'
 const STATE_COOKIE = 'sladit_oauth_state'
@@ -66,7 +81,7 @@ function hash(token: string): string {
 
 function fail(
   c: Context,
-  status: 400 | 401 | 403 | 404 | 413 | 422 | 429 | 502 | 503,
+  status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429 | 502 | 503,
   body: ErrorResponse,
 ) {
   return c.json(body, status)
@@ -104,6 +119,29 @@ export function createApp(deps: AppDeps) {
     now,
   })
   const api = new Hono<Env>()
+
+  /** Denní limit volání modelu (čtení i doptání). Vrátí odpověď s chybou, když je vyčerpaný. */
+  async function reserveModelCall(c: Context, userId: string): Promise<Response | null> {
+    const reserved = await store.reserveReading(
+      userId,
+      pragueDay(now()),
+      config.readLimitPerUser,
+      config.readLimitTotal,
+    )
+    if (reserved === 'user') {
+      return fail(c, 429, {
+        error: 'Dnešní limit čtení je vyčerpaný, zkus to zítra.',
+        code: 'limit',
+      })
+    }
+    if (reserved === 'total') {
+      return fail(c, 429, {
+        error: 'Aplikace dnes vyčerpala limit čtení, zkus to zítra.',
+        code: 'limit',
+      })
+    }
+    return null
+  }
 
   // Změny jen ze stejného původu: obrana proti CSRF. Cookie relace má navíc SameSite=Lax.
   api.use('*', async (c, next) => {
@@ -354,28 +392,12 @@ export function createApp(deps: AppDeps) {
         throw error
       }
 
-      const reserved = await store.reserveReading(
-        user.id,
-        pragueDay(now()),
-        config.readLimitPerUser,
-        config.readLimitTotal,
-      )
-      if (reserved === 'user') {
-        return fail(c, 429, {
-          error: 'Dnešní limit čtení je vyčerpaný, zkus to zítra.',
-          code: 'limit',
-        })
-      }
-      if (reserved === 'total') {
-        return fail(c, 429, {
-          error: 'Aplikace dnes vyčerpala limit čtení, zkus to zítra.',
-          code: 'limit',
-        })
-      }
+      const limited = await reserveModelCall(c, user.id)
+      if (limited) return limited
 
-      let content: SourceContent
+      let read: ReadResult
       try {
-        content = await deps.extract({ sources, from: body.data.from, to: body.data.to })
+        read = await deps.extract({ sources, from: body.data.from, to: body.data.to })
       } catch (error) {
         if (error instanceof Error && error.name === 'UnreadableSourceError') {
           const notes = 'notes' in error && Array.isArray(error.notes) ? error.notes : []
@@ -389,14 +411,71 @@ export function createApp(deps: AppDeps) {
         return fail(c, 502, { error: 'Rozpis se nepodařilo přečíst.' })
       }
 
-      await store.addSource(user.id, personId, {
-        ...content,
-        id: randomUUID(),
-        files: body.data.files,
-      })
+      await store.addSource(
+        user.id,
+        personId,
+        { ...read.source, id: randomUUID(), files: body.data.files },
+        read.basis,
+      )
       return c.json({ person: await store.personOf(user.id, personId) })
     },
   )
+
+  // Doptání po čtení. Odpovědi z tlačítek se použijí hned, věta napsaná vlastními slovy jde AI
+  // a vrátí se jako návrh: uloží se, až ho člověk potvrdí odesláním odpovědí.
+
+  api.post('/people/:id/sources/:sourceId/answers', async (c) => {
+    const body = await parseBody(c, AnswerSourceRequestSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const personId = c.req.param('id')
+    const result = await store.answerSource(
+      user.id,
+      personId,
+      c.req.param('sourceId'),
+      body.data.answers,
+      buildSource,
+    )
+    if (result === 'missing') return fail(c, 404, { error: 'Podklad nenalezen.' })
+    if (result === 'not-reviewable') return fail(c, 409, { error: NOT_REVIEWABLE, code: 'review' })
+    return c.json({ person: await store.personOf(user.id, personId) })
+  })
+
+  api.post('/people/:id/sources/:sourceId/clarify', async (c) => {
+    const body = await parseBody(c, ClarifyRequestSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const review = await store.sourceReview(user.id, c.req.param('id'), c.req.param('sourceId'))
+    if (!review) return fail(c, 404, { error: 'Podklad nenalezen.' })
+    if (!review.basis) return fail(c, 409, { error: NOT_REVIEWABLE, code: 'review' })
+
+    // Každá zpráva je volání placeného modelu, počítá se do stejného denního limitu jako čtení.
+    const limited = await reserveModelCall(c, user.id)
+    if (limited) return limited
+
+    let result: ClarifyResult
+    try {
+      result = await deps.clarify({
+        basis: review.basis,
+        answers: review.answers,
+        message: body.data.message,
+        today: pragueDay(now()),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (/\b429\b/.test(message)) {
+        return fail(c, 503, { error: 'Došel limit modelu, zkus to za chvíli.', code: 'busy' })
+      }
+      console.error('Doptání selhalo:', message)
+      return fail(c, 502, { error: 'Zprávu se nepodařilo zpracovat, zkus to znovu.' })
+    }
+    const after = buildSource(review.basis, [...review.answers, ...result.answers])
+    return c.json({
+      reply: result.reply,
+      answers: result.answers,
+      changes: describeChanges(review.source, after),
+    })
+  })
 
   api.patch('/people/:id/sources/:sourceId', async (c) => {
     const body = await parseBody(c, UpdateSourceRequestSchema)

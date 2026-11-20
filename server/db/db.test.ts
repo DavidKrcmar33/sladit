@@ -24,6 +24,7 @@ describe('pgliteDb', () => {
       '002_groups',
       '003_friends_invitations',
       '004_calendar',
+      '005_review',
     ])
     await first.query("insert into users (id, google_sub, email, name) values ('u', 's', 'e', 'n')")
     await first.close()
@@ -49,7 +50,7 @@ describe('pgliteDb', () => {
          values ('pivo', 'anna', 'g', 'Pivo', '2026-11-23', '2026-11-29', 120, '17:00', '22:00');`,
     )
 
-    expect(await migrate(db)).toEqual(['003_friends_invitations', '004_calendar'])
+    expect(await migrate(db)).toEqual(['003_friends_invitations', '004_calendar', '005_review'])
     expect(await db.query('select action_id, user_id, status from action_invites')).toEqual([
       { action_id: 'pivo', user_id: 'eva', status: 'accepted' },
     ])
