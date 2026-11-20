@@ -1,4 +1,5 @@
 import type { CalendarDay } from '@/core/calendar'
+import { CALENDAR_LABEL } from '@/core/calendarBusy'
 import type { DateString, Shift, TimeString } from '@/core/schema'
 import type { TimeRange } from '@/core/scheduler'
 import type { Stability } from '@/core/sensitivity'
@@ -85,6 +86,14 @@ function formatWindowList(windows: TimeRange[]): string {
 
 const PRIVATE_DAY = { available: 'může', busy: 'nemůže', unknown: 'nevíme' } as const
 
+/** Směna z rozpisu, nebo obsazený čas z Google Kalendáře, třeba „v kalendáři 18–21“. */
+function describeShift(shift: Pick<Shift, 'label' | 'start' | 'end' | 'raw'>): string {
+  if (shift.label === CALENDAR_LABEL && shift.raw === '') {
+    return `v kalendáři ${formatShiftTime(shift)}`
+  }
+  return `směna ${formatShiftSummary(shift)}`
+}
+
 export function describeCalendarDay({
   status,
   attendance,
@@ -94,14 +103,10 @@ export function describeCalendarDay({
   // U cizího rozpisu víme jen výsledek, ne důvod.
   if (status.kind === 'private') return PRIVATE_DAY[attendance]
   if (status.kind === 'unknown') {
-    const known = status.shifts.map((shift) => `směna ${formatShiftSummary(shift)}`)
-    return ['rozpis chybí', ...known].join(', ')
+    return ['rozpis chybí', ...status.shifts.map(describeShift)].join(', ')
   }
 
-  const parts =
-    status.kind === 'free'
-      ? ['volno']
-      : status.shifts.map((shift) => `směna ${formatShiftSummary(shift)}`)
+  const parts = status.kind === 'free' ? ['volno'] : status.shifts.map(describeShift)
   if (status.kind === 'working' && status.shifts.some((shift) => shift.uncertain)) {
     parts.push('nejisté čtení')
   }

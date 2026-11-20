@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { ConfirmedSlot } from '@/contract/api'
 import type { Proposal } from '@/core/schema'
 import type { Stability } from '@/core/sensitivity'
@@ -14,8 +14,24 @@ const props = defineProps<{
   /** Organizátor může termín potvrdit. */
   canConfirm?: boolean
   confirmed?: ConfirmedSlot | null
+  /** Něco se ukládá: potvrzovat teď nejde. */
+  busy?: boolean
+  /** Právě se ukládá potvrzení termínu. */
+  confirming?: boolean
 }>()
 const emit = defineEmits<{ confirm: [proposal: Proposal] }>()
+
+/** Termín, na který organizátor naposledy klikl, aby u něj bylo vidět „Potvrzuji…“. */
+const clicked = ref<string | null>(null)
+
+function keyOf(proposal: Proposal): string {
+  return `${proposal.date}-${proposal.start}`
+}
+
+function confirm(proposal: Proposal) {
+  clicked.value = keyOf(proposal)
+  emit('confirm', proposal)
+}
 
 function isConfirmed(proposal: Proposal): boolean {
   return (
@@ -54,7 +70,7 @@ function namesOf(personIds: string[]): string {
     <ol v-else class="flex flex-col gap-3">
       <li
         v-for="(proposal, index) in proposals"
-        :key="`${proposal.date}-${proposal.start}`"
+        :key="keyOf(proposal)"
         :class="[
           'flex flex-col gap-1.5 rounded-xl bg-white p-4',
           index === 0 ? 'border-2 border-accent' : 'border border-line',
@@ -95,9 +111,10 @@ function namesOf(personIds: string[]): string {
           v-else-if="canConfirm"
           :variant="index === 0 ? 'primary' : 'secondary'"
           class="mt-1 self-start"
-          @click="emit('confirm', proposal)"
+          :disabled="busy"
+          @click="confirm(proposal)"
         >
-          Potvrdit tento termín
+          {{ confirming && clicked === keyOf(proposal) ? 'Potvrzuji…' : 'Potvrdit tento termín' }}
         </UiButton>
       </li>
     </ol>

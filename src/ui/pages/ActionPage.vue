@@ -87,6 +87,9 @@ function downloadIcs() {
   URL.revokeObjectURL(url)
 }
 
+/** Ukládá se potvrzení nebo zápis do kalendáře: tlačítka kolem termínu počkají. */
+const busy = computed(() => state.pending !== null)
+
 const calendarConnected = computed(
   () => state.calendar?.state === 'connected' && state.calendar.canWrite,
 )
@@ -128,22 +131,33 @@ function confirm(proposal: Proposal) {
         </p>
         <div class="flex flex-wrap gap-2">
           <template v-if="takesPart">
-            <UiButton v-if="resource.inMyCalendar" variant="ghost" @click="removeFromCalendar">
-              V kalendáři · odebrat
+            <UiButton
+              v-if="resource.inMyCalendar"
+              variant="ghost"
+              :disabled="busy"
+              @click="removeFromCalendar"
+            >
+              {{ state.pending === 'calendar' ? 'Odebírám z kalendáře…' : 'V kalendáři · odebrat' }}
             </UiButton>
             <UiButton
               v-else-if="calendarConnected && !calendarPrompt"
               variant="ghost"
+              :disabled="busy"
               @click="addToCalendar"
             >
-              Přidat do kalendáře
+              {{ state.pending === 'calendar' ? 'Zapisuji do kalendáře…' : 'Přidat do kalendáře' }}
             </UiButton>
             <UiButton v-if="!resource.inMyCalendar" variant="ghost" @click="downloadIcs">
               Stáhnout .ics
             </UiButton>
           </template>
-          <UiButton v-if="resource.isOrganizer" variant="ghost" @click="confirmSlot(null)">
-            Zrušit potvrzení
+          <UiButton
+            v-if="resource.isOrganizer"
+            variant="ghost"
+            :disabled="busy"
+            @click="confirmSlot(null)"
+          >
+            {{ state.pending === 'unconfirm' ? 'Ruším potvrzení…' : 'Zrušit potvrzení' }}
           </UiButton>
         </div>
       </div>
@@ -155,8 +169,10 @@ function confirm(proposal: Proposal) {
       >
         <p>Přidat potvrzený termín do tvého Google Kalendáře?</p>
         <div class="flex gap-2">
-          <UiButton variant="primary" @click="addToCalendar">Přidat</UiButton>
-          <UiButton @click="dismissCalendarPrompt">Teď ne</UiButton>
+          <UiButton variant="primary" :disabled="busy" @click="addToCalendar">
+            {{ state.pending === 'calendar' ? 'Zapisuji…' : 'Přidat' }}
+          </UiButton>
+          <UiButton :disabled="busy" @click="dismissCalendarPrompt">Teď ne</UiButton>
         </div>
       </div>
 
@@ -233,6 +249,8 @@ function confirm(proposal: Proposal) {
         :stability="stability"
         :can-confirm="resource.isOrganizer"
         :confirmed="resource.confirmed"
+        :busy="state.pending !== null"
+        :confirming="state.pending === 'confirm'"
         @confirm="confirm"
       />
       <ActionPeople

@@ -100,6 +100,27 @@ describe('describeCalendarDay', () => {
     ],
     [
       {
+        status: {
+          kind: 'unknown',
+          shifts: [
+            {
+              date: '2026-11-26',
+              start: '18:00',
+              end: '21:00',
+              label: 'Kalendář',
+              raw: '',
+              uncertain: false,
+            },
+          ],
+        },
+        attendance: 'busy',
+        windows: [],
+        isPartial: false,
+      },
+      'rozpis chybí, v kalendáři 18–21',
+    ],
+    [
+      {
         status: { kind: 'working', shifts: [{ ...nightShift, uncertain: false }] },
         attendance: 'busy',
         windows: [],

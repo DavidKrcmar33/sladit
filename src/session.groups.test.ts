@@ -230,6 +230,18 @@ describe('akce s pozvanými', () => {
     expect(evaSession.state.page).toBe('schedule')
   })
 
+  it('ignores a second confirmation while the first one is saving', async () => {
+    const { annaSession, evaSession } = await invited()
+    await evaSession.respondToAction(true)
+    const slot = { date: '2026-11-25', start: '18:00', end: '20:00' }
+    const first = annaSession.confirmSlot(slot)
+    expect(annaSession.state.pending).toBe('confirm')
+    await annaSession.confirmSlot({ date: '2026-11-26', start: '18:00', end: '20:00' })
+    await first
+    expect(annaSession.state.pending).toBeNull()
+    expect(annaSession.selectedResource.value?.confirmed).toEqual(slot)
+  })
+
   it('lets the organizer confirm a slot that the friend then sees', async () => {
     const { annaSession, evaSession } = await invited()
     await evaSession.respondToAction(true)

@@ -70,6 +70,7 @@ export type SessionStatus = 'loading' | 'signedOut' | 'ready' | 'failed'
 
 /** Otevřená stránka hlavní části. */
 export type Page = 'action' | 'schedule' | 'friends' | 'group' | 'settings'
+export type PendingWork = 'confirm' | 'unconfirm' | 'calendar'
 
 /** Pozvánka do skupiny nebo do přátel čekající na odpověď. Náhled je null, dokud nedorazí. */
 export interface PendingInvite {
@@ -190,6 +191,11 @@ export function createSession(options: SessionOptions) {
     calendarNotice: (options.calendarResult && CALENDAR_RESULTS[options.calendarResult]) || null,
     /** Akce, u kterých uživatel odmítl zápis do kalendáře (jen pro tuto návštěvu). */
     dismissedCalendarPrompts: [] as string[],
+    /**
+     * Co se právě ukládá: potvrzení termínu, jeho zrušení, nebo zápis do kalendáře. První zápis
+     * do Google Kalendáře trvá i několik sekund, tlačítka se mezitím zablokují.
+     */
+    pending: null as PendingWork | null,
   })
 
   const fileBlobs = new Map<string, File>()
@@ -680,10 +686,23 @@ export function createSession(options: SessionOptions) {
   }
 
   /** Organizátor potvrdí termín, nebo potvrzení zruší (null). */
+  /** Spustí ukládání, jen když žádné jiné neběží, a po dobu běhu ho ukáže v `state.pending`. */
+  async function onePending<T>(work: PendingWork, run: () => Promise<T>): Promise<T | null> {
+    if (state.pending) return null
+    state.pending = work
+    try {
+      return await run()
+    } finally {
+      state.pending = null
+    }
+  }
+
   async function confirmSlot(slot: ConfirmedSlot | null) {
     const actionId = state.selectedActionId
     if (!actionId) return
-    const action = await guarded(() => backend.confirmAction(actionId, slot))
+    const action = await onePending(slot ? 'confirm' : 'unconfirm', () =>
+      guarded(() => backend.confirmAction(actionId, slot)),
+    )
     if (action) replaceAction(action)
   }
 
@@ -811,14 +830,18 @@ export function createSession(options: SessionOptions) {
   async function addToCalendar() {
     const actionId = state.selectedActionId
     if (!actionId) return
-    const action = await guarded(() => backend.addToCalendar(actionId))
+    const action = await onePending('calendar', () =>
+      guarded(() => backend.addToCalendar(actionId)),
+    )
     if (action) replaceAction(action)
   }
 
   async function removeFromCalendar() {
     const actionId = state.selectedActionId
     if (!actionId) return
-    const action = await guarded(() => backend.removeFromCalendar(actionId))
+    const action = await onePending('calendar', () =>
+      guarded(() => backend.removeFromCalendar(actionId)),
+    )
     if (action) replaceAction(action)
   }
 
