@@ -208,14 +208,22 @@ export function createCalendarService(deps: {
   }
 
   /**
-   * Po potvrzení nebo změně termínu: kdo už událost má, tomu se změní. Kdo má zapnutý
-   * automatický zápis, tomu se zapíše. Ostatních se aplikace zeptá v prohlížeči.
+   * Po návrhu termínu, odpovědi účastníka nebo změně akce. Týká se jen těch, kdo jdou
+   * (organizátor a kdo odpověděl „jdu“): kdo událost má, tomu se změní, kdo má automatický
+   * zápis, tomu se zapíše. Ostatních se aplikace zeptá. Kdo už nejde (odpověděl „nejdu“,
+   * nebo se termín změnil a ještě neodpověděl), tomu se událost smaže.
    */
   async function afterConfirm(actionId: string) {
     if (!available) return
-    const participants = await store.participantUserIds(actionId)
-    const existing = new Set((await store.calendarEvents(actionId)).map((item) => item.userId))
-    const connections = await store.calendarConnections(participants)
+    const going = new Set(await store.goingUserIds(actionId))
+    const events = await store.calendarEvents(actionId)
+    await Promise.all(
+      events
+        .filter((event) => !going.has(event.userId))
+        .map((event) => removeEvent(event.userId, actionId)),
+    )
+    const existing = new Set(events.map((event) => event.userId))
+    const connections = await store.calendarConnections([...going])
     await Promise.all(
       connections
         .filter((connection) => existing.has(connection.userId) || connection.autoWrite)

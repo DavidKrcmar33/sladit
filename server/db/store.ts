@@ -9,6 +9,8 @@ import type {
   InviteLink,
   InvitePreview,
   OwnedPerson,
+  SlotResponse,
+  SlotResponseRequest,
   User,
 } from '@/contract/api'
 import {
@@ -92,6 +94,7 @@ interface ActionRow {
   confirmed_start: string | null
   confirmed_end: string | null
   in_my_calendar: boolean | null
+  my_slot_response: string | null
 }
 
 interface ParticipantRow {
@@ -116,6 +119,7 @@ const VISIBLE_ACTION = `(a.owner_id = $1 or exists (
 const ACTION_COLUMNS = `a.*,
   (select name from people where owner_id = a.owner_id and is_self) as organizer_name,
   (select status from action_invites where action_id = a.id and user_id = $1) as my_status,
+  (select slot_response from action_invites where action_id = a.id and user_id = $1) as my_slot_response,
   exists (select 1 from calendar_events ce where ce.action_id = a.id and ce.user_id = $1) as in_my_calendar`
 
 /** Dvojice v tabulce přátel: menší id první. */
@@ -216,6 +220,22 @@ function calendarSource(busy: unknown): Source {
   }
 }
 
+/** Odpověď na termín z databáze (`not_going`) do tvaru API (`not-going`). Bez odpovědi `pending`. */
+function toSlotResponse(value: string | null): SlotResponse {
+  if (value === 'going' || value === 'counter') return value
+  return value === 'not_going' ? 'not-going' : 'pending'
+}
+
+/** Vynuluje odpovědi na termín. Kdo termín navrhl (přijatý protinávrh), ten rovnou jde. */
+async function resetSlotResponses(tx: Db, actionId: string, goingUserId: string | null) {
+  await tx.query(
+    `update action_invites set slot_response = case when user_id = $2 then 'going' end,
+       counter_date = null, counter_start = null, counter_end = null
+     where action_id = $1`,
+    [actionId, goingUserId],
+  )
+}
+
 function toConfirmed(row: ActionRow): ConfirmedSlot | null {
   return row.confirmed_date && row.confirmed_start && row.confirmed_end
     ? { date: row.confirmed_date, start: row.confirmed_start, end: row.confirmed_end }
@@ -309,18 +329,28 @@ export function createStore(db: Db) {
       user_id: string
       name: string
       status: string
+      slot_response: string | null
+      counter_date: string | null
+      counter_start: string | null
+      counter_end: string | null
     }>(
-      `select ai.action_id, ai.user_id, p.name, ai.status
+      `select ai.action_id, ai.user_id, p.name, ai.status, ai.slot_response,
+         ai.counter_date, ai.counter_start, ai.counter_end
        from action_invites ai join people p on p.owner_id = ai.user_id and p.is_self
        where ai.action_id = any($1) order by ai.position`,
       [actionIds],
     )
     const byAction = new Map<string, ActionInvite[]>()
     for (const row of rows) {
-      const invite = {
+      const invite: ActionInvite = {
         userId: row.user_id,
         name: row.name,
         status: row.status as ActionInvite['status'],
+        slot: toSlotResponse(row.slot_response),
+        counter:
+          row.counter_date && row.counter_start && row.counter_end
+            ? { date: row.counter_date, start: row.counter_start, end: row.counter_end }
+            : null,
       }
       byAction.set(row.action_id, [...(byAction.get(row.action_id) ?? []), invite])
     }
@@ -334,6 +364,8 @@ export function createStore(db: Db) {
     invites: ActionInvite[],
   ): ActionResource {
     const isOrganizer = row.owner_id === viewerId
+    const confirmed = toConfirmed(row)
+    const accepted = isOrganizer ? false : row.my_status === 'accepted'
     return {
       id: row.id,
       details: toDetails(row),
@@ -344,9 +376,14 @@ export function createStore(db: Db) {
         .map((person) => ({ id: person.id, name: person.name })),
       isOrganizer,
       organizerName: row.organizer_name ?? '',
-      myStatus: isOrganizer ? 'organizer' : row.my_status === 'accepted' ? 'accepted' : 'invited',
+      myStatus: isOrganizer ? 'organizer' : accepted ? 'accepted' : 'invited',
       invites,
-      confirmed: toConfirmed(row),
+      confirmed,
+      mySlot: confirmed && accepted ? toSlotResponse(row.my_slot_response) : null,
+      // Domluveno: termín je navržený a jdou všichni, kdo pozvánku přijali.
+      agreed:
+        confirmed !== null &&
+        invites.every((invite) => invite.status !== 'accepted' || invite.slot === 'going'),
       inMyCalendar: row.in_my_calendar ?? false,
     }
   }
@@ -395,7 +432,8 @@ export function createStore(db: Db) {
     for (const userId of userIds) {
       await tx.query(
         `insert into action_invites (action_id, user_id, status) values ($1, $2, 'invited')
-         on conflict (action_id, user_id) do update set status = 'invited', responded_at = null
+         on conflict (action_id, user_id) do update set status = 'invited', responded_at = null,
+           slot_response = null, counter_date = null, counter_start = null, counter_end = null
          where action_invites.status = 'declined'`,
         [actionId, userId],
       )
@@ -887,7 +925,7 @@ export function createStore(db: Db) {
              = ($4, $5, $6, $7, $8) then confirmed_end end,
            name = $3, date_from = $4, date_to = $5, duration_minutes = $6,
            window_start = $7, window_end = $8
-         where owner_id = $1 and id = $2 returning id`,
+         where owner_id = $1 and id = $2 returning id, confirmed_date`,
         [
           ownerId,
           actionId,
@@ -899,6 +937,8 @@ export function createStore(db: Db) {
           details.windowEnd,
         ],
       )
+      // Zmizel-li termín, zmizí i odpovědi na něj.
+      if (rows[0] && !rows[0].confirmed_date) await resetSlotResponses(db, actionId, null)
       return rows.length > 0
     },
 
@@ -952,18 +992,80 @@ export function createStore(db: Db) {
       return rows.length > 0
     },
 
-    /** Potvrdí termín, nebo ho zruší (null). Smí jen organizátor. */
+    /**
+     * Navrhne termín, nebo ho zruší (null). Smí jen organizátor. Odpovědi na dřívější termín
+     * se vynulují: kdo šel na jiný den, na nový se musí vyjádřit znovu.
+     */
     async confirmAction(
       ownerId: string,
       actionId: string,
       slot: ConfirmedSlot | null,
     ): Promise<boolean> {
+      return db.transaction(async (tx) => {
+        const rows = await tx.query(
+          `update actions set confirmed_date = $3, confirmed_start = $4, confirmed_end = $5
+           where owner_id = $1 and id = $2 returning id`,
+          [ownerId, actionId, slot?.date ?? null, slot?.start ?? null, slot?.end ?? null],
+        )
+        if (rows.length === 0) return false
+        await resetSlotResponses(tx, actionId, null)
+        return true
+      })
+    },
+
+    /** Odpověď účastníka na navržený termín. Jen kdo pozvánku přijal a jen když termín je. */
+    async respondToSlot(
+      userId: string,
+      actionId: string,
+      request: SlotResponseRequest,
+    ): Promise<boolean> {
+      const counter = request.response === 'counter' ? request.counter : null
       const rows = await db.query(
-        `update actions set confirmed_date = $3, confirmed_start = $4, confirmed_end = $5
-         where owner_id = $1 and id = $2 returning id`,
-        [ownerId, actionId, slot?.date ?? null, slot?.start ?? null, slot?.end ?? null],
+        `update action_invites ai set slot_response = $3,
+           counter_date = $4, counter_start = $5, counter_end = $6
+         from actions a
+         where a.id = ai.action_id and ai.action_id = $2 and ai.user_id = $1
+           and ai.status = 'accepted' and a.confirmed_date is not null
+         returning ai.user_id`,
+        [
+          userId,
+          actionId,
+          request.response === 'not-going' ? 'not_going' : request.response,
+          counter?.date ?? null,
+          counter?.start ?? null,
+          counter?.end ?? null,
+        ],
       )
       return rows.length > 0
+    },
+
+    /**
+     * Organizátor přijme protinávrh účastníka: z jeho termínu je nový navržený termín,
+     * odpovědi se vynulují a navrhovatel rovnou jde.
+     */
+    async adoptCounter(
+      ownerId: string,
+      actionId: string,
+      userId: string,
+    ): Promise<ConfirmedSlot | null> {
+      return db.transaction(async (tx) => {
+        const [row] = await tx.query<{ date: string; start: string; end: string }>(
+          `select ai.counter_date as date, ai.counter_start as start, ai.counter_end as end
+           from action_invites ai join actions a on a.id = ai.action_id
+           where a.owner_id = $1 and ai.action_id = $2 and ai.user_id = $3
+             and ai.status = 'accepted' and ai.slot_response = 'counter'
+           for update of a`,
+          [ownerId, actionId, userId],
+        )
+        if (!row) return null
+        await tx.query(
+          `update actions set confirmed_date = $2, confirmed_start = $3, confirmed_end = $4
+           where id = $1`,
+          [actionId, row.date, row.start, row.end],
+        )
+        await resetSlotResponses(tx, actionId, userId)
+        return row
+      })
     },
 
     // Přátelé
@@ -1400,6 +1502,19 @@ export function createStore(db: Db) {
         userId,
         actionId,
       ])
+    },
+
+    /** Kdo na navržený termín jde: organizátor a účastníci, kteří odpověděli „jdu“. */
+    async goingUserIds(actionId: string): Promise<string[]> {
+      const rows = await db.query<{ user_id: string }>(
+        `select owner_id as user_id from actions where id = $1 and confirmed_date is not null
+         union all
+         select ai.user_id from action_invites ai join actions a on a.id = ai.action_id
+         where ai.action_id = $1 and ai.status = 'accepted' and ai.slot_response = 'going'
+           and a.confirmed_date is not null`,
+        [actionId],
+      )
+      return rows.map((row) => row.user_id)
     },
 
     /** Uživatelé, kteří se akce účastní: organizátor a ti, kdo pozvánku přijali. */

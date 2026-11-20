@@ -174,25 +174,33 @@ describe('připojení kalendáře', () => {
   })
 })
 
-describe('zápis potvrzeného termínu', () => {
-  it('writes it for those with automatic writing and lets the others add it themselves', async () => {
+describe('zápis navrženého termínu', () => {
+  /** Eva odpoví, že na navržený termín jde. */
+  const going = (eva: Browser, actionId: string) =>
+    eva.send('POST', `/api/actions/${actionId}/slot-response`, { response: 'going' })
+
+  it('writes it for the organizer and for those who go, with automatic writing', async () => {
     const { anna, eva, calendar, actionId } = await setup()
     await connectCalendar(anna)
     await connectCalendar(eva)
     await anna.send('PATCH', '/api/calendar', { autoWrite: true })
 
-    const confirmed = await json<{ action: ActionResource }>(
+    const proposed = await json<{ action: ActionResource }>(
       await anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot),
     )
-    expect(confirmed.action.inMyCalendar).toBe(true)
+    expect(proposed.action.inMyCalendar).toBe(true)
     expect([...calendar.events.get('anna@example.com')!.values()]).toMatchObject([
       { title: 'Pivo', ...slot },
     ])
-    // Eva automatický zápis nemá: aplikace se jí zeptá.
+    // Eva zatím neodpověděla: do kalendáře si termín zapsat nemůže.
     expect(calendar.events.get('eva@example.com')).toBeUndefined()
-    const { actions } = await json<{ actions: ActionResource[] }>(await eva.get('/api/actions'))
-    expect(actions[0].inMyCalendar).toBe(false)
+    const early = await eva.send('POST', `/api/actions/${actionId}/calendar`)
+    expect(early.status).toBe(400)
+    expect(await json(early)).toMatchObject({ code: 'slot' })
 
+    // Eva jde, automatický zápis nemá: zapíše si termín sama.
+    const answered = await json<{ action: ActionResource }>(await going(eva, actionId))
+    expect(answered.action).toMatchObject({ mySlot: 'going', agreed: true, inMyCalendar: false })
     const added = await json<{ action: ActionResource }>(
       await eva.send('POST', `/api/actions/${actionId}/calendar`),
     )
@@ -202,13 +210,35 @@ describe('zápis potvrzeného termínu', () => {
     ])
   })
 
-  it('updates the events after a rename and removes them when the date is no longer confirmed', async () => {
+  it('removes the event after “not going” and when the organizer proposes another date', async () => {
     const { anna, eva, calendar, actionId } = await setup()
     await connectCalendar(anna)
     await connectCalendar(eva)
     await anna.send('PATCH', '/api/calendar', { autoWrite: true })
     await eva.send('PATCH', '/api/calendar', { autoWrite: true })
     await anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot)
+    await going(eva, actionId)
+    expect(calendar.events.get('eva@example.com')!.size).toBe(1)
+
+    await eva.send('POST', `/api/actions/${actionId}/slot-response`, { response: 'not-going' })
+    expect(calendar.events.get('eva@example.com')!.size).toBe(0)
+
+    await going(eva, actionId)
+    const other = { date: '2026-11-27', start: '18:00', end: '20:00' }
+    await anna.send('PUT', `/api/actions/${actionId}/confirmed`, other)
+    // Na nový termín Eva ještě neodpověděla.
+    expect(calendar.events.get('eva@example.com')!.size).toBe(0)
+    expect([...calendar.events.get('anna@example.com')!.values()]).toMatchObject([other])
+  })
+
+  it('updates the events after a rename and removes them when the date is withdrawn', async () => {
+    const { anna, eva, calendar, actionId } = await setup()
+    await connectCalendar(anna)
+    await connectCalendar(eva)
+    await anna.send('PATCH', '/api/calendar', { autoWrite: true })
+    await eva.send('PATCH', '/api/calendar', { autoWrite: true })
+    await anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot)
+    await going(eva, actionId)
 
     await anna.send('PATCH', `/api/actions/${actionId}`, { details: { ...details, name: 'Kino' } })
     for (const email of ['anna@example.com', 'eva@example.com']) {
@@ -229,6 +259,7 @@ describe('zápis potvrzeného termínu', () => {
     await anna.send('PATCH', '/api/calendar', { autoWrite: true })
     await eva.send('PATCH', '/api/calendar', { autoWrite: true })
     await anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot)
+    await going(eva, actionId)
 
     await eva.send('POST', `/api/actions/${actionId}/response`, { accept: false })
     expect(calendar.events.get('eva@example.com')!.size).toBe(0)
@@ -243,11 +274,12 @@ describe('zápis potvrzeného termínu', () => {
     await connectCalendar(eva)
     await anna.send('PATCH', '/api/calendar', { autoWrite: true })
 
-    // Dvojklik na potvrzení a na přidání: požadavky dorazí souběžně.
+    // Dvojklik na návrh a na přidání: požadavky dorazí souběžně.
     await Promise.all([
       anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot),
       anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot),
     ])
+    await going(eva, actionId)
     await Promise.all([
       eva.send('POST', `/api/actions/${actionId}/calendar`),
       eva.send('POST', `/api/actions/${actionId}/calendar`),
@@ -261,6 +293,7 @@ describe('zápis potvrzeného termínu', () => {
   it('refuses to write without a connection or without the permission to write', async () => {
     const { anna, eva, calendar, actionId } = await setup()
     await anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot)
+    await going(eva, actionId)
     const notConnected = await eva.send('POST', `/api/actions/${actionId}/calendar`)
     expect(notConnected.status).toBe(400)
     expect(await json(notConnected)).toMatchObject({ code: 'calendar' })

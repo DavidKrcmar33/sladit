@@ -52,18 +52,32 @@ export const OtherParticipantSchema = z.object({
 })
 
 /** Pozvaný do akce a jak odpověděl. Do termínu se počítá až po přijetí. */
-export const ActionInviteSchema = z.object({
-  userId: z.string(),
-  name: z.string(),
-  status: z.enum(['invited', 'accepted', 'declined']),
-})
-
-/** Termín, který organizátor potvrdil. */
+/** Termín akce: den a čas. */
 export const ConfirmedSlotSchema = z.object({
   date: DateStringSchema,
   start: TimeStringSchema,
   end: TimeStringSchema,
 })
+
+/** Odpověď účastníka na navržený termín. `counter` znamená, že navrhl jiný. */
+export const SlotResponseSchema = z.enum(['pending', 'going', 'not-going', 'counter'])
+
+export const ActionInviteSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  status: z.enum(['invited', 'accepted', 'declined']),
+  /** Odpověď na navržený termín (u přijaté pozvánky). */
+  slot: SlotResponseSchema,
+  /** Jiný termín, který účastník navrhl. */
+  counter: ConfirmedSlotSchema.nullable(),
+})
+
+/** Odpověď na navržený termín: jdu, nejdu, nebo navrhuji jiný. */
+export const SlotResponseRequestSchema = z.discriminatedUnion('response', [
+  z.object({ response: z.literal('going') }),
+  z.object({ response: z.literal('not-going') }),
+  z.object({ response: z.literal('counter'), counter: ConfirmedSlotSchema }),
+])
 
 /** Akce s parametry a lidmi, kteří se jí účastní. */
 export const ActionResourceSchema = z.object({
@@ -79,8 +93,16 @@ export const ActionResourceSchema = z.object({
   /** Vztah přihlášeného k akci: pořádá ji, je pozvaný, nebo pozvánku přijal. */
   myStatus: z.enum(['organizer', 'invited', 'accepted']),
   invites: z.array(ActionInviteSchema),
+  /**
+   * Termín, který organizátor navrhl. Účastníci odpoví, zda jdou. Domluvený je, když jdou
+   * všichni, kdo pozvánku přijali (`agreed`).
+   */
   confirmed: ConfirmedSlotSchema.nullable(),
-  /** Potvrzený termín je zapsaný v mém Google Kalendáři. */
+  /** Moje odpověď na navržený termín. Null u organizátora, nepřijaté pozvánky a bez termínu. */
+  mySlot: SlotResponseSchema.nullable(),
+  /** Termín je navržený a jdou všichni, kdo pozvánku přijali. */
+  agreed: z.boolean(),
+  /** Termín je zapsaný v mém Google Kalendáři. */
   inMyCalendar: z.boolean(),
 })
 
@@ -346,6 +368,8 @@ export type ActionResource = z.infer<typeof ActionResourceSchema>
 export type OtherParticipant = z.infer<typeof OtherParticipantSchema>
 export type ActionInvite = z.infer<typeof ActionInviteSchema>
 export type ConfirmedSlot = z.infer<typeof ConfirmedSlotSchema>
+export type SlotResponse = z.infer<typeof SlotResponseSchema>
+export type SlotResponseRequest = z.infer<typeof SlotResponseRequestSchema>
 export type Friend = z.infer<typeof FriendSchema>
 export type FriendRequest = z.infer<typeof FriendRequestSchema>
 export type SentFriendRequest = z.infer<typeof SentFriendRequestSchema>

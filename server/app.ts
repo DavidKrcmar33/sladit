@@ -11,6 +11,7 @@ import {
   ConfirmedSlotSchema,
   CreateActionRequestSchema,
   SendFriendRequestSchema,
+  SlotResponseRequestSchema,
   GroupNameSchema,
   ImportRequestSchema,
   InviteToActionRequestSchema,
@@ -21,11 +22,12 @@ import {
   UpdateActionRequestSchema,
   UpdateCalendarRequestSchema,
   UpdateSourceRequestSchema,
+  type ConfirmedSlot,
   type ErrorResponse,
   type User,
 } from '@/contract/api'
 import { withAnchor } from '@/core/parity'
-import { DateStringSchema, type SourceContent } from '@/core/schema'
+import { DateStringSchema, type ActionDetails, type SourceContent } from '@/core/schema'
 import { toMinutes } from '@/core/time'
 import type { ClarifyInput, ClarifyResult } from '@/llm/clarify'
 import type { ExtractInput } from '@/llm/extract'
@@ -61,6 +63,19 @@ export interface ReadResult {
 }
 
 type Env = { Variables: { user: User } }
+
+const SLOT_MISFIT = 'Termín neodpovídá období, oknu nebo délce akce.'
+
+/** Termín leží v období a v denním okně akce a má její délku. */
+function fitsAction(details: ActionDetails, slot: ConfirmedSlot): boolean {
+  return (
+    details.from <= slot.date &&
+    slot.date <= details.to &&
+    details.windowStart <= slot.start &&
+    slot.end <= details.windowEnd &&
+    toMinutes(slot.end) - toMinutes(slot.start) === details.durationMinutes
+  )
+}
 
 const NOT_REVIEWABLE =
   'Tento podklad je přečtený starší verzí aplikace a doptat se k němu nejde. Nahraj ho znovu.'
@@ -630,7 +645,8 @@ export function createApp(deps: AppDeps) {
     })
   })
 
-  // Potvrzený termín: musí ležet v období a v denním okně akce a mít její délku.
+  // Navržený termín: musí ležet v období a v denním okně akce a mít její délku. Účastníci pak
+  // odpoví, zda jdou. Organizátor jde vždy, jeho kalendáře se to týká hned.
   api.put('/actions/:id/confirmed', async (c) => {
     const body = await parseBody(c, ConfirmedSlotSchema)
     if (!body.ok) return body.response
@@ -638,17 +654,38 @@ export function createApp(deps: AppDeps) {
     const action = await store.actionOf(user.id, c.req.param('id'))
     if (!action) return fail(c, 404, { error: 'Akce nenalezena.' })
     if (!action.isOrganizer) return fail(c, 403, { error: ORGANIZER_ONLY })
-    const { details } = action
-    const slot = body.data
-    const fits =
-      details.from <= slot.date &&
-      slot.date <= details.to &&
-      details.windowStart <= slot.start &&
-      slot.end <= details.windowEnd &&
-      toMinutes(slot.end) - toMinutes(slot.start) === details.durationMinutes
-    if (!fits) return fail(c, 400, { error: 'Termín neodpovídá období, oknu nebo délce akce.' })
-    await store.confirmAction(user.id, action.id, slot)
-    // Kdo má zapnutý automatický zápis, tomu se termín zapíše. Ostatních se zeptá prohlížeč.
+    if (!fitsAction(action.details, body.data)) return fail(c, 400, { error: SLOT_MISFIT })
+    await store.confirmAction(user.id, action.id, body.data)
+    await calendar.afterConfirm(action.id)
+    return actionResponse(c)
+  })
+
+  // Odpověď účastníka na navržený termín: jdu, nejdu, nebo jiný termín.
+  api.post('/actions/:id/slot-response', async (c) => {
+    const body = await parseBody(c, SlotResponseRequestSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const action = await store.actionOf(user.id, c.req.param('id'))
+    if (!action || action.myStatus === 'invited') return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (action.isOrganizer) return fail(c, 400, { error: 'Organizátor na svůj termín neodpovídá.' })
+    if (!action.confirmed) return fail(c, 400, { error: 'Akce zatím nemá navržený termín.' })
+    if (body.data.response === 'counter' && !fitsAction(action.details, body.data.counter)) {
+      return fail(c, 400, { error: SLOT_MISFIT })
+    }
+    await store.respondToSlot(user.id, action.id, body.data)
+    // Kdo jde a má automatický zápis, tomu se termín zapíše. Kdo nejde, tomu se smaže.
+    await calendar.afterConfirm(action.id)
+    return actionResponse(c)
+  })
+
+  // Organizátor přijme jiný termín, který navrhl účastník.
+  api.post('/actions/:id/counters/:userId/adopt', async (c) => {
+    const user = c.get('user')
+    const action = await store.actionOf(user.id, c.req.param('id'))
+    if (!action) return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (!action.isOrganizer) return fail(c, 403, { error: ORGANIZER_ONLY })
+    const adopted = await store.adoptCounter(user.id, action.id, c.req.param('userId'))
+    if (!adopted) return fail(c, 404, { error: 'Návrh už neplatí.' })
     await calendar.afterConfirm(action.id)
     return actionResponse(c)
   })
@@ -665,7 +702,10 @@ export function createApp(deps: AppDeps) {
     const user = c.get('user')
     const action = await store.actionOf(user.id, c.req.param('id'))
     if (!action || action.myStatus === 'invited') return fail(c, 404, { error: 'Akce nenalezena.' })
-    if (!action.confirmed) return fail(c, 400, { error: 'Akce zatím nemá potvrzený termín.' })
+    if (!action.confirmed) return fail(c, 400, { error: 'Akce zatím nemá navržený termín.' })
+    if (!action.isOrganizer && action.mySlot !== 'going') {
+      return fail(c, 400, { error: 'Do kalendáře jde zapsat, až odpovíš, že jdeš.', code: 'slot' })
+    }
     const status = await calendar.status(user.id)
     if (status.state !== 'connected' || !status.canWrite) {
       return fail(c, 400, { error: 'Nejdřív připoj Google Kalendář se zápisem.', code: 'calendar' })

@@ -6,6 +6,7 @@ import friends003 from './migrations/003_friends_invitations.sql?raw'
 import calendar004 from './migrations/004_calendar.sql?raw'
 import review005 from './migrations/005_review.sql?raw'
 import friendRequests006 from './migrations/006_friend_requests.sql?raw'
+import slotResponses007 from './migrations/007_slot_responses.sql?raw'
 
 /**
  * Tenká vrstva nad databází. V produkci Postgres přes `pg`, ve vývoji a testech PGlite
@@ -25,6 +26,7 @@ const MIGRATIONS: { name: string; sql: string }[] = [
   { name: '004_calendar', sql: calendar004 },
   { name: '005_review', sql: review005 },
   { name: '006_friend_requests', sql: friendRequests006 },
+  { name: '007_slot_responses', sql: slotResponses007 },
 ]
 
 export async function migrate(db: Db): Promise<string[]> {

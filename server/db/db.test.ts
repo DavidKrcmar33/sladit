@@ -26,6 +26,7 @@ describe('pgliteDb', () => {
       '004_calendar',
       '005_review',
       '006_friend_requests',
+      '007_slot_responses',
     ])
     await first.query("insert into users (id, google_sub, email, name) values ('u', 's', 'e', 'n')")
     await first.close()
@@ -56,6 +57,7 @@ describe('pgliteDb', () => {
       '004_calendar',
       '005_review',
       '006_friend_requests',
+      '007_slot_responses',
     ])
     expect(await db.query('select action_id, user_id, status from action_invites')).toEqual([
       { action_id: 'pivo', user_id: 'eva', status: 'accepted' },
