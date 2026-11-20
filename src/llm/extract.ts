@@ -6,12 +6,13 @@ import {
   type DateString,
   type SourceContent,
 } from '@/core/schema'
-import { applyChecks, reconcile } from './checks'
+import { reconcile } from './checks'
 import type { LlmConfig } from './config'
 import { expandReading } from './expand'
 import type { ModelPart, PreparedSource } from './ingest'
 import { createGenerateJson, type GenerateJson } from './model'
 import { ReadingSchema, readingJsonSchema, type Reading } from './reading'
+import { buildSource, type ReviewBasis } from './review'
 import { systemInstruction } from './skill'
 
 /**
@@ -52,6 +53,8 @@ export interface ExtractResult {
   /** Přečtený zdroj: celý podklad, neořezaný na hledané období. */
   source: SourceContent
   report: ExtractReport
+  /** Co server uloží, aby šel zdroj po odpovědích na doptání přepočítat (review.ts). */
+  basis: ReviewBasis
 }
 
 /** Podklad nejde přečíst (rozmazaná fotka, prázdný soubor). Uživatel má vložit jiný. */
@@ -181,7 +184,8 @@ export async function extractWithReport(
   const sourceNotes = [...new Set(sources.flatMap(({ notes }) => notes))]
 
   const first = triage(await readOnce(deps, parts), sourceNotes)
-  let expansion = expandReading(first, input.from, input.to)
+  const readings: Reading[] = [first]
+  const extraWarnings: string[] = []
   const report: ExtractReport = {
     documentKind: first.documentKind,
     readability: first.readability,
@@ -194,25 +198,37 @@ export async function extractWithReport(
     try {
       const secondParts = [...parts, { text: SECOND_LOOK_INSTRUCTION }]
       const second = triage(await readOnce(deps, secondParts, deps.verifyModel), sourceNotes)
-      const result = reconcile(expansion, expandReading(second, input.from, input.to))
-      expansion = result.expansion
+      report.disagreements = reconcile(
+        expandReading(first, input.from, input.to),
+        expandReading(second, input.from, input.to),
+      ).disagreements
+      readings.push(second)
       report.readings = 2
-      report.disagreements = result.disagreements
     } catch {
-      expansion = { ...expansion, warnings: [...expansion.warnings, SECOND_LOOK_FAILED_WARNING] }
+      extraWarnings.push(SECOND_LOOK_FAILED_WARNING)
     }
   }
 
-  const checked = applyChecks(expansion)
+  // Převod na data, porovnání čtení a kontroly dělá stejný kód jako přepočet po doptání.
+  const basis: ReviewBasis = {
+    readings,
+    period: { from: input.from, to: input.to },
+    extraWarnings,
+    notes: sourceNotes,
+  }
+  const built = buildSource(basis, [])
   return {
     source: {
-      ...checked,
+      coverage: built.coverage,
+      shifts: built.shifts,
+      warnings: built.warnings,
+      questions: built.questions,
       // Výchozí okruh podle typu podkladu, uživatel ho může změnit.
       circle: first.documentKind === 'timetable' ? SCHOOL_CIRCLE : WORK_CIRCLE,
-      warnings: [...checked.warnings, ...sourceNotes],
       parity: { calendar: first.weekParity === 'calendar', anchors: [] },
     },
     report,
+    basis,
   }
 }
 

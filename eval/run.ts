@@ -47,7 +47,7 @@ const RESULTS_DIR = join(EVAL_DIR, 'results')
 const CACHE_DIR = join(RESULTS_DIR, 'cache', 'requests')
 
 // Je součástí klíče cache. Zvyš, když chceš vynutit nové odpovědi modelu i pro stejné dotazy.
-const PIPELINE_VERSION = 4
+const PIPELINE_VERSION = 5
 
 const RECALL_GOAL = 0.9
 /** Podíl skupin, ve kterých má správný termín vyjít i z přečtených rozpisů. */

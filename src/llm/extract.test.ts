@@ -84,6 +84,8 @@ describe('extractSchedule', () => {
         },
       ],
       warnings: [],
+      // Tabulka s daty a jistým čtením: není se na co doptat.
+      questions: [],
     })
   })
 

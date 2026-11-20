@@ -47,7 +47,11 @@ export type CheckedReading = Pick<SourceContent, 'coverage' | 'shifts' | 'warnin
  * Pravidla, která nezávisí na modelu. Podezřelou směnu nemažou, jen ji označí jako nejistou
  * a napíšou proč, aby ji člověk zkontroloval.
  */
-export function applyChecks(expansion: Expansion): CheckedReading {
+export function applyChecks(
+  expansion: Expansion,
+  /** Člověk potvrdil, že rozvrh platí i ve svátky (doptání): svátek už není podezřelý. */
+  options: { acceptHolidays?: boolean } = {},
+): CheckedReading {
   const warnings = [...expansion.warnings]
   const suspicious = new Set<number>()
   const holidays = new Map<string, string>()
@@ -57,7 +61,8 @@ export function applyChecks(expansion: Expansion): CheckedReading {
       suspicious.add(index)
       warnings.push(`${shortDate(shift.date)}: směna ${timeRange(shift)} je delší než 16 hodin.`)
     }
-    const holiday = shift.origin === 'weekly' ? czechHolidayName(shift.date) : null
+    const holiday =
+      shift.origin === 'weekly' && !options.acceptHolidays ? czechHolidayName(shift.date) : null
     if (holiday) {
       suspicious.add(index)
       holidays.set(shift.date, `${shortDate(shift.date)} (${holiday})`)
