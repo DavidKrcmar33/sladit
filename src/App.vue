@@ -19,6 +19,7 @@ import SettingsPage from '@/ui/pages/SettingsPage.vue'
 
 const {
   state,
+  me,
   loginUrl,
   actionItems,
   contacts,
@@ -167,7 +168,7 @@ async function submitGroup(name: string) {
           @create="submitGroup"
         />
         <AccountBox
-          :name="state.user?.name ?? ''"
+          :name="me?.name ?? state.user?.name ?? ''"
           :email="state.user?.email ?? ''"
           :demo="state.demo"
           :settings-open="state.page === 'settings'"

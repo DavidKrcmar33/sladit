@@ -29,7 +29,6 @@ const {
   addText,
   removePendingFile,
   readSchedule,
-  renameMe,
   selectDay,
   saveDayShifts,
   clearDayOverride,
@@ -46,9 +45,6 @@ const EXTRA_CIRCLE = 'Další práce'
 const dropZone = useTemplateRef<InstanceType<typeof SourceDropZone>>('dropZone')
 const isPastingText = ref(false)
 const fileError = ref<string | null>(null)
-const editingName = ref(false)
-const nameDraft = ref('')
-const nameError = ref<string | null>(null)
 
 // Obsazenost z kalendáře je zdroj jen na čtení, ukazuje ji karta kalendáře.
 const sources = computed(() =>
@@ -88,17 +84,6 @@ function fileNames(files: { name: string }[]): string {
   return files.map((file) => file.name).join(', ')
 }
 
-function startRename() {
-  nameDraft.value = me.value?.name ?? ''
-  nameError.value = null
-  editingName.value = true
-}
-
-async function saveName() {
-  nameError.value = await renameMe(nameDraft.value)
-  if (!nameError.value) editingName.value = false
-}
-
 function saveEditedDay(shifts: Shift[]) {
   if (!editedDay.value) return
   void saveDayShifts(editedDay.value.date, shifts)
@@ -128,19 +113,6 @@ function answerParity(question: ParityQuestion, odd: boolean) {
           Nahraj svůj rozpis směn, rozvrh nebo cokoli dalšího. AI ho přečte jednou a pak ho aplikace
           použije ve všech akcích. Ostatní z něj uvidí jen, kdy můžeš.
         </p>
-        <div class="flex flex-wrap items-center gap-2 text-muted">
-          <template v-if="!editingName">
-            Ostatní tě vidí jako <strong class="text-ink">{{ me?.name }}</strong>
-            <UiButton variant="ghost" @click="startRename">Změnit</UiButton>
-          </template>
-          <form v-else class="flex flex-wrap items-center gap-2" @submit.prevent="saveName">
-            <label for="my-name">Jméno</label>
-            <input id="my-name" v-model="nameDraft" class="field-input" maxlength="80" />
-            <UiButton variant="primary" type="submit">Uložit</UiButton>
-            <UiButton @click="editingName = false">Zrušit</UiButton>
-            <span v-if="nameError" role="alert" class="text-warn">{{ nameError }}</span>
-          </form>
-        </div>
       </div>
 
       <UncertainNotice

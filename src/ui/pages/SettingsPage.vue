@@ -6,6 +6,8 @@ import UiButton from '@/ui/components/UiButton.vue'
 
 const {
   state,
+  me,
+  renameMe,
   calendarConnectUrl,
   setCalendarAutoWrite,
   syncCalendar,
@@ -14,6 +16,20 @@ const {
 } = useSession()
 
 const confirmingDelete = ref(false)
+const editingName = ref(false)
+const nameDraft = ref('')
+const nameError = ref<string | null>(null)
+
+function startRename() {
+  nameDraft.value = me.value?.name ?? ''
+  nameError.value = null
+  editingName.value = true
+}
+
+async function saveName() {
+  nameError.value = await renameMe(nameDraft.value)
+  if (!nameError.value) editingName.value = false
+}
 </script>
 
 <template>
@@ -39,10 +55,23 @@ const confirmingDelete = ref(false)
         class="flex flex-col gap-3 rounded-xl border border-line bg-white p-5"
       >
         <h2 id="account-title" class="text-base font-semibold">Účet</h2>
-        <p>
-          <span class="font-semibold">{{ state.user?.name }}</span>
-          <span class="block text-muted">{{ state.user?.email }}</span>
-        </p>
+        <div v-if="!editingName" class="flex flex-col gap-1">
+          <span class="text-muted">Ostatní tě vidí jako</span>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <strong>{{ me?.name }}</strong>
+            <UiButton variant="ghost" @click="startRename">Změnit jméno</UiButton>
+          </div>
+        </div>
+        <form v-else class="flex flex-col gap-2" @submit.prevent="saveName">
+          <label for="my-name" class="font-medium">Jméno, pod kterým tě vidí ostatní</label>
+          <input id="my-name" v-model="nameDraft" class="field-input" maxlength="80" />
+          <p v-if="nameError" role="alert" class="text-warn">{{ nameError }}</p>
+          <div class="flex gap-2">
+            <UiButton variant="primary" type="submit">Uložit</UiButton>
+            <UiButton @click="editingName = false">Zrušit</UiButton>
+          </div>
+        </form>
+        <p class="text-muted">Přihlášení přes Google: {{ state.user?.email }}</p>
         <UiButton
           v-if="!confirmingDelete"
           variant="danger"
