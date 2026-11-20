@@ -237,6 +237,27 @@ describe('zápis potvrzeného termínu', () => {
     expect(calendar.events.get('anna@example.com')!.size).toBe(0)
   })
 
+  it('creates one Sladit calendar and one event even after a double click', async () => {
+    const { anna, eva, calendar, actionId } = await setup()
+    await connectCalendar(anna)
+    await connectCalendar(eva)
+    await anna.send('PATCH', '/api/calendar', { autoWrite: true })
+
+    // Dvojklik na potvrzení a na přidání: požadavky dorazí souběžně.
+    await Promise.all([
+      anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot),
+      anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot),
+    ])
+    await Promise.all([
+      eva.send('POST', `/api/actions/${actionId}/calendar`),
+      eva.send('POST', `/api/actions/${actionId}/calendar`),
+    ])
+    for (const email of ['anna@example.com', 'eva@example.com']) {
+      expect(calendar.calendars.get(email)).toHaveLength(1)
+      expect(calendar.events.get(email)!.size).toBe(1)
+    }
+  })
+
   it('refuses to write without a connection or without the permission to write', async () => {
     const { anna, eva, calendar, actionId } = await setup()
     await anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot)

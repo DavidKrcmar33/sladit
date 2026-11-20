@@ -129,8 +129,29 @@ export function createCalendarService(deps: {
     }
   }
 
+  /**
+   * Zápisy do kalendáře jednoho uživatele běží postupně. Dva souběžné zápisy (dvojklik,
+   * potvrzení a přidání naráz) by jinak oba založily kalendář Sladit a událost by byla dvakrát.
+   * Server běží v jedné instanci, takže stačí fronta v paměti.
+   */
+  const queues = new Map<string, Promise<unknown>>()
+
+  function oneAtATime<T>(userId: string, work: () => Promise<T>): Promise<T> {
+    const result = (queues.get(userId) ?? Promise.resolve()).then(work)
+    const tail = result.catch(() => {})
+    queues.set(userId, tail)
+    void tail.then(() => {
+      if (queues.get(userId) === tail) queues.delete(userId)
+    })
+    return result
+  }
+
   /** Zapíše potvrzený termín do kalendáře Sladit jednoho uživatele, nebo ho tam změní. */
-  async function writeEvent(userId: string, action: ActionResource): Promise<boolean> {
+  function writeEvent(userId: string, action: ActionResource): Promise<boolean> {
+    return oneAtATime(userId, () => writeEventNow(userId, action))
+  }
+
+  async function writeEventNow(userId: string, action: ActionResource): Promise<boolean> {
     const event = eventOf(action)
     const connection = available ? await store.calendarConnection(userId) : null
     if (!event || !connection || !connection.canWrite) return false
@@ -165,7 +186,11 @@ export function createCalendarService(deps: {
     return true
   }
 
-  async function removeEvent(userId: string, actionId: string) {
+  function removeEvent(userId: string, actionId: string): Promise<void> {
+    return oneAtATime(userId, () => removeEventNow(userId, actionId))
+  }
+
+  async function removeEventNow(userId: string, actionId: string) {
     const existing = (await store.calendarEvents(actionId)).find((item) => item.userId === userId)
     if (!existing) return
     const connection = available ? await store.calendarConnection(userId) : null
