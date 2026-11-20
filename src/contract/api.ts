@@ -100,7 +100,7 @@ export const ActionResourceSchema = z.object({
   confirmed: ConfirmedSlotSchema.nullable(),
   /** Moje odpověď na navržený termín. Null u organizátora, nepřijaté pozvánky a bez termínu. */
   mySlot: SlotResponseSchema.nullable(),
-  /** Termín je navržený a jdou všichni, kdo pozvánku přijali. */
+  /** Termín je navržený, na pozvánku nikdo nečeká a jdou všichni, kdo ji přijali. */
   agreed: z.boolean(),
   /** Termín je zapsaný v mém Google Kalendáři. */
   inMyCalendar: z.boolean(),

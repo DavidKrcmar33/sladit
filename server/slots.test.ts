@@ -74,6 +74,21 @@ describe('navržený termín', () => {
     expect(await actionOf(anna)).toMatchObject({ confirmed: slot, agreed: false })
   })
 
+  it('is not agreed while somebody has not answered the invitation yet', async () => {
+    const { anna, eva, evaId } = await setup()
+    const { action } = await json<{ action: ActionResource }>(
+      await anna.send('POST', '/api/actions', { details, inviteUserIds: [evaId] }),
+    )
+    const proposed = await json<{ action: ActionResource }>(
+      await anna.send('PUT', `/api/actions/${action.id}/confirmed`, slot),
+    )
+    expect(proposed.action.agreed).toBe(false)
+    // Kdo pozvánku odmítne, ten na domluvu nemá vliv.
+    await eva.send('POST', `/api/actions/${action.id}/response`, { accept: false })
+    const actions = await json<{ actions: ActionResource[] }>(await anna.get('/api/actions'))
+    expect(actions.actions.find((item) => item.id === action.id)?.agreed).toBe(true)
+  })
+
   it('lets the organizer adopt another date a participant proposed', async () => {
     const { anna, eva, jana, evaId, actionId, actionOf, respond } = await setup()
     await anna.send('PUT', `/api/actions/${actionId}/confirmed`, slot)

@@ -380,10 +380,14 @@ export function createStore(db: Db) {
       invites,
       confirmed,
       mySlot: confirmed && accepted ? toSlotResponse(row.my_slot_response) : null,
-      // Domluveno: termín je navržený a jdou všichni, kdo pozvánku přijali.
+      // Domluveno: termín je navržený, na pozvánku nikdo nečeká a kdo ji přijal, ten jde.
       agreed:
         confirmed !== null &&
-        invites.every((invite) => invite.status !== 'accepted' || invite.slot === 'going'),
+        invites.every(
+          (invite) =>
+            invite.status === 'declined' ||
+            (invite.status === 'accepted' && invite.slot === 'going'),
+        ),
       inMyCalendar: row.in_my_calendar ?? false,
     }
   }
