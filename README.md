@@ -5,16 +5,32 @@ Semestrální projekt do předmětu Umělá inteligence.
 
 > Stav: přihlášení přes Google, vlastní rozpis v účtu (Můj rozvrh), přátelé přes odkaz i e-mail, skupiny (odkazem i z přátel), doptání po čtení (tlačítka i vlastní slova přes AI), akce s pozvanými a domluvou termínu (jdu, nejdu, jiný termín) (ostatní vidí jen může, nemůže, nevíme), čtení rozpisů přes server (Gemini nebo Claude), výpočet termínů a měření fungují. Poslední měření na vygenerovaných podkladech: 121 ze 121 směn správně, správný termín u 23 z 23 skupin (model `claude-opus-5-5`). Skutečné fotky rozpisů v testovací sadě zatím nejsou. Aplikace je nasazená na Railway, viz [docs/BACKEND.md](docs/BACKEND.md). Google Kalendář (obsazenost a zápis domluvených akcí) se připojuje v Nastavení.
 
-## Spuštění
+## Spuštění u sebe
 
-Potřebuješ [Node.js](https://nodejs.org) 22.
+Potřebuješ jen Git a [Node.js](https://nodejs.org) 22 (s nvm stačí `nvm use`, verze je v `.nvmrc`). Databáze ve vývoji běží v procesu (PGlite v `.local/pglite`), nic dalšího se neinstaluje ani nenastavuje v Google Cloudu.
 
-1. `npm install`
-2. Zkopíruj `.env.example` jako `.env`. Doplň klíč k modelu (`GEMINI_API_KEY` a `GEMINI_MODEL`, nebo `LLM_PROVIDER=claude` a `ANTHROPIC_API_KEY`) a pro vývoj bez Googlu `GOOGLE_FAKE=1`.
-3. `npm run dev` spustí frontend i server najednou.
-4. Otevři http://localhost:5173 a přihlas se. S `GOOGLE_FAKE=1` se místo Googlu otevře formulář na e-mail a jméno.
+1. **Kód.** Poprvé `git clone <adresa repa>` a `cd sladit`, příště jen `git pull`.
+2. **Závislosti.** `npm install`. Po `git pull` znovu, když se změnil `package.json`.
+3. **Nastavení.** Zkopíruj `.env.example` jako `.env` (`cp .env.example .env`) a vyplň:
+   - `GOOGLE_FAKE=1`: přihlášení i Google Kalendář jsou falešné, Google účet ani klíče k němu nepotřebuješ.
+   - klíč k modelu, který čte rozpisy: buď `LLM_PROVIDER=claude` a `ANTHROPIC_API_KEY`, nebo `LLM_PROVIDER=gemini`, `GEMINI_API_KEY` a `GEMINI_MODEL`. Klíč si vyžádej v týmu soukromou zprávou, do gitu ani do společného chatu nepatří. Bez klíče funguje všechno kromě čtení podkladů.
+   - ostatní nech prázdné.
+4. **Spuštění.** `npm run dev` spustí frontend i server najednou. Server se po změně kódu restartuje sám, frontend se obnoví v prohlížeči.
+5. **Přihlášení.** Otevři http://localhost:5173 a klikni na „Přihlásit přes Google“. Otevře se stránka „Falešný Google“, kde zadáš libovolný e-mail a jméno. Druhého uživatele (třeba na zkoušku přátel a akcí) přihlas v anonymním okně nebo v jiném prohlížeči s jiným e-mailem.
 
-Databáze ve vývoji běží sama (PGlite v `.local/pglite`), nic se neinstaluje. Ukázka bez přihlášení je na `/?ukazka`.
+Ukázka bez přihlášení je na http://localhost:5173/?ukazka: běží celá v prohlížeči a nic neukládá.
+
+### Když něco nejde
+
+- **`npm install` nebo `npm run dev` hlásí chybu:** zkontroluj `node -v`, má být 22.
+- **Port 5173 nebo 8787 je obsazený:** nejspíš ti běží starší `npm run dev`. Ukonči ho (Ctrl+C) a spusť znovu.
+- **Čtení podkladu skončí chybou:** chybí nebo nesedí klíč k modelu v `.env`. Po změně `.env` restartuj `npm run dev`.
+- **Chyba databáze nebo podivná data:** zastav `npm run dev` a smaž adresář `.local/pglite`. Začneš s prázdnou databází.
+- **Nahoře „V tomto prohlížeči jsou uložené akce z doby před účty“:** stará data z prohlížeče, stačí „Teď ne“.
+
+### Než pushneš
+
+Pusť `npm run typecheck`, `npm run lint` a `npm test`. Testy model nevolají a nic nestojí. `npm run eval` volá placený model, pouštěj ho jen po domluvě v týmu.
 
 Klíče čte jen server, do prohlížeče se nedostanou. Proto v `.env` nesmí žádný klíč mít předponu `VITE_`. Soubor `.env` se do gitu nedává. Všechny proměnné jsou v `.env.example`, server, soukromí a nasazení popisuje [docs/BACKEND.md](docs/BACKEND.md).
 
