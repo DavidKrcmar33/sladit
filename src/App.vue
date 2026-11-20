@@ -66,6 +66,19 @@ const canUndoEdit = computed(
 )
 const showsAction = computed(() => state.page === 'action' && selectedAction.value !== null)
 
+/** Žádosti o přátelství, které čekají na mou odpověď: odznak v menu a upozornění nahoře. */
+const requestCount = computed(() => {
+  const count = state.friendRequests.incoming.length
+  if (count === 1) return '1 žádost'
+  return count < 5 ? `${count} žádosti` : `${count} žádostí`
+})
+const requestNotice = computed(() => {
+  const incoming = state.friendRequests.incoming
+  return incoming.length === 1
+    ? `${incoming[0].fromName} tě chce přidat do přátel.`
+    : `Máš ${requestCount.value} o přátelství.`
+})
+
 function navClass(active: boolean) {
   return [
     'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left font-semibold',
@@ -151,7 +164,13 @@ async function submitGroup(name: string) {
             @click="showFriends"
           >
             Přátelé
-            <span class="text-xs font-normal text-muted">{{ state.friends.length }}</span>
+            <span
+              v-if="state.friendRequests.incoming.length > 0"
+              class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
+            >
+              {{ requestCount }}
+            </span>
+            <span v-else class="text-xs font-normal text-muted">{{ state.friends.length }}</span>
           </button>
         </nav>
         <ActionList
@@ -202,6 +221,14 @@ async function submitGroup(name: string) {
           <UiButton variant="primary" @click="acceptLocalActions">Převzít</UiButton>
           <UiButton @click="dismissLocalActions">Teď ne</UiButton>
         </div>
+      </div>
+      <div
+        v-if="state.friendRequests.incoming.length > 0 && state.page !== 'friends'"
+        role="status"
+        class="mx-8 mt-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
+      >
+        <p>{{ requestNotice }}</p>
+        <UiButton variant="ghost" @click="showFriends">Zobrazit</UiButton>
       </div>
       <div
         v-if="state.calendarNotice"

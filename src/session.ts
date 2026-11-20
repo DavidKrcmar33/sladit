@@ -9,10 +9,13 @@ import type {
   ClarifyResponse,
   ConfirmedSlot,
   Friend,
+  FriendRequest,
+  FriendsResponse,
   Group,
   InviteLink,
   InvitePreview,
   OwnedPerson,
+  SentFriendRequest,
   User,
 } from './contract/api'
 import {
@@ -112,6 +115,12 @@ const RATE_LIMIT_ERROR = 'Došel limit, zkus to za chvíli.'
 const MISSING_FILES_ERROR = 'Podklady je potřeba vložit znovu.'
 const SAVE_ERROR = 'Změnu se nepodařilo uložit.'
 
+const FRIEND_REQUEST_RESULTS = {
+  sent: 'Žádost odeslána. Po přijetí přibude mezi přáteli.',
+  accepted: 'Žádost od tohoto člověka už čekala, teď jste přátelé.',
+  friends: 'S tímto člověkem už přátelé jste.',
+} as const
+
 function readErrorMessage(error: unknown): string {
   if (error instanceof MissingFilesError) return MISSING_FILES_ERROR
   if (error instanceof BackendError) {
@@ -175,6 +184,11 @@ export function createSession(options: SessionOptions) {
     groups: [] as Group[],
     friends: [] as Friend[],
     friendInvites: [] as InviteLink[],
+    /** Žádosti o přátelství podle e-mailu: které mi přišly a které jsem poslal. */
+    friendRequests: {
+      incoming: [] as FriendRequest[],
+      outgoing: [] as SentFriendRequest[],
+    },
     /** Odkaz s pozvánkou, který se ukáže jen jednou, hned po založení. */
     lastInvite: null as { target: 'friends' | string; url: string } | null,
     /** Pozvánka z odkazu. Před přihlášením je známý jen token. */
@@ -455,6 +469,7 @@ export function createSession(options: SessionOptions) {
     state.groups = []
     state.friends = []
     state.friendInvites = []
+    state.friendRequests = { incoming: [], outgoing: [] }
     state.lastInvite = null
     state.views = {}
     state.pendingFiles = []
@@ -516,8 +531,7 @@ export function createSession(options: SessionOptions) {
     state.people = people
     state.actions = loaded
     state.groups = groups
-    state.friends = friends.friends
-    state.friendInvites = friends.invites
+    applyFriends(friends)
     if (!loaded.some((action) => action.id === state.selectedActionId)) {
       state.selectedActionId = loaded[0]?.id ?? null
       if (state.page === 'action' && !state.selectedActionId) state.page = 'schedule'
@@ -764,6 +778,35 @@ export function createSession(options: SessionOptions) {
       return true
     })
     if (done) state.friendInvites = state.friendInvites.filter((item) => item.id !== inviteId)
+  }
+
+  function applyFriends(response: FriendsResponse) {
+    state.friends = response.friends
+    state.friendInvites = response.invites
+    state.friendRequests = { incoming: response.incoming, outgoing: response.outgoing }
+  }
+
+  /** Žádost o přátelství podle e-mailu. Vrátí větu pro formulář: potvrzení, nebo chybu. */
+  async function sendFriendRequest(email: string): Promise<{ ok: boolean; message: string }> {
+    try {
+      const response = await backend.sendFriendRequest(email)
+      applyFriends(response)
+      return { ok: true, message: FRIEND_REQUEST_RESULTS[response.result] }
+    } catch (error) {
+      if (error instanceof BackendError && error.status === 401) signedOut()
+      return { ok: false, message: error instanceof BackendError ? error.message : SAVE_ERROR }
+    }
+  }
+
+  async function acceptFriendRequest(requestId: string) {
+    const response = await guarded(() => backend.acceptFriendRequest(requestId))
+    if (response) applyFriends(response)
+  }
+
+  /** Odmítnutí žádosti, kterou jsem dostal, i zrušení té, kterou jsem poslal. */
+  async function deleteFriendRequest(requestId: string) {
+    const response = await guarded(() => backend.deleteFriendRequest(requestId))
+    if (response) applyFriends(response)
   }
 
   async function removeFriend(userId: string) {
@@ -1212,6 +1255,9 @@ export function createSession(options: SessionOptions) {
     createFriendInvite,
     revokeFriendInvite,
     removeFriend,
+    sendFriendRequest,
+    acceptFriendRequest,
+    deleteFriendRequest,
     createGroup,
     createInvite,
     revokeInvite,

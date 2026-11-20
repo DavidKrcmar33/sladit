@@ -11,6 +11,7 @@ import {
   CreateInviteResponseSchema,
   ErrorResponseSchema,
   FriendsResponseSchema,
+  SendFriendRequestResponseSchema,
   GroupResponseSchema,
   GroupsResponseSchema,
   ImportResponseSchema,
@@ -115,6 +116,12 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
         : action('DELETE', `/actions/${actionId}/confirmed`),
 
     friends: () => call(FriendsResponseSchema, 'GET', '/friends'),
+    sendFriendRequest: (email) =>
+      call(SendFriendRequestResponseSchema, 'POST', '/friends/requests', { email }),
+    acceptFriendRequest: (requestId) =>
+      call(FriendsResponseSchema, 'POST', `/friends/requests/${requestId}/accept`),
+    deleteFriendRequest: (requestId) =>
+      call(FriendsResponseSchema, 'DELETE', `/friends/requests/${requestId}`),
     createFriendInvite: () => call(CreateFriendInviteResponseSchema, 'POST', '/friends/invites'),
     revokeFriendInvite: (inviteId) => ok('DELETE', `/friends/invites/${inviteId}`),
     removeFriend: (userId) => ok('DELETE', `/friends/${userId}`),

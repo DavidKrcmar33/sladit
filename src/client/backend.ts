@@ -5,13 +5,14 @@ import type {
   CalendarStatus,
   ClarifyResponse,
   ConfirmedSlot,
-  Friend,
+  FriendsResponse,
   Group,
   InviteLink,
   InvitePreview,
   MeResponse,
   OwnedPerson,
   ReadingRequest,
+  SendFriendRequestResponse,
   UpdateSourceRequest,
 } from '@/contract/api'
 import type { SourceAnswer } from '@/core/review'
@@ -55,7 +56,12 @@ export interface Backend {
   respondToAction(actionId: string, accept: boolean): Promise<ActionResource | null>
   confirmAction(actionId: string, slot: ConfirmedSlot | null): Promise<ActionResource>
 
-  friends(): Promise<{ friends: Friend[]; invites: InviteLink[] }>
+  friends(): Promise<FriendsResponse>
+  /** Žádost o přátelství podle e-mailu. */
+  sendFriendRequest(email: string): Promise<SendFriendRequestResponse>
+  acceptFriendRequest(requestId: string): Promise<FriendsResponse>
+  /** Odmítne žádost, kterou jsem dostal, nebo zruší tu, kterou jsem poslal. */
+  deleteFriendRequest(requestId: string): Promise<FriendsResponse>
   createFriendInvite(): Promise<{ invite: InviteLink; url: string }>
   revokeFriendInvite(inviteId: string): Promise<void>
   removeFriend(userId: string): Promise<void>

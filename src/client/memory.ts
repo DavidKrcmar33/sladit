@@ -297,8 +297,16 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
 
     async friends() {
       signedIn()
-      return { friends: friends.map(({ id, name }) => ({ userId: id, name })), invites: [] }
+      return {
+        friends: friends.map(({ id, name }) => ({ userId: id, name })),
+        invites: [],
+        incoming: [],
+        outgoing: [],
+      }
     },
+    sendFriendRequest: async () => onlyWithAccount(),
+    acceptFriendRequest: async () => onlyWithAccount(),
+    deleteFriendRequest: async () => onlyWithAccount(),
     createFriendInvite: async () => onlyWithAccount(),
     revokeFriendInvite: async () => onlyWithAccount(),
     removeFriend: async () => onlyWithAccount(),

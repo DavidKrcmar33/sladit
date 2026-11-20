@@ -430,3 +430,29 @@ describe('doptání v prohlížeči', () => {
     ])
   })
 })
+
+describe('žádost o přátelství v prohlížeči', () => {
+  it('sends a request by e-mail that the friend sees and accepts', async () => {
+    const { anna, eva } = await setup()
+    await eva.login('eva@example.com', 'Eva')
+    const annaSession = sessionFor(anna)
+    await annaSession.init()
+    expect(await annaSession.sendFriendRequest('eva@example.com')).toEqual({
+      ok: true,
+      message: 'Žádost odeslána. Po přijetí přibude mezi přáteli.',
+    })
+    expect(annaSession.state.friendRequests.outgoing).toMatchObject([{ email: 'eva@example.com' }])
+    expect(await annaSession.sendFriendRequest('anna@example.com')).toEqual({
+      ok: false,
+      message: 'To je tvůj e-mail.',
+    })
+
+    const evaSession = sessionFor(eva)
+    await evaSession.init()
+    const [request] = evaSession.state.friendRequests.incoming
+    expect(request).toMatchObject({ fromName: 'Anna', fromEmail: 'anna@example.com' })
+    await evaSession.acceptFriendRequest(request.id)
+    expect(evaSession.state.friends.map((friend) => friend.name)).toEqual(['Anna'])
+    expect(evaSession.state.friendRequests.incoming).toEqual([])
+  })
+})
