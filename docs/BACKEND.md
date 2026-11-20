@@ -51,8 +51,8 @@ Migrace jsou v `server/db/migrations/`, spouští je server sám při startu (`m
 | `people`               | Rozpis uživatele (`is_self`). Hosté z doby před fází 5 tu zůstali, aplikace je už nepoužívá.                                                     |
 | `sources`              | Přečtený podklad (JSON podle `src/core/schema.ts`) i s otázkami doptání. Jen server zná čtení (`basis`) a odpovědi.                              |
 | `day_overrides`        | Ruční úprava jednoho dne. Nové čtení ji nepřepíše.                                                                                               |
-| `actions`              | Akce: období, délka, denní okno, organizátor a potvrzený termín (`confirmed_*`).                                                                 |
-| `action_invites`       | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`.                                              |
+| `actions`              | Akce: období, délka, denní okno, organizátor a navržený termín (`confirmed_*`).                                                                  |
+| `action_invites`       | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`. K tomu odpověď na termín a protinávrh.       |
 | `friendships`          | Přátelství, vzájemné. Dvojice je uložená jednou, menší id první.                                                                                 |
 | `friend_invites`       | Osobní odkaz „přidej si mě do přátel“: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                       |
 | `friend_requests`      | Žádost o přátelství podle e-mailu: odesílatel a e-mail adresáta malými písmeny. Platí 30 dní, adresát nemusí mít účet.                           |
@@ -91,7 +91,9 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `POST /actions/:id/invites`                            | Pozvat další lidi (jen organizátor).                               |
 | `DELETE /actions/:id/invites/:userId`                  | Zrušit pozvánku nebo odebrat účastníka (jen organizátor).          |
 | `POST /actions/:id/response`                           | Odpověď pozvaného: `accept` přijme, jinak odmítne nebo odejde.     |
-| `PUT`, `DELETE /actions/:id/confirmed`                 | Potvrzení termínu a jeho zrušení (jen organizátor).                |
+| `PUT`, `DELETE /actions/:id/confirmed`                 | Navržení termínu a jeho zrušení (jen organizátor).                 |
+| `POST /actions/:id/slot-response`                      | Odpověď na termín: jdu, nejdu, nebo jiný termín.                   |
+| `POST /actions/:id/counters/:userId/adopt`             | Organizátor přijme jiný termín, který navrhl účastník.             |
 | `GET /friends`, `DELETE /friends/:userId`              | Moji přátelé a moje platné odkazy, zrušení přátelství.             |
 | `POST`, `DELETE /friends/invites(/:inviteId)`          | Nový osobní odkaz do přátel (jen tentokrát v odpovědi), zrušení.   |
 | `POST /friends/requests`                               | Žádost o přátelství podle e-mailu (nejvýš 20 za 24 hodin).         |
@@ -106,13 +108,13 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `GET`, `PATCH`, `DELETE /calendar`                     | Stav kalendáře, automatický zápis, odpojení (odvolá přístup).      |
 | `GET /calendar/connect`                                | Souhlas s kalendářem u Googlu, návrat přes stejné přesměrování.    |
 | `POST /calendar/sync`                                  | Načíst obsazenost hned (jinak nejvýš jednou za 10 minut).          |
-| `POST`, `DELETE /actions/:id/calendar`                 | Potvrzený termín do mého kalendáře a jeho odebrání.                |
+| `POST`, `DELETE /actions/:id/calendar`                 | Termín, na který jdu, do mého kalendáře a jeho odebrání.           |
 | `POST /import`                                         | Jednorázové převzetí akcí uložených v prohlížeči z doby před účty. |
 | `GET /health`                                          | Kontrola pro hosting.                                              |
 
 Chyby mají tvar `{ "error": "česká zpráva", "code": "…" }`. Kód `limit` je vyčerpaný denní limit čtení, `unreadable` nečitelný podklad (s polem `notes`), `busy` přetížený model, `invite` neplatná pozvánka, `full` plná skupina (50 členů), `self` vlastní odkaz do přátel.
 
-Akci upravuje, maže, zve do ní a potvrzuje termín jen organizátor. Pozvaný dostane `403` s vysvětlením, kdo pozvaný není, dostane `404`. Potvrzený termín musí ležet v období a denním okně akce a mít její délku. Když se změní období, délka nebo okno, potvrzení zmizí.
+Akci upravuje, maže, zve do ní a navrhuje termín jen organizátor. Pozvaný dostane `403` s vysvětlením, kdo pozvaný není, dostane `404`. Navržený termín (i protinávrh) musí ležet v období a denním okně akce a mít její délku. Účastníci, kteří pozvánku přijali, odpoví „jdu“, „nejdu“, nebo navrhnou jiný termín. Domluveno je, když jdou všichni. „Nejdu“ termín nezruší, rozhodne organizátor. Nový termín (i přijatý protinávrh) odpovědi vynuluje, kdo protinávrh poslal, rovnou jde. Když se změní období, délka nebo okno, termín i odpovědi zmizí.
 
 ## Soukromí a bezpečnost
 
@@ -141,7 +143,7 @@ Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`).
 
 **Tajemství.** Klíče jsou jen v proměnných prostředí serveru, v repozitáři žádné nejsou. Žádný klíč nesmí mít jméno začínající `VITE_`: takové proměnné Vite může vložit do aplikace pro prohlížeč. Server dřívější názvy s touto předponou ještě přečte, ale při startu vypíše, které je potřeba přejmenovat. Sestavení v `dist/` klíč neobsahuje, ověřeno 19. 11. 2026.
 
-**Google Kalendář.** Aplikace žádá jen `calendar.freebusy` (kdy je člověk obsazený, bez názvů a popisů událostí) a `calendar.app.created` (zápis jen do kalendáře „Sladit“, který si sama založí, ostatní kalendáře nevidí ani nemění). Obnovovací token je v databázi zašifrovaný (AES-256-GCM, klíč `TOKEN_ENCRYPTION_KEY` jen v proměnných prostředí). Obsazenost se čte nejvýš jednou za 10 minut na 13 týdnů a v rozpisu je okruh, který jen přidává „nemůže“: nepokrývá dny a ostatní z něj vidí jen tři stavy. Potvrzenou akci zapíše server jen tomu, kdo má zapnutý automatický zápis, ostatní se aplikace zeptá. Změna názvu události změní, zrušení potvrzení, odmítnutí, zrušení pozvánky nebo smazání akce je smaže. Odpojení a smazání účtu odvolá přístup u Googlu. V režimu Testing Google přístup ke kalendáři po 7 dnech odvolá, aplikace to pozná a nabídne připojit znovu. Bez klíče je kalendář vypnutý a zbytek aplikace běží (`server/calendar/`, testy v `server/calendar.test.ts`).
+**Google Kalendář.** Aplikace žádá jen `calendar.freebusy` (kdy je člověk obsazený, bez názvů a popisů událostí) a `calendar.app.created` (zápis jen do kalendáře „Sladit“, který si sama založí, ostatní kalendáře nevidí ani nemění). Obnovovací token je v databázi zašifrovaný (AES-256-GCM, klíč `TOKEN_ENCRYPTION_KEY` jen v proměnných prostředí). Obsazenost se čte nejvýš jednou za 10 minut na 13 týdnů a v rozpisu je okruh, který jen přidává „nemůže“: nepokrývá dny a ostatní z něj vidí jen tři stavy. Termín se týká jen těch, kdo jdou (organizátor a kdo odpověděl „jdu“): server ho zapíše tomu, kdo má automatický zápis, ostatních se aplikace zeptá. Změna názvu události změní. Odpověď „nejdu“, nový termín, zrušení termínu, odchod z akce, zrušení pozvánky nebo smazání akce je smaže. Odpojení a smazání účtu odvolá přístup u Googlu. V režimu Testing Google přístup ke kalendáři po 7 dnech odvolá, aplikace to pozná a nabídne připojit znovu. Bez klíče je kalendář vypnutý a zbytek aplikace běží (`server/calendar/`, testy v `server/calendar.test.ts`).
 
 **Vývojové přihlášení.** `GOOGLE_FAKE=1` zapne falešný Google s formulářem na e-mail a jméno a falešný kalendář se souhlasem jedním kliknutím (obsazenost prázdná, klíč k tokenům vývojový). V produkci (`NODE_ENV=production`) server s tímto nastavením odmítne nastartovat.
 
