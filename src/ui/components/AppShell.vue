@@ -7,7 +7,9 @@
     </aside>
     <div class="flex min-w-0 flex-1 flex-col">
       <slot name="header" />
-      <main class="min-h-0 flex-1">
+      <!-- Sloupec: upozornění nahoře zaberou místo a stránka pod nimi se zmenší a roluje sama,
+           místo aby přetekla a rolovala se celá aplikace. -->
+      <main class="flex min-h-0 flex-1 flex-col">
         <slot />
       </main>
     </div>
