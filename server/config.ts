@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { llmConfigFromEnv, type LlmConfig } from '@/llm/config'
+import { developmentKey } from './crypto'
 
 /**
  * Nastavení serveru z proměnných prostředí. Při chybě server nenastartuje a řekne proč,
@@ -21,6 +22,11 @@ export interface ServerConfig {
   llm: LlmConfig
   /** Proměnné s předponou VITE_, které je potřeba přejmenovat. */
   legacyLlmNames: string[]
+  /**
+   * Klíč k šifrování tokenů ke kalendáři (32 bajtů). Bez něj je Google Kalendář vypnutý,
+   * zbytek aplikace běží. S falešným Googlem stačí vývojový klíč.
+   */
+  tokenKey: Buffer | null
 }
 
 const EnvSchema = z.object({
@@ -35,6 +41,7 @@ const EnvSchema = z.object({
   ALLOWED_EMAILS: z.string().optional(),
   READ_LIMIT_PER_USER_PER_DAY: z.coerce.number().int().positive().default(30),
   READ_LIMIT_TOTAL_PER_DAY: z.coerce.number().int().positive().default(300),
+  TOKEN_ENCRYPTION_KEY: z.string().optional(),
 })
 
 export function serverConfigFromEnv(env: Record<string, string | undefined>): ServerConfig {
@@ -58,6 +65,14 @@ export function serverConfigFromEnv(env: Record<string, string | undefined>): Se
     problems.push(
       'Chybí GOOGLE_CLIENT_ID a GOOGLE_CLIENT_SECRET. Pro vývoj bez Googlu nastav GOOGLE_FAKE=1.',
     )
+  }
+  const tokenKey = values.TOKEN_ENCRYPTION_KEY
+    ? Buffer.from(values.TOKEN_ENCRYPTION_KEY, 'base64')
+    : wantsFake
+      ? developmentKey()
+      : null
+  if (tokenKey && tokenKey.length !== 32) {
+    problems.push('TOKEN_ENCRYPTION_KEY musí být 32 bajtů zapsaných v base64.')
   }
   if (problems.length > 0) throw new Error(`Nastavení serveru: ${problems.join(' ')}`)
 
@@ -83,5 +98,6 @@ export function serverConfigFromEnv(env: Record<string, string | undefined>): Se
     readLimitTotal: values.READ_LIMIT_TOTAL_PER_DAY,
     llm,
     legacyLlmNames: legacyNames,
+    tokenKey,
   }
 }

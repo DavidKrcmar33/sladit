@@ -79,6 +79,8 @@ export const ActionResourceSchema = z.object({
   myStatus: z.enum(['organizer', 'invited', 'accepted']),
   invites: z.array(ActionInviteSchema),
   confirmed: ConfirmedSlotSchema.nullable(),
+  /** Potvrzený termín je zapsaný v mém Google Kalendáři. */
+  inMyCalendar: z.boolean(),
 })
 
 export const ActionsResponseSchema = z.object({ actions: z.array(ActionResourceSchema) })
@@ -254,6 +256,21 @@ export const SetOverrideRequestSchema = z.object({ shifts: z.array(ShiftSchema).
 export const ImportRequestSchema = z.object({ actions: z.array(ActionSchema).max(50) })
 export const ImportResponseSchema = z.object({ imported: z.number() })
 
+// Google Kalendář
+
+/** Stav připojení. `unavailable`: server kalendář nemá nastavený (chybí klíč nebo Google). */
+export const CalendarStatusSchema = z.object({
+  state: z.enum(['unavailable', 'off', 'connected', 'expired']),
+  /** Potvrzené akce se zapíšou samy. Kdo to nemá zapnuté, toho se aplikace zeptá. */
+  autoWrite: z.boolean(),
+  /** Souhlas se zápisem. Bez něj jde jen číst obsazenost. */
+  canWrite: z.boolean(),
+  syncedAt: z.string().nullable(),
+})
+
+export const CalendarResponseSchema = z.object({ calendar: CalendarStatusSchema })
+export const UpdateCalendarRequestSchema = z.object({ autoWrite: z.boolean() })
+
 export const ErrorResponseSchema = z.object({
   error: z.string(),
   /** Strojový kód chyby, kde na něm prohlížeč něco mění. */
@@ -281,3 +298,4 @@ export type InvitePreview = z.infer<typeof InvitePreviewSchema>
 export type ReadingRequest = z.infer<typeof ReadingRequestSchema>
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequestSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
+export type CalendarStatus = z.infer<typeof CalendarStatusSchema>

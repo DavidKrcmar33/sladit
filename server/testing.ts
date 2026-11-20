@@ -2,6 +2,7 @@ import type { SourceContent } from '@/core/schema'
 import type { ExtractInput } from '@/llm/extract'
 import { createApp } from './app'
 import { fakeGoogle } from './auth/google'
+import { fakeCalendar } from './calendar/api'
 import { serverConfigFromEnv, type ServerConfig } from './config'
 import { migrate, pgliteDb } from './db/db'
 import { createStore } from './db/store'
@@ -36,8 +37,9 @@ export async function testServer(
     ...env,
   })
   const store = createStore(db)
-  const app = createApp({ config, store, google: fakeGoogle(ORIGIN), extract, now })
-  return { app, db, store, config }
+  const calendar = fakeCalendar(ORIGIN)
+  const app = createApp({ config, store, google: fakeGoogle(ORIGIN), extract, now, calendar })
+  return { app, db, store, config, calendar }
 }
 
 type App = Awaited<ReturnType<typeof testServer>>['app']

@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server'
 import { depsFromConfig, extractSchedule } from '@/llm/extract'
 import { createApp } from './app'
 import { fakeGoogle, realGoogle } from './auth/google'
+import { fakeCalendar, realCalendar } from './calendar/api'
 import { serverConfigFromEnv } from './config'
 import { migrate, pgliteDb, postgresDb } from './db/db'
 import { createStore } from './db/store'
@@ -34,10 +35,19 @@ async function start() {
       : realGoogle(config.google.clientId, config.google.clientSecret)
   const extractDeps = depsFromConfig(config.llm)
 
+  const calendar =
+    config.google.mode === 'fake'
+      ? fakeCalendar(config.appOrigin)
+      : realCalendar(config.google.clientId, config.google.clientSecret)
+  if (!config.tokenKey) {
+    console.warn('Google Kalendář je vypnutý: chybí TOKEN_ENCRYPTION_KEY (32 bajtů v base64).')
+  }
+
   const app = createApp({
     config,
     store,
     google,
+    calendar,
     extract: (input) => extractSchedule(input, extractDeps),
     clientDir: config.production ? './dist' : undefined,
   })

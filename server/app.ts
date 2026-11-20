@@ -15,6 +15,7 @@ import {
   RespondToActionRequestSchema,
   SetOverrideRequestSchema,
   UpdateActionRequestSchema,
+  UpdateCalendarRequestSchema,
   UpdateSourceRequestSchema,
   type ErrorResponse,
   type User,
@@ -24,7 +25,10 @@ import { DateStringSchema, type SourceContent } from '@/core/schema'
 import { toMinutes } from '@/core/time'
 import type { ExtractInput } from '@/llm/extract'
 import { codeChallengeOf, fakeGoogleCode, randomToken, type GoogleAuth } from './auth/google'
+import { fakeCalendarCode, type CalendarApi } from './calendar/api'
+import { createCalendarService } from './calendar/service'
 import type { ServerConfig } from './config'
+import { tokenCipher } from './crypto'
 import type { Store } from './db/store'
 import { InvalidSourceError, MAX_READING_BODY_BYTES, pragueDay, validateParts } from './reading'
 import { actionView } from './view'
@@ -38,6 +42,8 @@ export interface AppDeps {
   now?: () => Date
   /** Adresář se sestaveným frontendem. Bez něj server podává jen API (vývoj, testy). */
   clientDir?: string
+  /** Google Kalendář. Bez něj (nebo bez klíče k tokenům) je kalendář vypnutý. */
+  calendar?: CalendarApi | null
 }
 
 type Env = { Variables: { user: User } }
@@ -89,6 +95,13 @@ export function createApp(deps: AppDeps) {
   const now = deps.now ?? (() => new Date())
   const secure = config.appOrigin.startsWith('https://')
   const redirectUri = `${config.appOrigin}/api/auth/google/callback`
+  const calendarApi = deps.calendar ?? null
+  const calendar = createCalendarService({
+    store,
+    api: calendarApi,
+    cipher: config.tokenKey ? tokenCipher(config.tokenKey) : null,
+    now,
+  })
   const api = new Hono<Env>()
 
   // Změny jen ze stejného původu: obrana proti CSRF. Cookie relace má navíc SameSite=Lax.
@@ -142,9 +155,29 @@ export function createApp(deps: AppDeps) {
     const code = c.req.query('code')
     const cookieState = getCookie(c, STATE_COOKIE)
     deleteCookie(c, STATE_COOKIE, { path: '/api/auth' })
-    if (!code || !state || state !== cookieState) return c.redirect('/?prihlaseni=chyba')
+    if (!state || state !== cookieState) return c.redirect('/?prihlaseni=chyba')
     const saved = await store.takeOauthState(state)
-    if (!saved || saved.purpose !== 'login') return c.redirect('/?prihlaseni=chyba')
+    if (!saved) return c.redirect('/?prihlaseni=chyba')
+
+    // Připojení kalendáře: relace musí patřit tomu, kdo připojení začal.
+    if (saved.purpose === 'calendar') {
+      if (!code) return c.redirect('/?kalendar=zamitnuto')
+      const session = getCookie(c, SESSION_COOKIE)
+      const owner = session ? await store.userBySession(hash(session)) : null
+      if (!owner || owner.id !== saved.user_id || !calendarApi) {
+        return c.redirect('/?kalendar=chyba')
+      }
+      try {
+        await calendar.connect(
+          owner.id,
+          await calendarApi.exchangeCode(code, saved.verifier, redirectUri),
+        )
+      } catch {
+        return c.redirect('/?kalendar=chyba')
+      }
+      return c.redirect('/?kalendar=pripojen')
+    }
+    if (!code || saved.purpose !== 'login') return c.redirect('/?prihlaseni=chyba')
 
     let identity
     try {
@@ -189,6 +222,23 @@ export function createApp(deps: AppDeps) {
       const params = new URLSearchParams({ state, code })
       return c.redirect(`${redirectUri}?${params}`)
     })
+    api.get('/auth/fake-google/calendar', (c) => {
+      const state = c.req.query('state') ?? ''
+      const params = new URLSearchParams({ state, login_hint: c.req.query('login_hint') ?? '' })
+      const denied = new URLSearchParams({ state, error: 'access_denied' })
+      return c.html(`<!doctype html><meta charset="utf-8"><title>Falešný Google Kalendář</title>
+<body style="font-family:sans-serif;max-width:28rem;margin:3rem auto">
+<h1>Falešný Google Kalendář</h1><p>Vývojový souhlas s kalendářem. V produkci tahle stránka neexistuje.</p>
+<p><a href="/api/auth/fake-google/calendar/approve?${params}">Povolit</a> ·
+<a href="${redirectUri}?${denied}">Zamítnout</a></p></body>`)
+    })
+    api.get('/auth/fake-google/calendar/approve', (c) => {
+      const params = new URLSearchParams({
+        state: c.req.query('state') ?? '',
+        code: fakeCalendarCode(c.req.query('login_hint') ?? ''),
+      })
+      return c.redirect(`${redirectUri}?${params}`)
+    })
   }
 
   api.post('/auth/logout', async (c) => {
@@ -208,6 +258,8 @@ export function createApp(deps: AppDeps) {
   })
 
   api.delete('/me', async (c) => {
+    // Přístup ke kalendáři se odvolá i u Googlu.
+    await calendar.disconnect(c.get('user').id)
     await store.deleteUser(c.get('user').id)
     deleteCookie(c, SESSION_COOKIE, { path: '/' })
     return c.json({ ok: true })
@@ -215,7 +267,59 @@ export function createApp(deps: AppDeps) {
 
   // Lidé a jejich rozpisy. Vlastník vidí o svých lidech všechno.
 
-  api.get('/people', async (c) => c.json({ people: await store.peopleOf(c.get('user').id) }))
+  api.get('/people', async (c) => {
+    // Obsazenost z kalendáře se načte znovu, když je starší než 10 minut.
+    await calendar.sync(c.get('user').id)
+    return c.json({ people: await store.peopleOf(c.get('user').id) })
+  })
+
+  // Google Kalendář
+
+  api.get('/calendar', async (c) => c.json({ calendar: await calendar.status(c.get('user').id) }))
+
+  // Souhlas s kalendářem u Googlu. Návrat jde přes stejné přesměrování jako přihlášení.
+  api.get('/calendar/connect', async (c) => {
+    if (!calendar.available || !calendarApi) return c.redirect('/?kalendar=nedostupny')
+    const user = c.get('user')
+    const state = randomToken()
+    const verifier = randomToken()
+    await store.saveOauthState(state, verifier, 'calendar', user.id)
+    setCookie(c, STATE_COOKIE, state, {
+      httpOnly: true,
+      secure,
+      sameSite: 'Lax',
+      path: '/api/auth',
+      maxAge: 15 * 60,
+    })
+    return c.redirect(
+      calendarApi.authorizationUrl({
+        state,
+        codeChallenge: codeChallengeOf(verifier),
+        redirectUri,
+        loginHint: user.email,
+      }),
+    )
+  })
+
+  api.delete('/calendar', async (c) => {
+    const user = c.get('user')
+    await calendar.disconnect(user.id)
+    return c.json({ calendar: await calendar.status(user.id) })
+  })
+
+  api.patch('/calendar', async (c) => {
+    const body = await parseBody(c, UpdateCalendarRequestSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    await calendar.setAutoWrite(user.id, body.data.autoWrite)
+    return c.json({ calendar: await calendar.status(user.id) })
+  })
+
+  api.post('/calendar/sync', async (c) => {
+    const user = c.get('user')
+    await calendar.sync(user.id, true)
+    return c.json({ calendar: await calendar.status(user.id) })
+  })
 
   api.patch('/people/:id', async (c) => {
     const body = await parseBody(c, PersonNameSchema)
@@ -377,6 +481,11 @@ export function createApp(deps: AppDeps) {
   // Návrhy a stav dne ostatních účastníků. Cizí rozpisy server jen použije, nevrátí.
   api.get('/actions/:id/view', async (c) => {
     const user = c.get('user')
+    if (!(await store.actionOf(user.id, c.req.param('id')))) {
+      return fail(c, 404, { error: 'Akce nenalezena.' })
+    }
+    // Obsazenost z kalendářů účastníků, když je starší než 10 minut.
+    await calendar.syncMany(await store.participantUserIds(c.req.param('id')))
     const found = await store.actionForView(user.id, c.req.param('id'))
     if (!found) return fail(c, 404, { error: 'Akce nenalezena.' })
     return c.json({ view: actionView(user.id, found.action, found.people) })
@@ -387,10 +496,16 @@ export function createApp(deps: AppDeps) {
     if (!body.ok) return body.response
     const done = await store.updateAction(c.get('user').id, c.req.param('id'), body.data.details)
     if (!done) return refusedEdit(c, 'Akce nenalezena.')
+    // Zapsané události: změnil se název, nebo zmizelo potvrzení.
+    const updated = await store.actionOf(c.get('user').id, c.req.param('id'))
+    if (updated?.confirmed) await calendar.afterConfirm(updated.id)
+    else await calendar.removeEvents(c.req.param('id'))
     return actionResponse(c)
   })
 
   api.delete('/actions/:id', async (c) => {
+    const existing = await store.actionOf(c.get('user').id, c.req.param('id'))
+    if (existing?.isOrganizer) await calendar.removeEvents(existing.id)
     const done = await store.deleteAction(c.get('user').id, c.req.param('id'))
     if (!done) return refusedEdit(c, 'Akce nenalezena.')
     return c.json({ ok: true })
@@ -417,6 +532,7 @@ export function createApp(deps: AppDeps) {
       c.req.param('userId'),
     )
     if (!done) return refusedEdit(c, 'Pozvánka nenalezena.')
+    await calendar.removeEvent(c.req.param('userId'), c.req.param('id'))
     return actionResponse(c)
   })
 
@@ -427,6 +543,7 @@ export function createApp(deps: AppDeps) {
     const user = c.get('user')
     const done = await store.respondToAction(user.id, c.req.param('id'), body.data.accept)
     if (!done) return fail(c, 404, { error: 'Pozvánka nenalezena.' })
+    if (!body.data.accept) await calendar.removeEvent(user.id, c.req.param('id'))
     return c.json({
       action: body.data.accept ? await store.actionOf(user.id, c.req.param('id')) : null,
     })
@@ -450,12 +567,40 @@ export function createApp(deps: AppDeps) {
       toMinutes(slot.end) - toMinutes(slot.start) === details.durationMinutes
     if (!fits) return fail(c, 400, { error: 'Termín neodpovídá období, oknu nebo délce akce.' })
     await store.confirmAction(user.id, action.id, slot)
+    // Kdo má zapnutý automatický zápis, tomu se termín zapíše. Ostatních se zeptá prohlížeč.
+    await calendar.afterConfirm(action.id)
     return actionResponse(c)
   })
 
   api.delete('/actions/:id/confirmed', async (c) => {
     const done = await store.confirmAction(c.get('user').id, c.req.param('id'), null)
     if (!done) return refusedEdit(c, 'Akce nenalezena.')
+    await calendar.removeEvents(c.req.param('id'))
+    return actionResponse(c)
+  })
+
+  // Potvrzený termín do mého kalendáře (pro ty, kdo nemají zapnutý automatický zápis).
+  api.post('/actions/:id/calendar', async (c) => {
+    const user = c.get('user')
+    const action = await store.actionOf(user.id, c.req.param('id'))
+    if (!action || action.myStatus === 'invited') return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (!action.confirmed) return fail(c, 400, { error: 'Akce zatím nemá potvrzený termín.' })
+    const status = await calendar.status(user.id)
+    if (status.state !== 'connected' || !status.canWrite) {
+      return fail(c, 400, { error: 'Nejdřív připoj Google Kalendář se zápisem.', code: 'calendar' })
+    }
+    if (!(await calendar.writeEvent(user.id, action))) {
+      return fail(c, 503, { error: 'Termín se do kalendáře nepodařilo zapsat.', code: 'calendar' })
+    }
+    return actionResponse(c)
+  })
+
+  api.delete('/actions/:id/calendar', async (c) => {
+    const user = c.get('user')
+    if (!(await store.actionOf(user.id, c.req.param('id')))) {
+      return fail(c, 404, { error: 'Akce nenalezena.' })
+    }
+    await calendar.removeEvent(user.id, c.req.param('id'))
     return actionResponse(c)
   })
 

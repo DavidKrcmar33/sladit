@@ -22,6 +22,7 @@ import {
   type Shift,
   type Source,
 } from '@/core/schema'
+import { CALENDAR_CIRCLE } from '@/core/compose'
 import type { Db } from './db'
 
 /**
@@ -72,6 +73,7 @@ interface ActionRow {
   confirmed_date: string | null
   confirmed_start: string | null
   confirmed_end: string | null
+  in_my_calendar: boolean | null
 }
 
 interface ParticipantRow {
@@ -95,7 +97,8 @@ const VISIBLE_ACTION = `(a.owner_id = $1 or exists (
 
 const ACTION_COLUMNS = `a.*,
   (select name from people where owner_id = a.owner_id and is_self) as organizer_name,
-  (select status from action_invites where action_id = a.id and user_id = $1) as my_status`
+  (select status from action_invites where action_id = a.id and user_id = $1) as my_status,
+  exists (select 1 from calendar_events ce where ce.action_id = a.id and ce.user_id = $1) as in_my_calendar`
 
 /** Dvojice v tabulce přátel: menší id první. */
 function pair(a: string, b: string): [string, string] {
@@ -130,6 +133,52 @@ function toDetails(row: ActionRow): ActionDetails {
   }
 }
 
+/** Připojený Google Kalendář jednoho uživatele. Token je zašifrovaný (server/crypto.ts). */
+export interface CalendarConnection {
+  userId: string
+  refreshToken: string
+  canWrite: boolean
+  autoWrite: boolean
+  status: 'ok' | 'expired'
+  appCalendarId: string | null
+  syncedAt: string | null
+}
+
+interface CalendarRow {
+  user_id: string
+  refresh_token: string
+  can_write: boolean
+  auto_write: boolean
+  status: 'ok' | 'expired'
+  app_calendar_id: string | null
+  synced_at: Date | string | null
+}
+
+function toConnection(row: CalendarRow): CalendarConnection {
+  return {
+    userId: row.user_id,
+    refreshToken: row.refresh_token,
+    canWrite: row.can_write,
+    autoWrite: row.auto_write,
+    status: row.status,
+    appCalendarId: row.app_calendar_id,
+    syncedAt: row.synced_at ? isoTime(row.synced_at) : null,
+  }
+}
+
+/** Obsazenost z kalendáře jako zdroj rozpisu (okruh, který jen přidává „nemůže“). */
+function calendarSource(busy: unknown): Source {
+  return {
+    id: 'google-kalendar',
+    circle: CALENDAR_CIRCLE,
+    files: [],
+    coverage: [],
+    shifts: z.array(ShiftSchema).parse(busy),
+    warnings: [],
+    parity: { calendar: false, anchors: [] },
+  }
+}
+
 function toConfirmed(row: ActionRow): ConfirmedSlot | null {
   return row.confirmed_date && row.confirmed_start && row.confirmed_end
     ? { date: row.confirmed_date, start: row.confirmed_start, end: row.confirmed_end }
@@ -151,11 +200,23 @@ export function createStore(db: Db) {
       'select person_id, date, shifts from day_overrides where person_id = any($1) order by date',
       [ids],
     )
+    // Obsazenost z připojeného kalendáře. Jen u člověka „sám za sebe“ a jen platná.
+    const calendars = await db.query<{ person_id: string; busy: unknown }>(
+      `select p.id as person_id, c.busy from calendar_connections c
+       join people p on p.owner_id = c.user_id and p.is_self
+       where p.id = any($1) and c.status = 'ok' and jsonb_array_length(c.busy) > 0`,
+      [ids],
+    )
     return rows.map((row) => ({
       ...row,
-      sources: sources
-        .filter((source) => source.person_id === row.id)
-        .map((source) => toSource(source)),
+      sources: [
+        ...sources
+          .filter((source) => source.person_id === row.id)
+          .map((source) => toSource(source)),
+        ...calendars
+          .filter((calendar) => calendar.person_id === row.id)
+          .map((calendar) => calendarSource(calendar.busy)),
+      ],
       overrides: overrides
         .filter((override) => override.person_id === row.id)
         .map((override) =>
@@ -249,6 +310,7 @@ export function createStore(db: Db) {
       myStatus: isOrganizer ? 'organizer' : row.my_status === 'accepted' ? 'accepted' : 'invited',
       invites,
       confirmed: toConfirmed(row),
+      inMyCalendar: row.in_my_calendar ?? false,
     }
   }
 
@@ -944,6 +1006,106 @@ export function createStore(db: Db) {
         [a, b, friendId],
       )
       return row ?? null
+    },
+
+    // Google Kalendář
+
+    async calendarConnection(userId: string): Promise<CalendarConnection | null> {
+      const [row] = await db.query<CalendarRow>(
+        'select * from calendar_connections where user_id = $1',
+        [userId],
+      )
+      return row ? toConnection(row) : null
+    },
+
+    async calendarConnections(userIds: string[]): Promise<CalendarConnection[]> {
+      const rows = await db.query<CalendarRow>(
+        'select * from calendar_connections where user_id = any($1)',
+        [userIds],
+      )
+      return rows.map(toConnection)
+    },
+
+    /** Uloží nové připojení. Při opětovném připojení zůstane volba zápisu i kalendář Sladit. */
+    async saveCalendarConnection(userId: string, refreshToken: string, canWrite: boolean) {
+      await db.query(
+        `insert into calendar_connections (user_id, refresh_token, can_write)
+         values ($1, $2, $3)
+         on conflict (user_id) do update set refresh_token = excluded.refresh_token,
+           can_write = excluded.can_write, status = 'ok', synced_at = null`,
+        [userId, refreshToken, canWrite],
+      )
+    },
+
+    async updateCalendar(
+      userId: string,
+      change: {
+        autoWrite?: boolean
+        status?: 'ok' | 'expired'
+        busy?: Shift[]
+        syncedAt?: Date
+        appCalendarId?: string | null
+      },
+    ) {
+      await db.query(
+        `update calendar_connections set
+           auto_write = coalesce($2, auto_write),
+           status = coalesce($3, status),
+           busy = coalesce($4::jsonb, busy),
+           synced_at = coalesce($5, synced_at),
+           app_calendar_id = case when $6 then $7 else app_calendar_id end
+         where user_id = $1`,
+        [
+          userId,
+          change.autoWrite ?? null,
+          change.status ?? null,
+          change.busy ? json(change.busy) : null,
+          change.syncedAt?.toISOString() ?? null,
+          change.appCalendarId !== undefined,
+          change.appCalendarId ?? null,
+        ],
+      )
+    },
+
+    async deleteCalendarConnection(userId: string) {
+      await db.query('delete from calendar_connections where user_id = $1', [userId])
+      await db.query('delete from calendar_events where user_id = $1', [userId])
+    },
+
+    async calendarEvents(
+      actionId: string,
+    ): Promise<{ userId: string; calendarId: string; eventId: string }[]> {
+      return db.query(
+        `select user_id as "userId", calendar_id as "calendarId", event_id as "eventId"
+         from calendar_events where action_id = $1`,
+        [actionId],
+      )
+    },
+
+    async saveCalendarEvent(userId: string, actionId: string, calendarId: string, eventId: string) {
+      await db.query(
+        `insert into calendar_events (user_id, action_id, calendar_id, event_id) values ($1, $2, $3, $4)
+         on conflict (user_id, action_id) do update set calendar_id = excluded.calendar_id, event_id = excluded.event_id`,
+        [userId, actionId, calendarId, eventId],
+      )
+    },
+
+    async deleteCalendarEvent(userId: string, actionId: string) {
+      await db.query('delete from calendar_events where user_id = $1 and action_id = $2', [
+        userId,
+        actionId,
+      ])
+    },
+
+    /** Uživatelé, kteří se akce účastní: organizátor a ti, kdo pozvánku přijali. */
+    async participantUserIds(actionId: string): Promise<string[]> {
+      const rows = await db.query<{ user_id: string }>(
+        `select owner_id as user_id from actions where id = $1
+         union all
+         select user_id from action_invites where action_id = $1 and status = 'accepted'`,
+        [actionId],
+      )
+      return rows.map((row) => row.user_id)
     },
 
     // Převzetí dat z prohlížeče
