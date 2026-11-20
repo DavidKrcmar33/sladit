@@ -40,6 +40,11 @@ const {
   answerWeekParity,
   showSchedule,
   fileBlob,
+  calendarPrompt,
+  addToCalendar,
+  removeFromCalendar,
+  dismissCalendarPrompt,
+  icsForSelectedAction,
 } = useSession()
 
 const leaving = ref(false)
@@ -69,6 +74,22 @@ function resetEditedDay() {
 function answerParity(question: ParityQuestion, odd: boolean) {
   void answerWeekParity(question.sourceId, question.date, odd)
 }
+
+/** Stáhne potvrzený termín jako soubor .ics. */
+function downloadIcs() {
+  const file = icsForSelectedAction()
+  if (!file) return
+  const url = URL.createObjectURL(new Blob([file.content], { type: 'text/calendar' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = file.fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const calendarConnected = computed(
+  () => state.calendar?.state === 'connected' && state.calendar.canWrite,
+)
 
 function confirm(proposal: Proposal) {
   void confirmSlot({ date: proposal.date, start: proposal.start, end: proposal.end })
@@ -105,9 +126,38 @@ function confirm(proposal: Proposal) {
           Potvrzený termín: {{ formatDayLong(resource.confirmed.date) }},
           {{ formatTimeWindow(resource.confirmed.start, resource.confirmed.end) }}
         </p>
-        <UiButton v-if="resource.isOrganizer" variant="ghost" @click="confirmSlot(null)">
-          Zrušit potvrzení
-        </UiButton>
+        <div class="flex flex-wrap gap-2">
+          <template v-if="takesPart">
+            <UiButton v-if="resource.inMyCalendar" variant="ghost" @click="removeFromCalendar">
+              V kalendáři · odebrat
+            </UiButton>
+            <UiButton
+              v-else-if="calendarConnected && !calendarPrompt"
+              variant="ghost"
+              @click="addToCalendar"
+            >
+              Přidat do kalendáře
+            </UiButton>
+            <UiButton v-if="!resource.inMyCalendar" variant="ghost" @click="downloadIcs">
+              Stáhnout .ics
+            </UiButton>
+          </template>
+          <UiButton v-if="resource.isOrganizer" variant="ghost" @click="confirmSlot(null)">
+            Zrušit potvrzení
+          </UiButton>
+        </div>
+      </div>
+
+      <div
+        v-if="calendarPrompt"
+        role="status"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-accent bg-white px-4 py-3"
+      >
+        <p>Přidat potvrzený termín do tvého Google Kalendáře?</p>
+        <div class="flex gap-2">
+          <UiButton variant="primary" @click="addToCalendar">Přidat</UiButton>
+          <UiButton @click="dismissCalendarPrompt">Teď ne</UiButton>
+        </div>
       </div>
 
       <div class="flex flex-col gap-1">

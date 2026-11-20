@@ -53,7 +53,11 @@ function sessionFor(user: Browser, options: Partial<SessionOptions> = {}) {
 }
 
 async function setup() {
-  const server = await testServer({}, async () => annaContent)
+  const server = await testServer(
+    {},
+    async () => annaContent,
+    () => new Date('2026-11-19T12:00:00Z'),
+  )
   const anna = browser(server.app)
   const eva = browser(server.app)
   await anna.login('anna@example.com', 'Anna')
@@ -218,5 +222,69 @@ describe('akce s pozvanými', () => {
     await annaSession.confirmSlot(slot)
     await evaSession.init()
     expect(evaSession.state.actions[0].confirmed).toEqual(slot)
+  })
+})
+
+describe('Google Kalendář v prohlížeči', () => {
+  /** Projde souhlasem s kalendářem u falešného Googlu. */
+  async function connectCalendar(user: Browser) {
+    const start = await user.get('/api/calendar/connect')
+    const consent = new URL(start.headers.get('location')!)
+    const approve = await user.request(
+      `/api/auth/fake-google/calendar/approve?${new URLSearchParams({
+        state: consent.searchParams.get('state')!,
+        login_hint: consent.searchParams.get('login_hint')!,
+      })}`,
+    )
+    const callback = new URL(approve.headers.get('location')!)
+    const done = await user.request(`${callback.pathname}${callback.search}`)
+    return new URL(done.headers.get('location')!, 'http://localhost').searchParams.get('kalendar')
+  }
+
+  it('reports the connection after coming back from Google and shows busy times in my schedule', async () => {
+    const { eva, calendar } = await setup()
+    await eva.login('eva@example.com', 'Eva')
+    calendar.busy.set('eva@example.com', [
+      { start: '2026-11-25T17:00:00Z', end: '2026-11-25T19:00:00Z' },
+    ])
+    const result = await connectCalendar(eva)
+    const session = sessionFor(eva, { calendarResult: result })
+    await session.init()
+    expect(session.state.calendarNotice).toMatch(/Google Kalendář je připojený/)
+    expect(session.state.page).toBe('schedule')
+    expect(session.state.calendar).toMatchObject({ state: 'connected', autoWrite: false })
+    const wednesday = session.scheduleCalendar.value!.rows[0].days[9]
+    expect(wednesday.status).toMatchObject({
+      kind: 'unknown',
+      shifts: [{ label: 'Kalendář', start: '18:00', end: '20:00' }],
+    })
+  })
+
+  it('asks to add a confirmed date to the calendar unless writing is automatic', async () => {
+    const context = await friends()
+    const { annaSession, evaSession, eva } = context
+    await connectCalendar(eva)
+    const evaId = annaSession.contacts.value.find((contact) => contact.name === 'Eva')!.userId
+    await annaSession.createAction(details, [evaId])
+    await evaSession.init()
+    evaSession.selectAction(evaSession.state.actions[0].id)
+    await evaSession.respondToAction(true)
+    await annaSession.confirmSlot({ date: '2026-11-25', start: '18:00', end: '20:00' })
+    await evaSession.init()
+    evaSession.selectAction(evaSession.state.actions[0].id)
+
+    expect(evaSession.calendarPrompt.value).toBe(true)
+    await evaSession.addToCalendar()
+    expect(evaSession.selectedResource.value?.inMyCalendar).toBe(true)
+    expect(evaSession.calendarPrompt.value).toBe(false)
+    expect(context.calendar.events.get('eva@example.com')?.size).toBe(1)
+
+    await evaSession.removeFromCalendar()
+    expect(evaSession.selectedResource.value?.inMyCalendar).toBe(false)
+    evaSession.dismissCalendarPrompt()
+    expect(evaSession.calendarPrompt.value).toBe(false)
+
+    await evaSession.setCalendarAutoWrite(true)
+    expect(evaSession.state.calendar?.autoWrite).toBe(true)
   })
 })

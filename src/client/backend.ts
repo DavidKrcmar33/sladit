@@ -2,6 +2,7 @@ import type {
   AcceptInviteResponse,
   ActionResource,
   ActionView,
+  CalendarStatus,
   ConfirmedSlot,
   Friend,
   Group,
@@ -21,6 +22,8 @@ import type { Action, ActionDetails, Shift } from '@/core/schema'
 export interface Backend {
   /** Adresa, na kterou prohlížeč přejde, aby se přihlásil přes Google. */
   readonly loginUrl: string
+  /** Adresa, na kterou prohlížeč přejde, aby připojil Google Kalendář. */
+  readonly calendarConnectUrl: string
   me(): Promise<MeResponse>
   logout(): Promise<void>
   deleteAccount(): Promise<void>
@@ -62,6 +65,15 @@ export interface Backend {
   /** Odkaz s pozvánkou do skupiny, nebo do přátel. */
   invitePreview(token: string): Promise<InvitePreview>
   acceptInvite(token: string): Promise<AcceptInviteResponse>
+
+  calendarStatus(): Promise<CalendarStatus>
+  setCalendarAutoWrite(autoWrite: boolean): Promise<CalendarStatus>
+  disconnectCalendar(): Promise<CalendarStatus>
+  /** Načte obsazenost z kalendáře hned, ne až po 10 minutách. */
+  syncCalendar(): Promise<CalendarStatus>
+  /** Zapíše potvrzený termín akce do mého kalendáře, nebo ho odtud odebere. */
+  addToCalendar(actionId: string): Promise<ActionResource>
+  removeFromCalendar(actionId: string): Promise<ActionResource>
 
   importActions(actions: Action[]): Promise<number>
 }

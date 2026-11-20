@@ -130,6 +130,7 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
       myStatus: 'organizer' as const,
       invites: invited.map(({ id, name }) => ({ userId: id, name, status: 'accepted' as const })),
       confirmed: action.confirmed,
+      inMyCalendar: false,
     })
   }
 
@@ -140,6 +141,7 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
 
   return {
     loginUrl: '/api/auth/google',
+    calendarConnectUrl: '/api/calendar/connect',
     signIn(next) {
       user = next
       ensureSelf()
@@ -310,6 +312,17 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     revokeInvite: async () => onlyWithAccount(),
     invitePreview: async () => onlyWithAccount(),
     acceptInvite: async () => onlyWithAccount(),
+
+    // Kalendář jde jen s účtem a serverem.
+    async calendarStatus() {
+      signedIn()
+      return { state: 'unavailable' as const, autoWrite: false, canWrite: false, syncedAt: null }
+    },
+    setCalendarAutoWrite: async () => onlyWithAccount(),
+    disconnectCalendar: async () => onlyWithAccount(),
+    syncCalendar: async () => onlyWithAccount(),
+    addToCalendar: async () => onlyWithAccount(),
+    removeFromCalendar: async () => onlyWithAccount(),
 
     async importActions(imported: Action[]) {
       signedIn()

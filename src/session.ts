@@ -5,6 +5,7 @@ import { memoryBackend } from './client/memory'
 import type {
   ActionResource,
   ActionView,
+  CalendarStatus,
   ConfirmedSlot,
   Friend,
   Group,
@@ -22,6 +23,7 @@ import {
   type PersonDay,
 } from './core/calendar'
 import { composePeople, findParityQuestions } from './core/compose'
+import { icsForEvent } from './core/ics'
 import { sampleAction } from './core/fixtures'
 import {
   actionDetails,
@@ -47,6 +49,14 @@ import { addDays, eachDay, mondayOf } from './core/time'
 
 /** Klíč, pod kterým pozvánka z odkazu přečká přihlášení přes Google (sessionStorage). */
 export const INVITE_STORAGE_KEY = 'sladit.pozvanka'
+
+/** Zprávy po návratu od Googlu z připojování kalendáře (?kalendar=…). */
+const CALENDAR_RESULTS: Record<string, string> = {
+  pripojen: 'Google Kalendář je připojený. Obsazenost z něj se započítá do tvého rozvrhu.',
+  chyba: 'Kalendář se nepodařilo připojit. Zkus to znovu.',
+  zamitnuto: 'Připojení kalendáře bylo zamítnuto.',
+  nedostupny: 'Google Kalendář zatím není na serveru nastavený.',
+}
 
 /** Token pozvánky z adresy /pozvanka/<token>, jinak null. */
 export function inviteTokenFromPath(pathname: string): string | null {
@@ -129,6 +139,8 @@ export interface SessionOptions {
   inviteStorage?: WritableStorage | null
   /** Dnešní datum (testy). */
   today?: () => DateString
+  /** Výsledek připojení kalendáře z adresy (?kalendar=pripojen a podobně). */
+  calendarResult?: string | null
 }
 
 export function createSession(options: SessionOptions) {
@@ -173,6 +185,11 @@ export function createSession(options: SessionOptions) {
     error: null as string | null,
     /** Akce uložené v tomto prohlížeči z doby před účty, které jde převzít. */
     localActions: [] as Action[],
+    calendar: null as CalendarStatus | null,
+    /** Zpráva po připojení kalendáře, ukáže se nahoře. */
+    calendarNotice: (options.calendarResult && CALENDAR_RESULTS[options.calendarResult]) || null,
+    /** Akce, u kterých uživatel odmítl zápis do kalendáře (jen pro tuto návštěvu). */
+    dismissedCalendarPrompts: [] as string[],
   })
 
   const fileBlobs = new Map<string, File>()
@@ -331,6 +348,25 @@ export function createSession(options: SessionOptions) {
     selectedAction.value ? findParityQuestions(selectedAction.value) : [],
   )
 
+  /**
+   * Zeptat se na zápis do kalendáře: termín je potvrzený, účastním se, mám kalendář se zápisem,
+   * ale ne automatický zápis, a termín v kalendáři ještě nemám.
+   */
+  const calendarPrompt = computed(() => {
+    const resource = selectedResource.value
+    const calendar = state.calendar
+    return (
+      resource !== null &&
+      resource.confirmed !== null &&
+      resource.myStatus !== 'invited' &&
+      !resource.inMyCalendar &&
+      calendar?.state === 'connected' &&
+      calendar.canWrite &&
+      !calendar.autoWrite &&
+      !state.dismissedCalendarPrompts.includes(resource.id)
+    )
+  })
+
   /** Položky seznamu akcí: počet účastníků, čeká na moji odpověď, potvrzený termín. */
   const actionItems = computed(() =>
     state.actions.map((action) => ({
@@ -383,6 +419,7 @@ export function createSession(options: SessionOptions) {
     state.pendingFiles = []
     state.lastActionEdit = null
     state.localActions = []
+    state.calendar = null
     fileBlobs.clear()
     // Pozvánka z odkazu zůstává: po přihlášení se nabídne.
     state.invite = inviteToken ? { token: inviteToken, preview: null, error: null } : null
@@ -420,12 +457,14 @@ export function createSession(options: SessionOptions) {
   }
 
   async function reload() {
-    const [people, loaded, groups, friends] = await Promise.all([
+    const [people, loaded, groups, friends, calendar] = await Promise.all([
       backend.people(),
       backend.actions(),
       backend.groups(),
       backend.friends(),
+      backend.calendarStatus(),
     ])
+    state.calendar = calendar
     state.people = people
     state.actions = loaded
     state.groups = groups
@@ -479,7 +518,10 @@ export function createSession(options: SessionOptions) {
       // Kdo ještě nemá rozpis, začne Můj rozvrh. Jinak se otevře první akce.
       const mine = state.people.find((person) => person.isSelf)
       const hasSchedule = (mine?.sources.length ?? 0) + (mine?.overrides.length ?? 0) > 0
-      state.page = state.selectedActionId && (hasSchedule || state.demo) ? 'action' : 'schedule'
+      state.page =
+        state.selectedActionId && (hasSchedule || state.demo) && !state.calendarNotice
+          ? 'action'
+          : 'schedule'
       state.localActions = !state.demo && storage ? (loadState(storage)?.actions ?? []) : []
       state.status = 'ready'
       if (!state.demo) await loadInvite()
@@ -730,6 +772,68 @@ export function createSession(options: SessionOptions) {
     forgetInvite()
   }
 
+  // Google Kalendář
+
+  async function setCalendarAutoWrite(autoWrite: boolean) {
+    const calendar = await guarded(() => backend.setCalendarAutoWrite(autoWrite))
+    if (calendar) state.calendar = calendar
+  }
+
+  /** Odpojí kalendář. Obsazenost z něj zmizí, zapsané události v kalendáři zůstanou. */
+  async function disconnectCalendar() {
+    const done = await guarded(async () => {
+      state.calendar = await backend.disconnectCalendar()
+      state.people = await backend.people()
+      return true
+    })
+    if (done) state.calendarNotice = null
+  }
+
+  /** Načte obsazenost z kalendáře hned. */
+  async function syncCalendar() {
+    await guarded(async () => {
+      state.calendar = await backend.syncCalendar()
+      state.people = await backend.people()
+    })
+  }
+
+  async function addToCalendar() {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const action = await guarded(() => backend.addToCalendar(actionId))
+    if (action) replaceAction(action)
+  }
+
+  async function removeFromCalendar() {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const action = await guarded(() => backend.removeFromCalendar(actionId))
+    if (action) replaceAction(action)
+  }
+
+  function dismissCalendarPrompt() {
+    if (state.selectedActionId) state.dismissedCalendarPrompts.push(state.selectedActionId)
+  }
+
+  function dismissCalendarNotice() {
+    state.calendarNotice = null
+  }
+
+  /** Soubor .ics s potvrzeným termínem vybrané akce, pro lidi bez připojeného kalendáře. */
+  function icsForSelectedAction(): { fileName: string; content: string } | null {
+    const resource = selectedResource.value
+    if (!resource?.confirmed) return null
+    const content = icsForEvent({
+      uid: `${resource.id}@sladit`,
+      title: resource.details.name,
+      ...resource.confirmed,
+      description: `Termín potvrzený v aplikaci Sladit. Pořádá ${resource.organizerName}.`,
+      createdAt: new Date().toISOString(),
+    })
+    const safeName = resource.details.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '')
+    return { fileName: `${safeName || 'akce'}.ics`, content }
+  }
+
   // Pohled ze serveru na akce s cizími lidmi
 
   let viewRequest = 0
@@ -897,6 +1001,16 @@ export function createSession(options: SessionOptions) {
   return {
     state,
     loginUrl: backend.loginUrl,
+    calendarConnectUrl: backend.calendarConnectUrl,
+    calendarPrompt,
+    setCalendarAutoWrite,
+    disconnectCalendar,
+    syncCalendar,
+    addToCalendar,
+    removeFromCalendar,
+    dismissCalendarPrompt,
+    dismissCalendarNotice,
+    icsForSelectedAction,
     me,
     scheduleAction,
     scheduleCalendar,
@@ -977,6 +1091,14 @@ function isDemo(): boolean {
  * Token z odkazu /pozvanka/<token>. Adresa se hned přepíše na úvodní, aby token nezůstal
  * v historii ani na snímku obrazovky. Do přihlášení ho drží sessionStorage.
  */
+/** Výsledek připojení kalendáře z adresy. Adresa se hned přepíše na úvodní. */
+function takeCalendarResultFromUrl(): string | null {
+  if (typeof location === 'undefined') return null
+  const result = new URLSearchParams(location.search).get('kalendar')
+  if (result) history.replaceState(null, '', '/')
+  return result
+}
+
 function takeInviteTokenFromUrl(): string | null {
   if (typeof location === 'undefined') return null
   const token = inviteTokenFromPath(location.pathname)
@@ -994,6 +1116,7 @@ export function useSession(): Session {
       storage: typeof localStorage === 'undefined' ? null : localStorage,
       demo,
       inviteToken: demo ? null : takeInviteTokenFromUrl(),
+      calendarResult: demo ? null : takeCalendarResultFromUrl(),
       inviteStorage: typeof sessionStorage === 'undefined' ? null : sessionStorage,
     })
     void session.init()

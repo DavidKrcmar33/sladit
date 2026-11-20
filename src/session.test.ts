@@ -283,6 +283,18 @@ describe('akce', () => {
     expect(session.state.page).toBe('schedule')
   })
 
+  it('offers an .ics file of the confirmed date and says the calendar needs an account', async () => {
+    const { session } = await signedInSession()
+    await session.createAction(actionInput)
+    expect(session.icsForSelectedAction()).toBeNull()
+    await session.confirmSlot({ date: '2026-11-25', start: '18:00', end: '21:00' })
+    const file = session.icsForSelectedAction()!
+    expect(file.fileName).toBe('Deskovky.ics')
+    expect(file.content).toContain('DTSTART;TZID=Europe/Prague:20261125T180000')
+    expect(session.state.calendar?.state).toBe('unavailable')
+    expect(session.calendarPrompt.value).toBe(false)
+  })
+
   it('computes proposals in the browser while I am alone in the action', async () => {
     const { session } = await signedInSession()
     session.addFiles([photo()])

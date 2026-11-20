@@ -44,6 +44,7 @@ const {
   updateAction,
   undoActionUpdate,
   deleteAction,
+  dismissCalendarNotice,
 } = useSession()
 
 /** Otevřený formulář akce: nová, nebo úprava vybrané. */
@@ -194,6 +195,14 @@ async function submitGroup(name: string) {
           <UiButton variant="primary" @click="acceptLocalActions">Převzít</UiButton>
           <UiButton @click="dismissLocalActions">Teď ne</UiButton>
         </div>
+      </div>
+      <div
+        v-if="state.calendarNotice"
+        role="status"
+        class="mx-8 mt-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
+      >
+        <p>{{ state.calendarNotice }}</p>
+        <UiButton variant="ghost" @click="dismissCalendarNotice">Zavřít</UiButton>
       </div>
       <p
         v-if="state.error"

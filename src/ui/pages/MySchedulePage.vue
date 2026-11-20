@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue'
-import type { ParityQuestion } from '@/core/compose'
+import { CALENDAR_CIRCLE, type ParityQuestion } from '@/core/compose'
 import { SCHOOL_CIRCLE, WORK_CIRCLE, type Shift } from '@/core/schema'
 import { addDays } from '@/core/time'
 import { useSession } from '@/session'
+import CalendarCard from '@/ui/components/CalendarCard.vue'
 import CalendarLegend from '@/ui/components/CalendarLegend.vue'
 import DayEditor from '@/ui/components/DayEditor.vue'
 import MonthGrid from '@/ui/components/MonthGrid.vue'
@@ -38,6 +39,10 @@ const {
   answerWeekParity,
   shiftSchedule,
   fileBlob,
+  calendarConnectUrl,
+  setCalendarAutoWrite,
+  syncCalendar,
+  disconnectCalendar,
 } = useSession()
 
 /** Třetí okruh pro druhou práci: její rozpis musí den pokrýt taky, jinak den neznáme. */
@@ -50,7 +55,10 @@ const editingName = ref(false)
 const nameDraft = ref('')
 const nameError = ref<string | null>(null)
 
-const sources = computed(() => me.value?.sources ?? [])
+// Obsazenost z kalendáře je zdroj jen na čtení, ukazuje ji karta kalendáře.
+const sources = computed(() =>
+  (me.value?.sources ?? []).filter((source) => source.circle !== CALENDAR_CIRCLE),
+)
 const circleOptions = computed(() => [
   ...new Set([
     ...sources.value.map((source) => source.circle),
@@ -189,6 +197,13 @@ function answerParity(question: ParityQuestion, odd: boolean) {
     </section>
 
     <aside class="flex min-w-0 max-w-sm flex-[1_1_300px] flex-col gap-4">
+      <CalendarCard
+        :status="state.calendar"
+        :connect-url="calendarConnectUrl"
+        @auto-write="setCalendarAutoWrite"
+        @sync="syncCalendar"
+        @disconnect="disconnectCalendar"
+      />
       <section
         aria-labelledby="upload-title"
         class="flex flex-col gap-3 rounded-xl border border-line bg-white p-5"

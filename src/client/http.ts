@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   AcceptInviteResponseSchema,
+  CalendarResponseSchema,
   ActionResourceSchema,
   ActionResponseSchema,
   ActionsResponseSchema,
@@ -66,8 +67,12 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
   // Token pozvánky jde jen do cesty na vlastní server, nikam jinam.
   const invite = (token: string) => `/invites/${encodeURIComponent(token)}`
 
+  const calendar = (method: string, path: string, body?: unknown) =>
+    call(CalendarResponseSchema, method, path, body).then((data) => data.calendar)
+
   return {
     loginUrl: '/api/auth/google',
+    calendarConnectUrl: '/api/calendar/connect',
     me: () => call(MeResponseSchema, 'GET', '/me'),
     logout: () => ok('POST', '/auth/logout'),
     deleteAccount: () => ok('DELETE', '/me'),
@@ -119,6 +124,13 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     invitePreview: (token) =>
       call(InvitePreviewResponseSchema, 'GET', invite(token)).then((data) => data.invite),
     acceptInvite: (token) => call(AcceptInviteResponseSchema, 'POST', `${invite(token)}/accept`),
+
+    calendarStatus: () => calendar('GET', '/calendar'),
+    setCalendarAutoWrite: (autoWrite) => calendar('PATCH', '/calendar', { autoWrite }),
+    disconnectCalendar: () => calendar('DELETE', '/calendar'),
+    syncCalendar: () => calendar('POST', '/calendar/sync'),
+    addToCalendar: (actionId) => action('POST', `/actions/${actionId}/calendar`),
+    removeFromCalendar: (actionId) => action('DELETE', `/actions/${actionId}/calendar`),
 
     importActions: (actions) =>
       call(ImportResponseSchema, 'POST', '/import', { actions }).then((data) => data.imported),
