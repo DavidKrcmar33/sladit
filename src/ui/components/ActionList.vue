@@ -12,18 +12,20 @@ const props = defineProps<{
     peopleCount: number
     /** Pozvánka čeká na moji odpověď. */
     waitingForMe: boolean
+    /** Navržený termín čeká na moji odpověď, nebo někdo navrhl jiný. */
+    slotWaiting: boolean
     confirmed: { date: string } | null
+    agreed: boolean
   }[]
   selectedActionId: string | null
 }>()
 const emit = defineEmits<{ select: [actionId: string]; create: [] }>()
 
-/** Ve sbaleném seznamu nesmí čekající pozvánka zapadnout. */
+/** Ve sbaleném seznamu nesmí čekající pozvánka ani termín k odpovědi zapadnout. */
 const waitingBadge = computed(() => {
-  const count = props.actions.filter((action) => action.waitingForMe).length
+  const count = props.actions.filter((action) => action.waitingForMe || action.slotWaiting).length
   if (count === 0) return null
-  if (count === 1) return '1 pozvánka'
-  return count < 5 ? `${count} pozvánky` : `${count} pozvánek`
+  return count === 1 ? '1 čeká' : `${count} čekají`
 })
 </script>
 
@@ -58,12 +60,19 @@ const waitingBadge = computed(() => {
             >
               pozvánka
             </span>
+            <span
+              v-else-if="action.slotWaiting"
+              class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
+            >
+              termín
+            </span>
           </span>
           <span class="text-xs text-muted">
             {{ formatDateRange(action.from, action.to) }} · Lidé: {{ action.peopleCount }}
           </span>
           <span v-if="action.confirmed" class="text-xs font-medium text-accent-dark">
-            Potvrzeno: {{ formatDayShort(action.confirmed.date) }}
+            {{ action.agreed ? 'Domluveno' : 'Navrženo' }}:
+            {{ formatDayShort(action.confirmed.date) }}
           </span>
         </button>
       </li>

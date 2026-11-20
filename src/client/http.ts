@@ -110,6 +110,10 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
       call(MaybeActionResponseSchema, 'POST', `/actions/${actionId}/response`, { accept }).then(
         (data) => data.action,
       ),
+    respondToSlot: (actionId, request) =>
+      action('POST', `/actions/${actionId}/slot-response`, request),
+    adoptCounter: (actionId, userId) =>
+      action('POST', `/actions/${actionId}/counters/${userId}/adopt`),
     confirmAction: (actionId, slot) =>
       slot
         ? action('PUT', `/actions/${actionId}/confirmed`, slot)

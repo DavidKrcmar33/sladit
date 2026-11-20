@@ -128,8 +128,17 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
       isOrganizer: true,
       organizerName: user?.name ?? '',
       myStatus: 'organizer' as const,
-      invites: invited.map(({ id, name }) => ({ userId: id, name, status: 'accepted' as const })),
+      // V ukázce ostatní na navržený termín rovnou jdou, nikdo jiný tu neodpovídá.
+      invites: invited.map(({ id, name }) => ({
+        userId: id,
+        name,
+        status: 'accepted' as const,
+        slot: action.confirmed ? ('going' as const) : ('pending' as const),
+        counter: null,
+      })),
       confirmed: action.confirmed,
+      mySlot: null,
+      agreed: action.confirmed !== null,
       inMyCalendar: false,
     })
   }
@@ -308,6 +317,9 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     acceptFriendRequest: async () => onlyWithAccount(),
     deleteFriendRequest: async () => onlyWithAccount(),
     createFriendInvite: async () => onlyWithAccount(),
+    // V ukázce na termín nikdo neodpovídá, ostatní rovnou jdou.
+    respondToSlot: async () => onlyWithAccount(),
+    adoptCounter: async () => onlyWithAccount(),
     revokeFriendInvite: async () => onlyWithAccount(),
     removeFriend: async () => onlyWithAccount(),
 

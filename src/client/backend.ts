@@ -13,6 +13,7 @@ import type {
   OwnedPerson,
   ReadingRequest,
   SendFriendRequestResponse,
+  SlotResponseRequest,
   UpdateSourceRequest,
 } from '@/contract/api'
 import type { SourceAnswer } from '@/core/review'
@@ -55,6 +56,10 @@ export interface Backend {
   /** Odpověď pozvaného. Po odmítnutí akci neuvidí, vrátí se null. */
   respondToAction(actionId: string, accept: boolean): Promise<ActionResource | null>
   confirmAction(actionId: string, slot: ConfirmedSlot | null): Promise<ActionResource>
+  /** Odpověď na navržený termín: jdu, nejdu, nebo jiný termín. */
+  respondToSlot(actionId: string, request: SlotResponseRequest): Promise<ActionResource>
+  /** Organizátor přijme jiný termín, který navrhl účastník. */
+  adoptCounter(actionId: string, userId: string): Promise<ActionResource>
 
   friends(): Promise<FriendsResponse>
   /** Žádost o přátelství podle e-mailu. */

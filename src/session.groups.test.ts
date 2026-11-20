@@ -253,6 +253,38 @@ describe('akce s pozvanými', () => {
   })
 })
 
+describe('navržený termín v prohlížeči', () => {
+  it('notifies the friend, takes the answer and lets the organizer adopt another date', async () => {
+    const { annaSession, evaSession } = await friends()
+    const evaId = annaSession.contacts.value.find((contact) => contact.name === 'Eva')!.userId
+    await annaSession.createAction(details, [evaId])
+    await evaSession.init()
+    evaSession.selectAction(evaSession.state.actions[0].id)
+    await evaSession.respondToAction(true)
+    await annaSession.confirmSlot({ date: '2026-11-25', start: '18:00', end: '20:00' })
+
+    await evaSession.init()
+    const actionId = evaSession.state.actions[0].id
+    expect(evaSession.slotNotice.value).toEqual({
+      actionId,
+      text: 'Anna navrhuje termín akce Pivo. Jdeš?',
+    })
+    expect(evaSession.actionItems.value[0]).toMatchObject({ slotWaiting: true, agreed: false })
+
+    evaSession.selectAction(actionId)
+    const other = { date: '2026-11-26', start: '18:00', end: '20:00' }
+    await evaSession.respondToSlot({ response: 'counter', counter: other })
+    expect(evaSession.slotNotice.value).toBeNull()
+
+    await annaSession.init()
+    expect(annaSession.slotNotice.value?.text).toBe('Eva navrhuje jiný termín akce Pivo.')
+    annaSession.selectAction(actionId)
+    await annaSession.adoptCounter(evaId)
+    expect(annaSession.selectedResource.value).toMatchObject({ confirmed: other, agreed: true })
+    expect(annaSession.slotNotice.value).toBeNull()
+  })
+})
+
 describe('Google Kalendář v prohlížeči', () => {
   /** Projde souhlasem s kalendářem u falešného Googlu. */
   async function connectCalendar(user: Browser) {
@@ -288,7 +320,7 @@ describe('Google Kalendář v prohlížeči', () => {
     })
   })
 
-  it('asks to add a confirmed date to the calendar unless writing is automatic', async () => {
+  it('asks to add the date to the calendar once I go, unless writing is automatic', async () => {
     const context = await friends()
     const { annaSession, evaSession, eva } = context
     await connectCalendar(eva)
@@ -301,6 +333,9 @@ describe('Google Kalendář v prohlížeči', () => {
     await evaSession.init()
     evaSession.selectAction(evaSession.state.actions[0].id)
 
+    // Na navržený termín se ptá až po odpovědi „jdu“.
+    expect(evaSession.calendarPrompt.value).toBe(false)
+    await evaSession.respondToSlot({ response: 'going' })
     expect(evaSession.calendarPrompt.value).toBe(true)
     await evaSession.addToCalendar()
     expect(evaSession.selectedResource.value?.inMyCalendar).toBe(true)

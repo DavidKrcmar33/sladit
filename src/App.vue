@@ -22,6 +22,7 @@ const {
   me,
   loginUrl,
   actionItems,
+  slotNotice,
   contacts,
   selectedAction,
   selectedResource,
@@ -221,6 +222,16 @@ async function submitGroup(name: string) {
           <UiButton variant="primary" @click="acceptLocalActions">Převzít</UiButton>
           <UiButton @click="dismissLocalActions">Teď ne</UiButton>
         </div>
+      </div>
+      <div
+        v-if="
+          slotNotice && !(state.page === 'action' && state.selectedActionId === slotNotice.actionId)
+        "
+        role="status"
+        class="mx-8 mt-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
+      >
+        <p>{{ slotNotice.text }}</p>
+        <UiButton variant="ghost" @click="selectAction(slotNotice.actionId)">Odpovědět</UiButton>
       </div>
       <div
         v-if="state.friendRequests.incoming.length > 0 && state.page !== 'friends'"

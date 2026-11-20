@@ -16,6 +16,7 @@ import type {
   InvitePreview,
   OwnedPerson,
   SentFriendRequest,
+  SlotResponseRequest,
   User,
 } from './contract/api'
 import {
@@ -75,7 +76,7 @@ export type SessionStatus = 'loading' | 'signedOut' | 'ready' | 'failed'
 
 /** Otevřená stránka hlavní části. */
 export type Page = 'action' | 'schedule' | 'friends' | 'group' | 'settings'
-export type PendingWork = 'confirm' | 'unconfirm' | 'calendar'
+export type PendingWork = 'confirm' | 'unconfirm' | 'calendar' | 'slot'
 
 /** Jedna zpráva v okně doptání: od aplikace, nebo moje odpověď. */
 export interface ReviewMessage {
@@ -413,7 +414,8 @@ export function createSession(options: SessionOptions) {
     return (
       resource !== null &&
       resource.confirmed !== null &&
-      resource.myStatus !== 'invited' &&
+      // Zapsat jde jen termín, na který jdu: organizátor vždy, ostatní po odpovědi „jdu“.
+      (resource.isOrganizer || resource.mySlot === 'going') &&
       !resource.inMyCalendar &&
       calendar?.state === 'connected' &&
       calendar.canWrite &&
@@ -431,9 +433,39 @@ export function createSession(options: SessionOptions) {
       to: action.details.to,
       peopleCount: action.participantIds.length,
       waitingForMe: action.myStatus === 'invited',
+      /** Navržený termín čeká na moji odpověď, nebo (u organizátora) někdo navrhl jiný. */
+      slotWaiting:
+        action.mySlot === 'pending' ||
+        (action.isOrganizer && action.invites.some((invite) => invite.slot === 'counter')),
       confirmed: action.confirmed,
+      agreed: action.agreed,
     })),
   )
+
+  /**
+   * Upozornění nahoře: navržený termín čeká na moji odpověď, nebo organizátorovi někdo
+   * navrhl jiný termín. Jen první, další jsou vidět u akcí v menu.
+   */
+  const slotNotice = computed<{ actionId: string; text: string } | null>(() => {
+    for (const action of state.actions) {
+      if (action.mySlot === 'pending' && action.confirmed) {
+        return {
+          actionId: action.id,
+          text: `${action.organizerName} navrhuje termín akce ${action.details.name}. Jdeš?`,
+        }
+      }
+      const counter = action.isOrganizer
+        ? action.invites.find((invite) => invite.slot === 'counter')
+        : undefined
+      if (counter) {
+        return {
+          actionId: action.id,
+          text: `${counter.name} navrhuje jiný termín akce ${action.details.name}.`,
+        }
+      }
+    }
+    return null
+  })
 
   /** Koho jde pozvat: přátelé a členové mých skupin, každý jednou. */
   const contacts = computed<Contact[]>(() => {
@@ -751,6 +783,24 @@ export function createSession(options: SessionOptions) {
     } finally {
       state.pending = null
     }
+  }
+
+  async function respondToSlot(request: SlotResponseRequest) {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const action = await onePending('slot', () =>
+      guarded(() => backend.respondToSlot(actionId, request)),
+    )
+    if (action) replaceAction(action)
+  }
+
+  async function adoptCounter(userId: string) {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const action = await onePending('confirm', () =>
+      guarded(() => backend.adoptCounter(actionId, userId)),
+    )
+    if (action) replaceAction(action)
   }
 
   async function confirmSlot(slot: ConfirmedSlot | null) {
@@ -1219,6 +1269,7 @@ export function createSession(options: SessionOptions) {
     reviewSource,
     waitingReviews,
     actionItems,
+    slotNotice,
     contacts,
     selectedResource,
     selectedAction,
@@ -1252,6 +1303,8 @@ export function createSession(options: SessionOptions) {
     cancelInvite,
     respondToAction,
     confirmSlot,
+    respondToSlot,
+    adoptCounter,
     createFriendInvite,
     revokeFriendInvite,
     removeFriend,

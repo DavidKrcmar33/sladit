@@ -10,10 +10,10 @@ import DayEditor from '@/ui/components/DayEditor.vue'
 import ParityQuestions from '@/ui/components/ParityQuestions.vue'
 import ProposalList from '@/ui/components/ProposalList.vue'
 import ReadingWarnings from '@/ui/components/ReadingWarnings.vue'
+import SlotBanner from '@/ui/components/SlotBanner.vue'
 import UiButton from '@/ui/components/UiButton.vue'
 import UncertainNotice from '@/ui/components/UncertainNotice.vue'
 import { editedDayOf } from '@/ui/editedDay'
-import { formatDayLong, formatTimeWindow } from '@/ui/format'
 
 const {
   state,
@@ -34,6 +34,8 @@ const {
   inviteToAction,
   cancelInvite,
   confirmSlot,
+  respondToSlot,
+  adoptCounter,
   selectDay,
   saveDayShifts,
   clearDayOverride,
@@ -94,6 +96,15 @@ const calendarConnected = computed(
   () => state.calendar?.state === 'connected' && state.calendar.canWrite,
 )
 
+/** Jiné termíny, které může účastník navrhnout místo navrženého. */
+const alternatives = computed(() =>
+  proposals.value.filter(
+    (proposal) =>
+      proposal.date !== resource.value.confirmed?.date ||
+      proposal.start !== resource.value.confirmed?.start,
+  ),
+)
+
 function confirm(proposal: Proposal) {
   void confirmSlot({ date: proposal.date, start: proposal.start, end: proposal.end })
 }
@@ -120,54 +131,29 @@ function confirm(proposal: Proposal) {
         </div>
       </div>
 
-      <div
+      <SlotBanner
         v-if="resource.confirmed"
-        role="status"
-        class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-accent-soft px-4 py-3 text-accent-dark"
-      >
-        <p class="font-semibold">
-          Potvrzený termín: {{ formatDayLong(resource.confirmed.date) }},
-          {{ formatTimeWindow(resource.confirmed.start, resource.confirmed.end) }}
-        </p>
-        <div class="flex flex-wrap gap-2">
-          <template v-if="takesPart">
-            <UiButton
-              v-if="resource.inMyCalendar"
-              variant="ghost"
-              :disabled="busy"
-              @click="removeFromCalendar"
-            >
-              {{ state.pending === 'calendar' ? 'Odebírám z kalendáře…' : 'V kalendáři · odebrat' }}
-            </UiButton>
-            <UiButton
-              v-else-if="calendarConnected && !calendarPrompt"
-              variant="ghost"
-              :disabled="busy"
-              @click="addToCalendar"
-            >
-              {{ state.pending === 'calendar' ? 'Zapisuji do kalendáře…' : 'Přidat do kalendáře' }}
-            </UiButton>
-            <UiButton v-if="!resource.inMyCalendar" variant="ghost" @click="downloadIcs">
-              Stáhnout .ics
-            </UiButton>
-          </template>
-          <UiButton
-            v-if="resource.isOrganizer"
-            variant="ghost"
-            :disabled="busy"
-            @click="confirmSlot(null)"
-          >
-            {{ state.pending === 'unconfirm' ? 'Ruším potvrzení…' : 'Zrušit potvrzení' }}
-          </UiButton>
-        </div>
-      </div>
+        :resource="resource"
+        :proposed="resource.confirmed"
+        :my-user-id="state.user?.id ?? null"
+        :alternatives="alternatives"
+        :pending="state.pending"
+        :calendar-connected="calendarConnected"
+        :calendar-prompt="calendarPrompt"
+        @respond="respondToSlot"
+        @adopt="adoptCounter"
+        @withdraw="confirmSlot(null)"
+        @add-to-calendar="addToCalendar"
+        @remove-from-calendar="removeFromCalendar"
+        @download-ics="downloadIcs"
+      />
 
       <div
         v-if="calendarPrompt"
         role="status"
         class="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-accent bg-white px-4 py-3"
       >
-        <p>Přidat potvrzený termín do tvého Google Kalendáře?</p>
+        <p>Přidat termín do tvého Google Kalendáře?</p>
         <div class="flex gap-2">
           <UiButton variant="primary" :disabled="busy" @click="addToCalendar">
             {{ state.pending === 'calendar' ? 'Zapisuji…' : 'Přidat' }}
@@ -234,11 +220,11 @@ function confirm(proposal: Proposal) {
 
       <div v-if="resource.myStatus === 'accepted'" class="border-t border-line pt-3">
         <div v-if="leaving" class="flex flex-wrap items-center gap-2">
-          <span class="text-warn">Nepůjdeš? Akce ti zmizí ze seznamu.</span>
-          <UiButton variant="danger" @click="respondToAction(false)">Nepůjdu</UiButton>
-          <UiButton @click="leaving = false">Nechat</UiButton>
+          <span class="text-warn">Odejít z akce? Zmizí ti ze seznamu.</span>
+          <UiButton variant="danger" @click="respondToAction(false)">Odejít</UiButton>
+          <UiButton @click="leaving = false">Zůstat</UiButton>
         </div>
-        <UiButton v-else variant="danger" @click="leaving = true">Nepůjdu</UiButton>
+        <UiButton v-else variant="danger" @click="leaving = true">Odejít z akce</UiButton>
       </div>
     </section>
 

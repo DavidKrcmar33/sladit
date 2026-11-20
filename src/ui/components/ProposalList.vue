@@ -21,7 +21,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ confirm: [proposal: Proposal] }>()
 
-/** Termín, na který organizátor naposledy klikl, aby u něj bylo vidět „Potvrzuji…“. */
+/** Termín, na který organizátor naposledy klikl, aby u něj bylo vidět „Navrhuji…“. */
 const clicked = ref<string | null>(null)
 
 function keyOf(proposal: Proposal): string {
@@ -100,7 +100,7 @@ function namesOf(personIds: string[]): string {
         <p v-if="index === 0 && stabilityNote" class="border-t border-line pt-1.5 text-warn">
           {{ stabilityNote }}
         </p>
-        <p v-if="isConfirmed(proposal)" class="font-semibold text-accent-dark">Potvrzeno</p>
+        <p v-if="isConfirmed(proposal)" class="font-semibold text-accent-dark">Navrženo</p>
         <UiButton
           v-else-if="canConfirm"
           :variant="index === 0 ? 'primary' : 'secondary'"
@@ -108,7 +108,7 @@ function namesOf(personIds: string[]): string {
           :disabled="busy"
           @click="confirm(proposal)"
         >
-          {{ confirming && clicked === keyOf(proposal) ? 'Potvrzuji…' : 'Potvrdit tento termín' }}
+          {{ confirming && clicked === keyOf(proposal) ? 'Navrhuji…' : 'Navrhnout tento termín' }}
         </UiButton>
       </li>
     </ol>

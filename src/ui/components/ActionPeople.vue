@@ -13,8 +13,9 @@ const props = defineProps<{
 const emit = defineEmits<{ invite: [userIds: string[]]; cancel: [userId: string] }>()
 
 const STATUS_TEXT = {
-  invited: 'čeká na odpověď',
-  accepted: 'jde',
+  // Jestli jde na navržený termín, ukazuje pruh s termínem. Tady jen pozvánka.
+  invited: 'pozvánka čeká',
+  accepted: 'v akci',
   declined: 'odmítnuto',
 } as const
 
@@ -39,7 +40,7 @@ function invitedIds(): string[] {
     aria-labelledby="people-title"
     class="flex flex-col gap-2 rounded-xl border border-line bg-white p-5"
   >
-    <h2 id="people-title" class="text-base font-semibold">Kdo jde</h2>
+    <h2 id="people-title" class="text-base font-semibold">Účastníci</h2>
     <ul>
       <li class="flex items-center justify-between gap-3 border-t border-line py-2">
         <span class="font-semibold">{{ action.organizerName }}</span>
