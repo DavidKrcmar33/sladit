@@ -19,7 +19,12 @@ describe('pgliteDb', () => {
     const dataDir = join(root, '.local', 'pglite')
 
     const first = await pgliteDb(dataDir)
-    expect(await migrate(first)).toEqual(['001_init', '002_groups', '003_friends_invitations', '004_calendar'])
+    expect(await migrate(first)).toEqual([
+      '001_init',
+      '002_groups',
+      '003_friends_invitations',
+      '004_calendar',
+    ])
     await first.query("insert into users (id, google_sub, email, name) values ('u', 's', 'e', 'n')")
     await first.close()
 

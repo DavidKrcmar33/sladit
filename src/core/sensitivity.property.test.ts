@@ -156,5 +156,5 @@ describe('analyzeStability proti hrubé síle', () => {
     // Test nesmí projít jen proto, že by analýza nikdy neřekla „jistý“.
     expect(certainCount).toBeGreaterThan(1000)
     expect(changeableCount).toBeGreaterThan(1000)
-  })
+  }, 30_000) // Tisíce náhodných akcí proti hrubé síle: v plném běhu testů to trvá déle.
 })

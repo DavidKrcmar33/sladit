@@ -477,10 +477,11 @@ export function createStore(db: Db) {
       ])
     },
 
-    async userBySession(tokenHash: string): Promise<User | null> {
+    /** Uživatel podle relace. Platnost se porovná s hodinami serveru (v testech pevnými). */
+    async userBySession(tokenHash: string, now: Date): Promise<User | null> {
       const [user] = await db.query<User>(
-        'select u.id, u.email, u.name from sessions s join users u on u.id = s.user_id where s.token_hash = $1 and s.expires_at > now()',
-        [tokenHash],
+        'select u.id, u.email, u.name from sessions s join users u on u.id = s.user_id where s.token_hash = $1 and s.expires_at > $2',
+        [tokenHash, now.toISOString()],
       )
       return user ?? null
     },

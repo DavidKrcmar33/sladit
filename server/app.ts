@@ -129,7 +129,7 @@ export function createApp(deps: AppDeps) {
 
   api.get('/me', async (c) => {
     const token = getCookie(c, SESSION_COOKIE)
-    const user = token ? await store.userBySession(hash(token)) : null
+    const user = token ? await store.userBySession(hash(token), now()) : null
     return c.json({ user, fakeGoogle: config.google.mode === 'fake' })
   })
 
@@ -163,7 +163,7 @@ export function createApp(deps: AppDeps) {
     if (saved.purpose === 'calendar') {
       if (!code) return c.redirect('/?kalendar=zamitnuto')
       const session = getCookie(c, SESSION_COOKIE)
-      const owner = session ? await store.userBySession(hash(session)) : null
+      const owner = session ? await store.userBySession(hash(session), now()) : null
       if (!owner || owner.id !== saved.user_id || !calendarApi) {
         return c.redirect('/?kalendar=chyba')
       }
@@ -251,7 +251,7 @@ export function createApp(deps: AppDeps) {
   // Vše níž jen pro přihlášené.
   api.use('*', async (c, next) => {
     const token = getCookie(c, SESSION_COOKIE)
-    const user = token ? await store.userBySession(hash(token)) : null
+    const user = token ? await store.userBySession(hash(token), now()) : null
     if (!user) return fail(c, 401, { error: 'Nejsi přihlášený.' })
     c.set('user', user)
     return next()
