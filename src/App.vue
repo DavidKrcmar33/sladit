@@ -15,6 +15,7 @@ import UiButton from '@/ui/components/UiButton.vue'
 import ActionPage from '@/ui/pages/ActionPage.vue'
 import FriendsPage from '@/ui/pages/FriendsPage.vue'
 import MySchedulePage from '@/ui/pages/MySchedulePage.vue'
+import SettingsPage from '@/ui/pages/SettingsPage.vue'
 
 const {
   state,
@@ -31,11 +32,13 @@ const {
   dismissLocalActions,
   showSchedule,
   showFriends,
+  showSettings,
   selectAction,
   selectGroup,
   createGroup,
   createInvite,
   revokeInvite,
+  addMember,
   removeMember,
   leaveGroup,
   acceptInvite,
@@ -128,7 +131,10 @@ async function submitGroup(name: string) {
   <template v-else>
     <AppShell>
       <template #sidebar>
-        <p class="px-2 text-xl font-semibold tracking-tight">Sladit</p>
+        <p class="flex items-center gap-2 px-2 text-xl font-semibold tracking-tight">
+          <img src="/favicon.svg" alt="" class="size-6" />
+          Sladit
+        </p>
         <nav aria-label="Moje" class="flex flex-col gap-1">
           <button
             type="button"
@@ -146,6 +152,15 @@ async function submitGroup(name: string) {
           >
             Přátelé
             <span class="text-xs font-normal text-muted">{{ state.friends.length }}</span>
+          </button>
+          <button
+            v-if="!state.demo"
+            type="button"
+            :class="navClass(state.page === 'settings')"
+            :aria-current="state.page === 'settings' ? 'page' : undefined"
+            @click="showSettings"
+          >
+            Nastavení
           </button>
         </nav>
         <ActionList
@@ -214,13 +229,16 @@ async function submitGroup(name: string) {
 
       <ActionPage v-if="showsAction" :key="state.selectedActionId ?? ''" />
       <FriendsPage v-else-if="state.page === 'friends'" />
+      <SettingsPage v-else-if="state.page === 'settings'" />
       <GroupPanel
         v-else-if="state.page === 'group' && selectedGroup"
         :key="selectedGroup.id"
         :group="selectedGroup"
+        :friends="state.friends"
         :invite-url="state.lastInvite?.target === selectedGroup.id ? state.lastInvite.url : null"
         @create-invite="createInvite(selectedGroup.id)"
         @revoke-invite="revokeInvite(selectedGroup.id, $event)"
+        @add-member="addMember(selectedGroup.id, $event)"
         @remove-member="removeMember(selectedGroup.id, $event)"
         @leave="leaveGroup(selectedGroup.id)"
         @remove="leaveGroup(selectedGroup.id, true)"

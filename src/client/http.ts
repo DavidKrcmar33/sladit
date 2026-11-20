@@ -116,6 +116,7 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     createGroup: (name) => group('POST', '/groups', { name }),
     deleteGroup: (groupId) => ok('DELETE', `/groups/${groupId}`),
     leaveGroup: (groupId) => ok('POST', `/groups/${groupId}/leave`),
+    addMember: (groupId, userId) => group('POST', `/groups/${groupId}/members`, { userId }),
     removeMember: (groupId, userId) => group('DELETE', `/groups/${groupId}/members/${userId}`),
     createInvite: (groupId) =>
       call(CreateInviteResponseSchema, 'POST', `/groups/${groupId}/invites`),

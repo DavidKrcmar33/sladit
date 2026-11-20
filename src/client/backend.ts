@@ -58,6 +58,8 @@ export interface Backend {
   createGroup(name: string): Promise<Group>
   deleteGroup(groupId: string): Promise<void>
   leaveGroup(groupId: string): Promise<void>
+  /** Zakladatel přidá přítele rovnou, bez odkazu. */
+  addMember(groupId: string, userId: string): Promise<Group>
   removeMember(groupId: string, userId: string): Promise<Group>
   createInvite(groupId: string): Promise<{ group: Group; url: string }>
   revokeInvite(groupId: string, inviteId: string): Promise<Group>

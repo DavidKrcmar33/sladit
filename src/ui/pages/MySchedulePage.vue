@@ -4,7 +4,6 @@ import { CALENDAR_CIRCLE, type ParityQuestion } from '@/core/compose'
 import { SCHOOL_CIRCLE, WORK_CIRCLE, type Shift } from '@/core/schema'
 import { addDays } from '@/core/time'
 import { useSession } from '@/session'
-import CalendarCard from '@/ui/components/CalendarCard.vue'
 import CalendarLegend from '@/ui/components/CalendarLegend.vue'
 import DayEditor from '@/ui/components/DayEditor.vue'
 import MonthGrid from '@/ui/components/MonthGrid.vue'
@@ -39,10 +38,6 @@ const {
   answerWeekParity,
   shiftSchedule,
   fileBlob,
-  calendarConnectUrl,
-  setCalendarAutoWrite,
-  syncCalendar,
-  disconnectCalendar,
 } = useSession()
 
 /** Třetí okruh pro druhou práci: její rozpis musí den pokrýt taky, jinak den neznáme. */
@@ -197,13 +192,6 @@ function answerParity(question: ParityQuestion, odd: boolean) {
     </section>
 
     <aside class="flex min-w-0 max-w-sm flex-[1_1_300px] flex-col gap-4">
-      <CalendarCard
-        :status="state.calendar"
-        :connect-url="calendarConnectUrl"
-        @auto-write="setCalendarAutoWrite"
-        @sync="syncCalendar"
-        @disconnect="disconnectCalendar"
-      />
       <section
         aria-labelledby="upload-title"
         class="flex flex-col gap-3 rounded-xl border border-line bg-white p-5"

@@ -69,7 +69,7 @@ type WritableStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 export type SessionStatus = 'loading' | 'signedOut' | 'ready' | 'failed'
 
 /** Otevřená stránka hlavní části. */
-export type Page = 'action' | 'schedule' | 'friends' | 'group'
+export type Page = 'action' | 'schedule' | 'friends' | 'group' | 'settings'
 
 /** Pozvánka do skupiny nebo do přátel čekající na odpověď. Náhled je null, dokud nedorazí. */
 export interface PendingInvite {
@@ -515,11 +515,13 @@ export function createSession(options: SessionOptions) {
       }
       state.user = response.user
       await reload()
-      // Kdo ještě nemá rozpis, začne Můj rozvrh. Jinak se otevře první akce.
+      // Po návratu z Googlu se otevře Nastavení s kalendářem. Kdo ještě nemá rozpis, začne
+      // Můj rozvrh. Jinak se otevře první akce.
       const mine = state.people.find((person) => person.isSelf)
       const hasSchedule = (mine?.sources.length ?? 0) + (mine?.overrides.length ?? 0) > 0
-      state.page =
-        state.selectedActionId && (hasSchedule || state.demo) && !state.calendarNotice
+      state.page = state.calendarNotice
+        ? 'settings'
+        : state.selectedActionId && (hasSchedule || state.demo)
           ? 'action'
           : 'schedule'
       state.localActions = !state.demo && storage ? (loadState(storage)?.actions ?? []) : []
@@ -575,6 +577,10 @@ export function createSession(options: SessionOptions) {
 
   function showFriends() {
     open('friends')
+  }
+
+  function showSettings() {
+    open('settings')
   }
 
   function selectAction(actionId: string) {
@@ -728,6 +734,11 @@ export function createSession(options: SessionOptions) {
 
   async function revokeInvite(groupId: string, inviteId: string) {
     const group = await guarded(() => backend.revokeInvite(groupId, inviteId))
+    if (group) replaceGroup(group)
+  }
+
+  async function addMember(groupId: string, userId: string) {
+    const group = await guarded(() => backend.addMember(groupId, userId))
     if (group) replaceGroup(group)
   }
 
@@ -1041,6 +1052,7 @@ export function createSession(options: SessionOptions) {
     dismissLocalActions,
     showSchedule,
     showFriends,
+    showSettings,
     selectAction,
     selectGroup,
     createAction: createNewAction,
@@ -1057,6 +1069,7 @@ export function createSession(options: SessionOptions) {
     createGroup,
     createInvite,
     revokeInvite,
+    addMember,
     removeMember,
     leaveGroup,
     acceptInvite,

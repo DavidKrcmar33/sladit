@@ -307,6 +307,7 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     createGroup: async () => onlyWithAccount(),
     deleteGroup: async () => onlyWithAccount(),
     leaveGroup: async () => onlyWithAccount(),
+    addMember: async () => onlyWithAccount(),
     removeMember: async () => onlyWithAccount(),
     createInvite: async () => onlyWithAccount(),
     revokeInvite: async () => onlyWithAccount(),

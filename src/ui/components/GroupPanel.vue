@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { Group } from '@/contract/api'
+import { computed, ref } from 'vue'
+import type { Friend, Group } from '@/contract/api'
 import UiButton from './UiButton.vue'
 
 const props = defineProps<{
   group: Group
+  /** Moji přátelé. Zakladatel je může přidat rovnou, bez odkazu. */
+  friends: Friend[]
   /** Odkaz s pozvánkou, ukáže se jen hned po založení. */
   inviteUrl: string | null
 }>()
 const emit = defineEmits<{
   createInvite: []
   revokeInvite: [inviteId: string]
+  addMember: [userId: string]
   removeMember: [userId: string]
   leave: []
   remove: []
@@ -18,6 +21,13 @@ const emit = defineEmits<{
 }>()
 
 const confirming = ref<'leave' | 'remove' | null>(null)
+
+/** Přátelé, kteří ve skupině ještě nejsou. */
+const addableFriends = computed(() =>
+  props.friends.filter(
+    (friend) => !props.group.members.some((member) => member.userId === friend.userId),
+  ),
+)
 const copied = ref(false)
 
 const expiry = new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric' })
@@ -123,6 +133,42 @@ async function copyInvite() {
             </UiButton>
           </li>
         </ul>
+      </section>
+
+      <section
+        v-if="group.isOwner"
+        aria-labelledby="add-friends-title"
+        class="flex flex-col gap-3 rounded-xl border border-line bg-white p-5"
+      >
+        <h2 id="add-friends-title" class="text-base font-semibold">Přidat z přátel</h2>
+        <p v-if="friends.length === 0" class="text-muted">
+          Zatím nemáš přátele. Přidáš si je na stránce Přátelé, nebo pozvi lidi odkazem níže.
+        </p>
+        <p v-else-if="addableFriends.length === 0" class="text-muted">
+          Všichni tví přátelé už ve skupině jsou.
+        </p>
+        <template v-else>
+          <p class="text-muted">
+            Přítel se přidá hned. Ostatní členové uvidí jen jeho jméno a on může skupinu kdykoli
+            opustit.
+          </p>
+          <ul>
+            <li
+              v-for="friend in addableFriends"
+              :key="friend.userId"
+              class="flex items-center justify-between gap-3 border-t border-line py-2"
+            >
+              <span class="font-semibold">{{ friend.name }}</span>
+              <UiButton
+                variant="ghost"
+                :aria-label="`Přidat do skupiny: ${friend.name}`"
+                @click="emit('addMember', friend.userId)"
+              >
+                Přidat
+              </UiButton>
+            </li>
+          </ul>
+        </template>
       </section>
 
       <section

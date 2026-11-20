@@ -140,6 +140,21 @@ describe('pozvánka odkazem', () => {
     ])
   })
 
+  it('adds a friend to my group without a link', async () => {
+    const { annaSession } = await friends()
+    await annaSession.createGroup('Parta')
+    const groupId = annaSession.state.selectedGroupId!
+    const eva = annaSession.state.friends.find((friend) => friend.name === 'Eva')!
+    await annaSession.addMember(groupId, eva.userId)
+    expect(annaSession.selectedGroup.value?.members.map((member) => member.name)).toEqual([
+      'Anna',
+      'Eva',
+    ])
+    expect(annaSession.contacts.value).toEqual([
+      { userId: eva.userId, name: 'Eva', isFriend: true, groupNames: ['Parta'] },
+    ])
+  })
+
   it('explains an invite that no longer works and lets it go', async () => {
     const { eva } = await setup()
     await eva.login('eva@example.com', 'Eva')
@@ -251,7 +266,7 @@ describe('Google Kalendář v prohlížeči', () => {
     const session = sessionFor(eva, { calendarResult: result })
     await session.init()
     expect(session.state.calendarNotice).toMatch(/Google Kalendář je připojený/)
-    expect(session.state.page).toBe('schedule')
+    expect(session.state.page).toBe('settings')
     expect(session.state.calendar).toMatchObject({ state: 'connected', autoWrite: false })
     const wednesday = session.scheduleCalendar.value!.rows[0].days[9]
     expect(wednesday.status).toMatchObject({
