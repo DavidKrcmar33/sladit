@@ -93,6 +93,7 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `POST`, `DELETE /friends/invites(/:inviteId)`          | Nový osobní odkaz do přátel (jen tentokrát v odpovědi), zrušení.   |
 | `GET`, `POST /groups`, `DELETE /groups/:id`            | Moje skupiny, nová skupina, smazání (jen zakladatel).              |
 | `POST /groups/:id/leave`                               | Odchod ze skupiny.                                                 |
+| `POST /groups/:id/members`                             | Zakladatel přidá rovnou někoho ze svých přátel.                    |
 | `DELETE /groups/:id/members/:userId`                   | Zakladatel odebere člena.                                          |
 | `POST /groups/:id/invites`                             | Nový odkaz s pozvánkou. Odkaz je v odpovědi jen tentokrát.         |
 | `DELETE /groups/:id/invites/:inviteId`                 | Zrušení pozvánky.                                                  |
