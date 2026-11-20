@@ -1,16 +1,26 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useSession } from '@/session'
 import CalendarCard from '@/ui/components/CalendarCard.vue'
+import UiButton from '@/ui/components/UiButton.vue'
 
-const { state, calendarConnectUrl, setCalendarAutoWrite, syncCalendar, disconnectCalendar } =
-  useSession()
+const {
+  state,
+  calendarConnectUrl,
+  setCalendarAutoWrite,
+  syncCalendar,
+  disconnectCalendar,
+  deleteAccount,
+} = useSession()
+
+const confirmingDelete = ref(false)
 </script>
 
 <template>
   <div class="flex h-full flex-col gap-4 overflow-auto px-8 py-6">
     <div class="flex flex-col gap-1">
       <h1 class="text-2xl font-semibold tracking-tight">Nastavení</h1>
-      <p class="text-[15px] text-muted">Propojení s dalšími aplikacemi.</p>
+      <p class="text-[15px] text-muted">Propojení s dalšími aplikacemi a tvůj účet.</p>
     </div>
     <div class="flex max-w-md flex-col gap-4">
       <CalendarCard
@@ -23,6 +33,35 @@ const { state, calendarConnectUrl, setCalendarAutoWrite, syncCalendar, disconnec
       <p v-if="state.calendar?.state === 'unavailable'" class="text-muted">
         Google Kalendář teď připojit nejde, server ho nemá nastavený.
       </p>
+
+      <section
+        aria-labelledby="account-title"
+        class="flex flex-col gap-3 rounded-xl border border-line bg-white p-5"
+      >
+        <h2 id="account-title" class="text-base font-semibold">Účet</h2>
+        <p>
+          <span class="font-semibold">{{ state.user?.name }}</span>
+          <span class="block text-muted">{{ state.user?.email }}</span>
+        </p>
+        <UiButton
+          v-if="!confirmingDelete"
+          variant="danger"
+          class="self-start"
+          @click="confirmingDelete = true"
+        >
+          Smazat účet
+        </UiButton>
+        <div v-else role="alertdialog" aria-label="Smazat účet" class="flex flex-col gap-2">
+          <p class="text-warn">
+            Smaže se účet, tvůj rozpis, přátelství i akce, které pořádáš. Skupiny, které vedeš,
+            převezme další člen. Google Kalendář se odpojí. Vrátit to nejde.
+          </p>
+          <div class="flex gap-2">
+            <UiButton variant="danger" @click="deleteAccount">Smazat</UiButton>
+            <UiButton @click="confirmingDelete = false">Nechat</UiButton>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>

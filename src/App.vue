@@ -27,7 +27,6 @@ const {
   selectedGroup,
   init,
   logout,
-  deleteAccount,
   acceptLocalActions,
   dismissLocalActions,
   showSchedule,
@@ -153,15 +152,6 @@ async function submitGroup(name: string) {
             Přátelé
             <span class="text-xs font-normal text-muted">{{ state.friends.length }}</span>
           </button>
-          <button
-            v-if="!state.demo"
-            type="button"
-            :class="navClass(state.page === 'settings')"
-            :aria-current="state.page === 'settings' ? 'page' : undefined"
-            @click="showSettings"
-          >
-            Nastavení
-          </button>
         </nav>
         <ActionList
           :actions="actionItems"
@@ -180,8 +170,9 @@ async function submitGroup(name: string) {
           :name="state.user?.name ?? ''"
           :email="state.user?.email ?? ''"
           :demo="state.demo"
+          :settings-open="state.page === 'settings'"
           @logout="logout"
-          @delete-account="deleteAccount"
+          @settings="showSettings"
         />
       </template>
 
