@@ -173,6 +173,17 @@ describe('doptání po čtení', () => {
     expect((await anna.send('POST', `${base}/clarify`, { message: 'x' })).status).toBe(409)
   })
 
+  it('rebuilds stored sources at startup when the rebuild changes, and leaves the rest', async () => {
+    const { store, db } = await setup()
+    // Podklad uložený starší verzí přepočtu, třeba s poznámkou, která už neplatí.
+    await db.query(`update sources set warnings = '["Stará poznámka."]'::jsonb`)
+    expect(await store.rebuildReviewedSources(buildSource)).toBe(1)
+    const [row] = await db.query<{ warnings: string[] }>('select warnings from sources')
+    expect(row.warnings).not.toContain('Stará poznámka.')
+    // Podruhé už není co měnit, i když Postgres v jsonb přeházel pořadí klíčů.
+    expect(await store.rebuildReviewedSources(buildSource)).toBe(0)
+  })
+
   it('does not let anyone else answer or ask about my source', async () => {
     const { app, base } = await setup()
     const eva = browser(app)

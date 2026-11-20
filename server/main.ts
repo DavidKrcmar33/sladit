@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { serve } from '@hono/node-server'
 import { clarifyAnswers } from '@/llm/clarify'
+import { buildSource } from '@/llm/review'
 import { depsFromConfig, extractWithReport } from '@/llm/extract'
 import { createApp } from './app'
 import { fakeGoogle, realGoogle } from './auth/google'
@@ -30,6 +31,9 @@ async function start() {
   if (stopping) return { db, server: null }
 
   const store = createStore(db)
+  // Oprava přepočtu doptání se projeví i u podkladů, které už jsou zodpovězené.
+  const rebuilt = await store.rebuildReviewedSources(buildSource)
+  if (rebuilt > 0) console.log(`Přepočítané podklady s doptáním: ${rebuilt}`)
   const google =
     config.google.mode === 'fake'
       ? fakeGoogle(config.appOrigin)

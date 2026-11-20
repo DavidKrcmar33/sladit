@@ -121,6 +121,15 @@ function json(value: unknown): string {
   return JSON.stringify(value)
 }
 
+/** JSON se seřazenými klíči. Postgres v jsonb pořadí klíčů mění, porovnání na něm nesmí záviset. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+      : item,
+  )
+}
+
 function toSource(row: unknown): Source {
   const { id, circle, files, coverage, shifts, warnings, parity, questions, reviewable } =
     SourceRowSchema.parse(row)
@@ -604,6 +613,44 @@ export function createStore(db: Db) {
         basis: row.basis ? ReviewBasisSchema.parse(row.basis) : null,
         answers: z.array(SourceAnswerSchema).parse(row.answers),
       }
+    },
+
+    /**
+     * Přepočítá všechny podklady s doptáním podle současného kódu (při startu serveru). Oprava
+     * přepočtu se tak projeví i u podkladů, na které už člověk všechno zodpověděl.
+     * Vrátí, kolik podkladů se změnilo.
+     */
+    async rebuildReviewedSources(
+      build: (basis: ReviewBasis, answers: SourceAnswer[]) => BuiltSource,
+    ): Promise<number> {
+      const rows = await db.query<{
+        id: string
+        basis: unknown
+        answers: unknown
+        coverage: unknown
+        shifts: unknown
+        warnings: unknown
+        questions: unknown
+      }>(
+        'select id, basis, answers, coverage, shifts, warnings, questions from sources where basis is not null',
+      )
+      let changed = 0
+      for (const row of rows) {
+        const basis = ReviewBasisSchema.safeParse(row.basis)
+        const answers = z.array(SourceAnswerSchema).safeParse(row.answers)
+        if (!basis.success || !answers.success) continue
+        const built = build(basis.data, answers.data)
+        const next = [built.coverage, built.shifts, built.warnings, built.questions]
+        const stored = [row.coverage, row.shifts, row.warnings, row.questions]
+        if (stableJson(next) === stableJson(stored)) continue
+        await db.query(
+          `update sources set coverage = $2::jsonb, shifts = $3::jsonb, warnings = $4::jsonb,
+             questions = $5::jsonb where id = $1`,
+          [row.id, ...next.map(json)],
+        )
+        changed += 1
+      }
+      return changed
     },
 
     /**
