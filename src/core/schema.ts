@@ -99,6 +99,30 @@ export const ParitySchema = z.object({
 })
 
 /**
+ * Otázka k přečtenému podkladu, na kterou odpoví jen člověk (doptání po čtení). Vzniká ze čtení
+ * pravidly, ne modelem, a zmizí, když na ni člověk odpoví nebo ji přeskočí.
+ */
+export const SourceQuestionSchema = z.discriminatedUnion('kind', [
+  /** Týdenní rozvrh bez data platnosti. Dokud člověk neodpoví, platí pro hledané období. */
+  z.object({ kind: z.literal('period'), assumed: DateRangeSchema }),
+  /** Nejistě přečtený blok: text z podkladu a časy, jak je model přečetl. */
+  z.object({
+    kind: z.literal('shift'),
+    raw: z.string(),
+    label: z.string(),
+    start: TimeStringSchema,
+    end: TimeStringSchema,
+    firstDate: DateStringSchema,
+    count: z.number().int().positive(),
+  }),
+  /** Pravidelný rozvrh vychází na státní svátky. */
+  z.object({
+    kind: z.literal('holiday'),
+    holidays: z.array(z.object({ date: DateStringSchema, name: z.string() })).min(1),
+  }),
+])
+
+/**
  * Jeden přečtený podklad (i víc souborů přečtených najednou), s vlastním pokrytím.
  * Směny se neořezávají na období akce, takže zdroj jde použít i pro jinou akci.
  */
@@ -111,6 +135,11 @@ export const SourceSchema = z.object({
   shifts: z.array(ShiftSchema),
   warnings: z.array(z.string()).default([]),
   parity: ParitySchema.default({ calendar: false, anchors: [] }),
+  /**
+   * Otevřené otázky doptání. Chybí u podkladů přečtených před doptáním a u obsazenosti
+   * z kalendáře: k těm se doptat nejde.
+   */
+  questions: z.array(SourceQuestionSchema).optional(),
 })
 
 /** Ruční úprava jednoho dne. Pokrývá přesně ten den a nové čtení ji nepřepíše. */
@@ -211,6 +240,7 @@ export type PersonSchedule = z.infer<typeof PersonScheduleSchema>
 export type SourceFileKind = z.infer<typeof SourceFileKindSchema>
 export type SourceFile = z.infer<typeof SourceFileSchema>
 export type Parity = z.infer<typeof ParitySchema>
+export type SourceQuestion = z.infer<typeof SourceQuestionSchema>
 export type Source = z.infer<typeof SourceSchema>
 /** Co vrací čtení podkladů: zdroj bez id a souborů, ty doplní ten, kdo čtení zadal. */
 export type SourceContent = Omit<Source, 'id' | 'files'>
