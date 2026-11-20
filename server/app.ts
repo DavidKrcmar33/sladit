@@ -10,6 +10,7 @@ import {
   ClarifyRequestSchema,
   ConfirmedSlotSchema,
   CreateActionRequestSchema,
+  SendFriendRequestSchema,
   GroupNameSchema,
   ImportRequestSchema,
   InviteToActionRequestSchema,
@@ -703,6 +704,37 @@ export function createApp(deps: AppDeps) {
     const done = await store.revokeFriendInvite(c.get('user').id, c.req.param('inviteId'))
     if (!done) return fail(c, 404, { error: 'Pozvánka nenalezena.' })
     return c.json({ ok: true })
+  })
+
+  // Žádost o přátelství podle e-mailu. Odpověď neprozradí, zda e-mail patří k účtu.
+  api.post('/friends/requests', async (c) => {
+    const body = await parseBody(c, SendFriendRequestSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const result = await store.sendFriendRequest(user.id, body.data.email, now())
+    if (result === 'self') return fail(c, 400, { error: 'To je tvůj e-mail.' })
+    if (result === 'limit') {
+      return fail(c, 429, {
+        error: 'Dnes už jsi poslal hodně žádostí, zkus to zítra.',
+        code: 'limit',
+      })
+    }
+    return c.json({ result, ...(await store.friendsOf(user.id, now())) })
+  })
+
+  api.post('/friends/requests/:requestId/accept', async (c) => {
+    const user = c.get('user')
+    const friendId = await store.acceptFriendRequest(user.id, c.req.param('requestId'), now())
+    if (!friendId) return fail(c, 404, { error: 'Žádost už neplatí.' })
+    return c.json(await store.friendsOf(user.id, now()))
+  })
+
+  // Odmítnutí žádosti, kterou jsem dostal, nebo zrušení té, kterou jsem poslal.
+  api.delete('/friends/requests/:requestId', async (c) => {
+    const user = c.get('user')
+    const done = await store.deleteFriendRequest(user.id, c.req.param('requestId'))
+    if (!done) return fail(c, 404, { error: 'Žádost už neplatí.' })
+    return c.json(await store.friendsOf(user.id, now()))
   })
 
   api.delete('/friends/:userId', async (c) => {

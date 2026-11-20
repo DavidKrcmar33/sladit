@@ -40,6 +40,12 @@ import type { Db } from './db'
 /** Nejvíc členů ve skupině. Pozvánka je odkaz, který se může dostat dál, než měl. */
 export const MAX_GROUP_MEMBERS = 50
 
+/** Žádost o přátelství platí 30 dní, pak se už neukazuje. */
+const FRIEND_REQUEST_DAYS = 30
+/** Nejvíc žádostí o přátelství od jednoho člověka za 24 hodin, proti obtěžování. */
+export const MAX_FRIEND_REQUESTS_PER_DAY = 20
+const DAY_MS = 24 * 60 * 60 * 1000
+
 /** Nejvíc uložených odpovědí u jednoho podkladu. Starší se zahodí, novější je přepíšou stejně. */
 const MAX_ANSWERS = 100
 
@@ -458,6 +464,7 @@ export function createStore(db: Db) {
   }
 
   async function friendsOf(userId: string, now: Date) {
+    const since = new Date(now.getTime() - FRIEND_REQUEST_DAYS * DAY_MS).toISOString()
     const friends = await db.query<Friend>(
       `select p.owner_id as "userId", p.name from friendships f
        join people p on p.is_self and p.owner_id = case when f.user_a = $1 then f.user_b else f.user_a end
@@ -469,7 +476,45 @@ export function createStore(db: Db) {
        where created_by = $1 and revoked_at is null and expires_at > $2 order by created_at`,
       [userId, now.toISOString()],
     )
-    return { friends, invites: invites.map((row) => toInvite(row)) }
+    // Žádosti pro můj e-mail, kromě lidí, se kterými už přátelé jsme (třeba přes odkaz).
+    const incoming = await db.query<{
+      id: string
+      from_name: string
+      from_email: string
+      created_at: Date | string
+    }>(
+      `select r.id, p.name as from_name, u.email as from_email, r.created_at
+       from friend_requests r
+       join users me on me.id = $1
+       join users u on u.id = r.from_user
+       join people p on p.owner_id = r.from_user and p.is_self
+       where r.to_email = lower(me.email) and r.created_at > $2
+         and not exists (select 1 from friendships f
+                         where (f.user_a = $1 and f.user_b = r.from_user)
+                            or (f.user_b = $1 and f.user_a = r.from_user))
+       order by r.created_at`,
+      [userId, since],
+    )
+    const outgoing = await db.query<{ id: string; to_email: string; created_at: Date | string }>(
+      `select id, to_email, created_at from friend_requests
+       where from_user = $1 and created_at > $2 order by created_at`,
+      [userId, since],
+    )
+    return {
+      friends,
+      invites: invites.map((row) => toInvite(row)),
+      incoming: incoming.map((row) => ({
+        id: row.id,
+        fromName: row.from_name,
+        fromEmail: row.from_email,
+        createdAt: isoTime(row.created_at),
+      })),
+      outgoing: outgoing.map((row) => ({
+        id: row.id,
+        email: row.to_email,
+        createdAt: isoTime(row.created_at),
+      })),
+    }
   }
 
   return {
@@ -943,6 +988,97 @@ export function createStore(db: Db) {
         `update friend_invites set revoked_at = now()
          where id = $2 and created_by = $1 and revoked_at is null returning id`,
         [userId, inviteId],
+      )
+      return rows.length > 0
+    },
+
+    /**
+     * Žádost o přátelství podle e-mailu. Kdo ten e-mail má, odesílatel se nedozví: pro e-mail
+     * s účtem i bez něj je výsledek `sent`. Výjimkou jsou lidé, které už zná: s přáteli je
+     * `friends` a když mi dotyčný už sám žádost poslal, rovnou jsme přátelé (`accepted`).
+     */
+    async sendFriendRequest(
+      userId: string,
+      email: string,
+      now: Date,
+    ): Promise<'sent' | 'accepted' | 'friends' | 'self' | 'limit'> {
+      const since = new Date(now.getTime() - FRIEND_REQUEST_DAYS * DAY_MS).toISOString()
+      return db.transaction(async (tx) => {
+        const [me] = await tx.query<{ email: string }>(
+          'select lower(email) as email from users where id = $1',
+          [userId],
+        )
+        if (!me || me.email === email) return 'self' as const
+        const [target] = await tx.query<{ id: string }>(
+          'select id from users where lower(email) = $1',
+          [email],
+        )
+        if (target) {
+          const [a, b] = pair(userId, target.id)
+          const friends = await tx.query(
+            'select 1 from friendships where user_a = $1 and user_b = $2',
+            [a, b],
+          )
+          if (friends.length > 0) return 'friends' as const
+          const reverse = await tx.query(
+            `delete from friend_requests where from_user = $1 and to_email = $2 and created_at > $3
+             returning id`,
+            [target.id, me.email, since],
+          )
+          if (reverse.length > 0) {
+            await tx.query(
+              'insert into friendships (user_a, user_b) values ($1, $2) on conflict do nothing',
+              [a, b],
+            )
+            return 'accepted' as const
+          }
+        }
+        const [sentToday] = await tx.query<{ count: number | string }>(
+          'select count(*) as count from friend_requests where from_user = $1 and created_at > $2',
+          [userId, new Date(now.getTime() - DAY_MS).toISOString()],
+        )
+        if (Number(sentToday?.count ?? 0) >= MAX_FRIEND_REQUESTS_PER_DAY) return 'limit' as const
+        // Opakovaná žádost na stejný e-mail jen prodlouží platnost.
+        await tx.query(
+          `insert into friend_requests (id, from_user, to_email, created_at) values ($1, $2, $3, $4)
+           on conflict (from_user, to_email) do update set created_at = excluded.created_at`,
+          [randomUUID(), userId, email, now.toISOString()],
+        )
+        return 'sent' as const
+      })
+    },
+
+    /** Přijme žádost poslanou na můj e-mail. Vrátí id nového přítele, nebo null. */
+    async acceptFriendRequest(
+      userId: string,
+      requestId: string,
+      now: Date,
+    ): Promise<string | null> {
+      const since = new Date(now.getTime() - FRIEND_REQUEST_DAYS * DAY_MS).toISOString()
+      return db.transaction(async (tx) => {
+        const [request] = await tx.query<{ from_user: string }>(
+          `delete from friend_requests r using users me
+           where r.id = $2 and me.id = $1 and r.to_email = lower(me.email) and r.created_at > $3
+           returning r.from_user`,
+          [userId, requestId, since],
+        )
+        if (!request) return null
+        const [a, b] = pair(userId, request.from_user)
+        await tx.query(
+          'insert into friendships (user_a, user_b) values ($1, $2) on conflict do nothing',
+          [a, b],
+        )
+        return request.from_user
+      })
+    },
+
+    /** Odmítne žádost poslanou mně, nebo zruší žádost, kterou jsem poslal já. */
+    async deleteFriendRequest(userId: string, requestId: string): Promise<boolean> {
+      const rows = await db.query(
+        `delete from friend_requests r using users me
+         where r.id = $2 and me.id = $1 and (r.from_user = $1 or r.to_email = lower(me.email))
+         returning r.id`,
+        [userId, requestId],
       )
       return rows.length > 0
     },

@@ -182,10 +182,47 @@ export const CreateInviteResponseSchema = z.object({
 /** Přítel. Vidí o sobě navzájem jen jméno, e-mail ne. */
 export const FriendSchema = z.object({ userId: z.string(), name: z.string() })
 
+/**
+ * Žádost o přátelství, kterou mi někdo poslal na e-mail. Jeho jméno a e-mail vidím, abych věděl,
+ * kdo mě přidává (odesílatel to ví předem).
+ */
+export const FriendRequestSchema = z.object({
+  id: z.string(),
+  fromName: z.string(),
+  fromEmail: z.string(),
+  createdAt: z.string(),
+})
+
+/** Žádost, kterou jsem poslal já. Čeká, dokud ji adresát nepřijme nebo neodmítne. */
+export const SentFriendRequestSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  createdAt: z.string(),
+})
+
 export const FriendsResponseSchema = z.object({
   friends: z.array(FriendSchema),
   /** Moje platné osobní odkazy „přidej si mě do přátel“. */
   invites: z.array(InviteLinkSchema),
+  incoming: z.array(FriendRequestSchema),
+  outgoing: z.array(SentFriendRequestSchema),
+})
+
+export const SendFriendRequestSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(200, 'E-mail je příliš dlouhý.')
+    .pipe(z.email('Zadej platný e-mail.')),
+})
+
+/**
+ * Výsledek žádosti. `sent` i pro e-mail bez účtu, aby nešlo zjišťovat, kdo aplikaci používá.
+ * `accepted`: dotyčný mi už žádost poslal sám, takže jsme rovnou přátelé.
+ */
+export const SendFriendRequestResponseSchema = FriendsResponseSchema.extend({
+  result: z.enum(['sent', 'accepted', 'friends']),
 })
 
 export const CreateFriendInviteResponseSchema = z.object({
@@ -310,6 +347,10 @@ export type OtherParticipant = z.infer<typeof OtherParticipantSchema>
 export type ActionInvite = z.infer<typeof ActionInviteSchema>
 export type ConfirmedSlot = z.infer<typeof ConfirmedSlotSchema>
 export type Friend = z.infer<typeof FriendSchema>
+export type FriendRequest = z.infer<typeof FriendRequestSchema>
+export type SentFriendRequest = z.infer<typeof SentFriendRequestSchema>
+export type FriendsResponse = z.infer<typeof FriendsResponseSchema>
+export type SendFriendRequestResponse = z.infer<typeof SendFriendRequestResponseSchema>
 export type AcceptInviteResponse = z.infer<typeof AcceptInviteResponseSchema>
 export type DayAttendance = z.infer<typeof DayAttendanceSchema>
 export type ActionView = z.infer<typeof ActionViewSchema>
