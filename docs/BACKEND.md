@@ -49,7 +49,7 @@ Migrace jsou v `server/db/migrations/`, spouští je server sám při startu (`m
 | `sessions`             | Přihlášení. V databázi je jen otisk tokenu (SHA-256), samotný token má jen cookie v prohlížeči.                                                  |
 | `oauth_states`         | Rozpracované přihlášení: náhodný `state` a ověřovač PKCE. Platí 15 minut a jde použít jen jednou.                                                |
 | `people`               | Rozpis uživatele (`is_self`). Hosté z doby před fází 5 tu zůstali, aplikace je už nepoužívá.                                                     |
-| `sources`              | Přečtený podklad: okruh, názvy souborů, pokrytí, směny, poznámky, parita (JSON podle `src/core/schema.ts`).                                      |
+| `sources`              | Přečtený podklad (JSON podle `src/core/schema.ts`) i s otázkami doptání. Jen server zná čtení (`basis`) a odpovědi.                              |
 | `day_overrides`        | Ruční úprava jednoho dne. Nové čtení ji nepřepíše.                                                                                               |
 | `actions`              | Akce: období, délka, denní okno, organizátor a potvrzený termín (`confirmed_*`).                                                                 |
 | `action_invites`       | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`.                                              |
@@ -82,6 +82,8 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `PATCH /people/:id`                                    | Přejmenování (jméno, které vidí ostatní).                          |
 | `POST /people/:id/readings`                            | Přečte připravené podklady modelem a uloží nový zdroj.             |
 | `PATCH`, `DELETE /people/:id/sources/:sourceId`        | Okruh, odpověď na lichý týden, smazání zdroje.                     |
+| `POST /people/:id/sources/:sourceId/answers`           | Odpovědi na doptání. Zdroj se hned přepočítá.                      |
+| `POST /people/:id/sources/:sourceId/clarify`           | Věta vlastními slovy: AI vrátí návrh změn, nic se neuloží.         |
 | `PUT`, `DELETE /people/:id/overrides/:date`            | Ruční úprava dne a její zrušení.                                   |
 | `GET`, `POST /actions`, `PATCH`, `DELETE /actions/:id` | Akce. `POST` s `inviteUserIds` rovnou pozve.                       |
 | `GET /actions/:id/view`                                | Návrhy, jistota termínu a stav dne ostatních (viz Soukromí).       |
@@ -132,7 +134,7 @@ Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`).
 
 **Požadavky z cizí stránky (CSRF).** Server přijme změnu (`POST`, `PATCH`, `PUT`, `DELETE`) jen s hlavičkou `Origin` rovnou adrese aplikace, nebo bez ní se `Sec-Fetch-Site: same-origin`. Cookie navíc má `SameSite=Lax`.
 
-**Čtení modelem.** Podklad se připraví v prohlížeči (`src/llm/ingest.ts`): z Excelu jde jen viditelná část, název souboru se modelu neposílá. Server přijme nejvýš 6 souborů, každý do 10 MB a dohromady do 25 MB. U obrázků a PDF podle prvních bajtů ověří, že soubor opravdu je tím, za co se vydává. Pokyny pro model skládá jen server. Denní limity: `READ_LIMIT_PER_USER_PER_DAY` (výchozí 30) a `READ_LIMIT_TOTAL_PER_DAY` (300). Čtení se započítá předem, i když selže. Volitelně `ALLOWED_EMAILS` pustí dovnitř jen vyjmenované účty.
+**Čtení modelem.** Podklad se připraví v prohlížeči (`src/llm/ingest.ts`): z Excelu jde jen viditelná část, název souboru se modelu neposílá. Server přijme nejvýš 6 souborů, každý do 10 MB a dohromady do 25 MB. U obrázků a PDF podle prvních bajtů ověří, že soubor opravdu je tím, za co se vydává. Pokyny pro model skládá jen server. Denní limity: `READ_LIMIT_PER_USER_PER_DAY` (výchozí 30) a `READ_LIMIT_TOTAL_PER_DAY` (300). Čtení se započítá předem, i když selže. Do stejného limitu se počítá každá zpráva v doptání vlastními slovy. Volitelně `ALLOWED_EMAILS` pustí dovnitř jen vyjmenované účty.
 
 **Tajemství.** Klíče jsou jen v proměnných prostředí serveru, v repozitáři žádné nejsou. Žádný klíč nesmí mít jméno začínající `VITE_`: takové proměnné Vite může vložit do aplikace pro prohlížeč. Server dřívější názvy s touto předponou ještě přečte, ale při startu vypíše, které je potřeba přejmenovat. Sestavení v `dist/` klíč neobsahuje, ověřeno 19. 11. 2026.
 

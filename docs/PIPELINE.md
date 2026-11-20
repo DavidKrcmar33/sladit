@@ -109,6 +109,28 @@ LLM_VERIFY=off
 LLM_VERIFY_MODEL=<id modelu>
 ```
 
+## Doptání po čtení
+
+Co z podkladu jistě vyčíst nejde, se aplikace po čtení zeptá v okně „Doptání k podkladu“ nad kalendářem (Můj rozvrh). Otázky vznikají pravidly z čtení, ne modelem (`findQuestions` v `src/llm/review.ts`):
+
+| Otázka                    | Kdy vznikne                                                              | Odpovědi                            |
+| ------------------------- | ------------------------------------------------------------------------ | ----------------------------------- |
+| Na jaké období platí?     | Týdenní rozvrh bez data platnosti. Do odpovědi platí hledané období.     | Od–do (nejvýš rok), Nevím           |
+| Platí i ve svátek?        | Pravidelný blok vychází na státní svátek.                                | Ve svátek neplatí, Platí, Nevím     |
+| Je to tak? (nejistý blok) | Nejisté čtení. Stejný text a časy jsou jedna otázka pro všechny výskyty. | Ano, Jiný čas, Není to směna, Nevím |
+| Lichý, nebo sudý týden?   | Jako dřív (`findParityQuestions`), jen v okně doptání.                   | Lichý, Sudý                         |
+
+Server u podkladu uloží strukturální čtení (`basis`: jedno nebo dvě čtení, hledané období, poznámky) a všechny odpovědi. Po každé odpovědi se podklad přepočítá znovu od začátku (`buildSource`): odpovědi upraví čtení (platnost, volné dny), pak převod na data, porovnání dvou čtení, opravy bloků a svátků a kontroly. Výsledek proto nezávisí na pořadí odpovědí a samotné čtení (`extractWithReport`) jde stejnou cestou bez odpovědí. Podklady přečtené před doptáním čtení uložené nemají a doptat se k nim nejde.
+
+### Odpověď vlastními slovy
+
+Do okna jde napsat i větu, třeba „platí to od prosince do února, o Vánocích nepracuju“. Server ji pošle modelu (`src/llm/clarify.ts`) spolu se shrnutím čtení (druh podkladu, legenda, bloky, směny), otevřenými otázkami a dnešním datem. Jména ani názvy souborů ne.
+
+- Model vrací ploché schéma bez variant (období, volné dny, svátky, opravy bloků) a krátkou větu, co pochopil, nebo doplňující otázku.
+- Kód z toho sestaví stejné odpovědi jako z tlačítek a každou ověří. Opravit jde jen blok, na který se aplikace ptá. Co neprojde (třeba platnost delší než rok), se zahodí.
+- Nic se neuloží hned. Server spočítá, co se v rozpisu změní („Platnost: … → …“, „Změní se čas: 4 …“), a člověk změny potvrdí tlačítkem „Použít změny“, nebo je zahodí.
+- Každá zpráva je jedno volání modelu a počítá se do denního limitu čtení.
+
 ## Skládání rozpisu
 
 `composeSchedule` v `core/compose.ts`, čistá funkce bez sítě. Ze zdrojů a ručních úprav jednoho člověka složí rozpis pro období akce. Plánovač dostane jen tento hotový rozpis.
@@ -129,7 +151,8 @@ Plánovač (`core/scheduler.ts`) pak rozhoduje takto: „nemůže“, kdykoli do
 | Nejistá směna                   | Čárkovaný okraj buňky, upozornění „Nejistá čtení“ a text v editoru dne.           |
 | Místo údaje v podkladu          | Řádek „V podkladu: …“ pod směnou v editoru dne.                                   |
 | Skrytý obsah v Excelu           | Věta v panelu „Poznámky ke čtení“, že se skryté listy, řádky nebo sloupce nečtou. |
-| Rozvrh s lichými a sudými týdny | Otázka „Týden 23.–29. 11. je lichý, nebo sudý?“ nad kalendářem.                   |
+| Rozvrh s lichými a sudými týdny | Otázka „Týden 23.–29. 11. je lichý, nebo sudý?“ v okně doptání nad kalendářem.    |
+| Bez data, nejistota, svátky     | Okno „Doptání k podkladu“ nad kalendářem, znovu ho otevře „Upřesnit“ u podkladu.  |
 | Okruh podkladu                  | Výběr Práce, Škola, Další práce u podkladu v panelu Kdo jde.                      |
 | Ruční úprava dne                | V editoru dne věta „Den je upravený ručně“ a tlačítko „Vrátit podle podkladů“.    |
 | Nečitelný podklad, limit, chyba | Hláška u člověka v kroku Podklady a tlačítko „Zkusit znovu“.                      |
@@ -191,6 +214,7 @@ Po tomto měření přibyly tři rozvrhy (`s23`–`s25`) a 13 skupin (`g11`–`g
 
 - Předzpracování fotek (oříznutí, narovnání, kontrast). Čitelnost teď posuzuje jen model.
 - Odkaz na místo v podkladu je text, ne souřadnice. Zvýraznění přímo v náhledu souboru není.
-- Cílené doptání uživatele, paměť formátů a učení z oprav (fáze 5 až 7 návrhu).
+- Paměť formátů a učení z oprav. Doptání se ptá znovu u každého nového podkladu.
+- Doptání vlastními slovy zatím nemá vlastní měření v `eval/`.
 - Výběr „můj řádek“ u týmových tabulek. Podklad s více lidmi se teď nečte vůbec. U Excelu pomůže ostatní řádky skrýt nebo vyfiltrovat, modelu pak jde jen viditelný řádek (na modelu zatím neměřeno).
 - Fotky a PDF se posílají celé tak, jak jsou, i s metadaty souboru (u fotky třeba místo pořízení, pokud ho telefon uložil).
