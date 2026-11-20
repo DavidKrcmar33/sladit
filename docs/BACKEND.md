@@ -55,6 +55,7 @@ Migrace jsou v `server/db/migrations/`, spouští je server sám při startu (`m
 | `action_invites`       | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`.                                              |
 | `friendships`          | Přátelství, vzájemné. Dvojice je uložená jednou, menší id první.                                                                                 |
 | `friend_invites`       | Osobní odkaz „přidej si mě do přátel“: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                       |
+| `friend_requests`      | Žádost o přátelství podle e-mailu: odesílatel a e-mail adresáta malými písmeny. Platí 30 dní, adresát nemusí mít účet.                           |
 | `groups`               | Skupina: seznam lidí, které jde pozvat do akce najednou.                                                                                         |
 | `memberships`          | Členství s rolí `owner` (zakladatel) nebo `member`.                                                                                              |
 | `invites`              | Odkaz s pozvánkou do skupiny: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                                |
@@ -93,6 +94,8 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `PUT`, `DELETE /actions/:id/confirmed`                 | Potvrzení termínu a jeho zrušení (jen organizátor).                |
 | `GET /friends`, `DELETE /friends/:userId`              | Moji přátelé a moje platné odkazy, zrušení přátelství.             |
 | `POST`, `DELETE /friends/invites(/:inviteId)`          | Nový osobní odkaz do přátel (jen tentokrát v odpovědi), zrušení.   |
+| `POST /friends/requests`                               | Žádost o přátelství podle e-mailu (nejvýš 20 za 24 hodin).         |
+| `POST /friends/requests/:id/accept`, `DELETE …/:id`    | Přijetí žádosti, odmítnutí nebo zrušení vlastní.                   |
 | `GET`, `POST /groups`, `DELETE /groups/:id`            | Moje skupiny, nová skupina, smazání (jen zakladatel).              |
 | `POST /groups/:id/leave`                               | Odchod ze skupiny.                                                 |
 | `POST /groups/:id/members`                             | Zakladatel přidá rovnou někoho ze svých přátel.                    |
@@ -122,7 +125,7 @@ Akci upravuje, maže, zve do ní a potvrzuje termín jen organizátor. Pozvaný 
 - zda může v každém ze tří návrhů,
 - u křehkého termínu den, na kterém záleží, bez důvodu (chybí rozpis, nebo nejisté čtení).
 
-Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`). Rozpisy cizích lidí jen použije, ven je nepustí. Jediná metoda úložiště, která čte cizí rozpisy, je `actionForView` a volá ji jen tento výpočet. Přátelé ani členové skupin o sobě nevidí e-mail. Výpočet je v `src/core/sharedView.ts`, stejně ho počítá i ukázka bez přihlášení. Testy v `server/events.test.ts` hledají v odpovědích pro účastníka skutečné časy, označení, text z podkladu, poznámky i název souboru a zkoušejí přístup za pozvaného, za organizátora i za člověka, který pozvaný není.
+Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`). Rozpisy cizích lidí jen použije, ven je nepustí. Jediná metoda úložiště, která čte cizí rozpisy, je `actionForView` a volá ji jen tento výpočet. Přátelé ani členové skupin o sobě nevidí e-mail. Výjimkou je žádost o přátelství podle e-mailu: adresát vidí jméno a e-mail odesílatele, aby poznal, od koho je (formulář to odesílateli řekne předem). Odesílatel se naopak nedozví, zda e-mail patří k účtu: odpověď je stejná pro e-mail s účtem i bez něj. Výpočet je v `src/core/sharedView.ts`, stejně ho počítá i ukázka bez přihlášení. Testy v `server/events.test.ts` hledají v odpovědích pro účastníka skutečné časy, označení, text z podkladu, poznámky i název souboru a zkoušejí přístup za pozvaného, za organizátora i za člověka, který pozvaný není.
 
 **Odkazy s pozvánkou.** Do skupiny i do přátel vede odkaz `/pozvanka/<token>` s náhodným tokenem (32 bajtů). Server zná jen jeho otisk, takže odkaz ukáže jen jednou. Platí 7 dní, víc lidí ho může použít a ten, kdo ho vytvořil, ho může kdykoli zrušit. Přátelství vznikne, až druhý odkaz otevře a potvrdí. Prohlížeč adresu s tokenem hned přepíše na `/`, aby nezůstala v historii, a token podrží v `sessionStorage` přes přihlášení u Googlu.
 
