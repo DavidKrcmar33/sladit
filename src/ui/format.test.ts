@@ -214,10 +214,8 @@ describe('describeStability', () => {
     unknown: [],
   }
 
-  it('says a certain date is certain', () => {
-    expect(describeStability({ winner, certain: true, pivots: [] }, nameOf)).toBe(
-      'Jistý podle přečtených dat.',
-    )
+  it('says nothing about a certain date', () => {
+    expect(describeStability({ winner, certain: true, pivots: [] }, nameOf)).toBeNull()
   })
 
   it('names the people, days and reasons a fragile date depends on', () => {

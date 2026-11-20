@@ -131,14 +131,14 @@ export function describeAvailability({
 const PIVOT_REASON = { missing: 'chybí rozpis', uncertain: 'nejisté čtení' } as const
 
 /**
- * Věta k nejlepšímu termínu: zda je jistý, nebo na čích datech stojí.
+ * Varování k nejlepšímu termínu, na čích datech stojí. Jistý termín žádnou větu nepotřebuje.
  * Například „Může se změnit. Záleží na: Petr (čt 26. 11., chybí rozpis).“
  */
 export function describeStability(
   stability: Stability,
   nameOf: (personId: string) => string,
-): string {
-  if (stability.certain) return 'Jistý podle přečtených dat.'
+): string | null {
+  if (stability.certain) return null
   if (stability.pivots.length === 0) return 'Může se změnit.'
   const people = stability.pivots.map((pivot) => {
     const days = pivot.dates

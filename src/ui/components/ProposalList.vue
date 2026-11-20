@@ -97,13 +97,7 @@ function namesOf(personIds: string[]): string {
         <p v-if="proposal.unknown.length" class="text-muted">
           Neznámo: {{ namesOf(proposal.unknown) }}
         </p>
-        <p
-          v-if="index === 0 && stabilityNote"
-          :class="[
-            'border-t border-line pt-1.5',
-            stability?.certain ? 'text-accent-dark' : 'text-warn',
-          ]"
-        >
+        <p v-if="index === 0 && stabilityNote" class="border-t border-line pt-1.5 text-warn">
           {{ stabilityNote }}
         </p>
         <p v-if="isConfirmed(proposal)" class="font-semibold text-accent-dark">Potvrzeno</p>
