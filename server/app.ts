@@ -5,6 +5,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { z } from 'zod'
 import {
+  AddMemberSchema,
   ConfirmedSlotSchema,
   CreateActionRequestSchema,
   GroupNameSchema,
@@ -656,6 +657,22 @@ export function createApp(deps: AppDeps) {
     const done = await store.leaveGroup(c.get('user').id, c.req.param('id'))
     if (!done) return fail(c, 404, { error: 'Skupina nenalezena.' })
     return c.json({ ok: true })
+  })
+
+  api.post('/groups/:id/members', async (c) => {
+    const body = await parseBody(c, AddMemberSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const groupId = c.req.param('id')
+    const result = await store.addMember(user.id, groupId, body.data.userId)
+    if (result === 'not-owner') {
+      return (await store.groupOf(user.id, groupId, now()))
+        ? fail(c, 403, { error: OWNER_ONLY })
+        : fail(c, 404, { error: 'Skupina nenalezena.' })
+    }
+    if (result === 'not-friend') return fail(c, 403, { error: 'Přidat jde jen přátele.' })
+    if (result === 'full') return fail(c, 403, { error: 'Skupina je plná.', code: 'full' })
+    return c.json({ group: await store.groupOf(user.id, groupId, now()) })
   })
 
   api.delete('/groups/:id/members/:userId', async (c) => {

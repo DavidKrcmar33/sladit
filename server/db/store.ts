@@ -855,6 +855,37 @@ export function createStore(db: Db) {
       return db.transaction((tx) => leave(tx, userId, groupId))
     },
 
+    /**
+     * Zakladatel přidá do skupiny přítele rovnou, bez odkazu. Kdo už členem je, zůstane.
+     * Přidat jde jen vlastní přátele, ne kohokoli podle id.
+     */
+    async addMember(
+      ownerId: string,
+      groupId: string,
+      userId: string,
+    ): Promise<'added' | 'not-owner' | 'not-friend' | 'full'> {
+      return db.transaction(async (tx) => {
+        if (!(await isMember(tx, ownerId, groupId, 'owner'))) return 'not-owner' as const
+        const [a, b] = pair(ownerId, userId)
+        const friends = await tx.query(
+          'select 1 from friendships where user_a = $1 and user_b = $2',
+          [a, b],
+        )
+        if (ownerId === userId || friends.length === 0) return 'not-friend' as const
+        if (await isMember(tx, userId, groupId)) return 'added' as const
+        const [count] = await tx.query<{ count: number | string }>(
+          'select count(*) as count from memberships where group_id = $1',
+          [groupId],
+        )
+        if (Number(count?.count ?? 0) >= MAX_GROUP_MEMBERS) return 'full' as const
+        await tx.query(
+          "insert into memberships (group_id, user_id, role) values ($1, $2, 'member')",
+          [groupId, userId],
+        )
+        return 'added' as const
+      })
+    },
+
     /** Zakladatel odebere člena. Sám sebe odebrat nemůže, na to je odchod. */
     async removeMember(ownerId: string, groupId: string, userId: string): Promise<boolean> {
       if (ownerId === userId) return false

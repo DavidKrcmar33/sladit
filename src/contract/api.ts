@@ -138,6 +138,9 @@ export const GroupNameSchema = z.object({
   name: z.string().trim().min(1, 'Název nesmí být prázdný').max(60, 'Název je příliš dlouhý'),
 })
 
+/** Zakladatel přidá do skupiny někoho ze svých přátel, bez odkazu. */
+export const AddMemberSchema = z.object({ userId: z.string().min(1).max(100) })
+
 /** Platný odkaz s pozvánkou. Samotný odkaz se ukáže jen jednou, při založení. */
 export const InviteLinkSchema = z.object({
   id: z.string(),

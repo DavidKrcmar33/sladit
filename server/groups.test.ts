@@ -146,6 +146,57 @@ describe('pozvánka do skupiny', () => {
   })
 })
 
+describe('přidání z přátel', () => {
+  /** Anna a Eva jsou přátelé přes osobní odkaz. */
+  async function befriend(anna: ReturnType<typeof browser>, eva: ReturnType<typeof browser>) {
+    const created = await json<{ url: string }>(await anna.send('POST', '/api/friends/invites'))
+    await eva.send('POST', `/api/invites/${tokenOf(created.url)}/accept`)
+    const { friends } = await json<{ friends: { userId: string }[] }>(
+      await anna.get('/api/friends'),
+    )
+    const { friends: evaFriends } = await json<{ friends: { userId: string }[] }>(
+      await eva.get('/api/friends'),
+    )
+    return { evaId: friends[0].userId, annaId: evaFriends[0].userId }
+  }
+
+  it('lets the owner add a friend directly; the friend then sees the group', async () => {
+    const { anna, eva, groupId } = await party()
+    const { evaId } = await befriend(anna, eva)
+
+    const added = await anna.send('POST', `/api/groups/${groupId}/members`, { userId: evaId })
+    expect(added.status).toBe(200)
+    expect((await json<{ group: Group }>(added)).group.members.map((m) => m.name)).toEqual([
+      'Anna',
+      'Eva',
+    ])
+    // Podruhé se nic nezmění.
+    await anna.send('POST', `/api/groups/${groupId}/members`, { userId: evaId })
+    const { groups } = await json<{ groups: Group[] }>(await eva.get('/api/groups'))
+    expect(groups).toMatchObject([{ name: 'Parta', isOwner: false }])
+    expect(groups[0].members).toHaveLength(2)
+  })
+
+  it('adds only own friends and only by the owner', async () => {
+    const { anna, eva, jana, token, groupId } = await party()
+    const { evaId, annaId } = await befriend(anna, eva)
+
+    // Jana není Annina přítelkyně: podle id ji Anna přidat nemůže.
+    const janaId = (await json<{ user: { id: string } }>(await jana.get('/api/me'))).user.id
+    const stranger = await anna.send('POST', `/api/groups/${groupId}/members`, { userId: janaId })
+    expect(stranger.status).toBe(403)
+    expect(await json(await jana.get('/api/groups'))).toEqual({ groups: [] })
+
+    // Eva je členkou, ale ne zakladatelkou: přidávat nesmí.
+    await eva.send('POST', `/api/invites/${token}/accept`)
+    const byMember = await eva.send('POST', `/api/groups/${groupId}/members`, { userId: annaId })
+    expect(byMember.status).toBe(403)
+    // Kdo ve skupině není, nedozví se ani to, že existuje.
+    const outsider = await jana.send('POST', `/api/groups/${groupId}/members`, { userId: evaId })
+    expect(outsider.status).toBe(404)
+  })
+})
+
 describe('skupina a akce', () => {
   it('lets a member invite the others to an action; outsiders cannot be invited', async () => {
     const { anna, eva, jana, token } = await party()
