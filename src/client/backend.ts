@@ -3,6 +3,7 @@ import type {
   ActionResource,
   ActionView,
   CalendarStatus,
+  ClarifyResponse,
   ConfirmedSlot,
   Friend,
   Group,
@@ -13,6 +14,7 @@ import type {
   ReadingRequest,
   UpdateSourceRequest,
 } from '@/contract/api'
+import type { SourceAnswer } from '@/core/review'
 import type { Action, ActionDetails, Shift } from '@/core/schema'
 
 /**
@@ -33,6 +35,10 @@ export interface Backend {
   renamePerson(personId: string, name: string): Promise<OwnedPerson>
   read(personId: string, request: ReadingRequest): Promise<OwnedPerson>
   updateSource(personId: string, sourceId: string, patch: UpdateSourceRequest): Promise<OwnedPerson>
+  /** Odpovědi na doptání k podkladu. Podklad se podle nich hned přepočítá. */
+  answerSource(personId: string, sourceId: string, answers: SourceAnswer[]): Promise<OwnedPerson>
+  /** Návrh změn od AI z věty napsané vlastními slovy. Nic neuloží. */
+  clarifySource(personId: string, sourceId: string, message: string): Promise<ClarifyResponse>
   deleteSource(personId: string, sourceId: string): Promise<OwnedPerson>
   setOverride(personId: string, date: string, shifts: Shift[]): Promise<OwnedPerson>
   deleteOverride(personId: string, date: string): Promise<OwnedPerson>

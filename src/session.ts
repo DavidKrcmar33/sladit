@@ -6,6 +6,7 @@ import type {
   ActionResource,
   ActionView,
   CalendarStatus,
+  ClarifyResponse,
   ConfirmedSlot,
   Friend,
   Group,
@@ -24,6 +25,7 @@ import {
 } from './core/calendar'
 import { composePeople, findParityQuestions } from './core/compose'
 import { icsForEvent } from './core/ics'
+import type { SourceAnswer } from './core/review'
 import { sampleAction } from './core/fixtures'
 import {
   actionDetails,
@@ -71,6 +73,12 @@ export type SessionStatus = 'loading' | 'signedOut' | 'ready' | 'failed'
 /** Otevřená stránka hlavní části. */
 export type Page = 'action' | 'schedule' | 'friends' | 'group' | 'settings'
 export type PendingWork = 'confirm' | 'unconfirm' | 'calendar'
+
+/** Jedna zpráva v okně doptání: od aplikace, nebo moje odpověď. */
+export interface ReviewMessage {
+  from: 'app' | 'me'
+  text: string
+}
 
 /** Pozvánka do skupiny nebo do přátel čekající na odpověď. Náhled je null, dokud nedorazí. */
 export interface PendingInvite {
@@ -196,6 +204,18 @@ export function createSession(options: SessionOptions) {
      * do Google Kalendáře trvá i několik sekund, tlačítka se mezitím zablokují.
      */
     pending: null as PendingWork | null,
+    /** Doptání k podkladu. Rozhovor a návrh od AI platí jen pro tuto návštěvu. */
+    review: {
+      /** Podklad, který člověk otevřel sám (Upřesnit). Jinak se okno otevře u otázek samo. */
+      sourceId: null as string | null,
+      /** Podklady, u kterých okno zavřel, i když otázky zbývají. */
+      dismissed: [] as string[],
+      messages: {} as Record<string, ReviewMessage[]>,
+      /** Návrh změn od AI, čeká na potvrzení. */
+      proposal: null as (ClarifyResponse & { sourceId: string }) | null,
+      sending: false,
+      error: null as string | null,
+    },
   })
 
   const fileBlobs = new Map<string, File>()
@@ -231,6 +251,27 @@ export function createSession(options: SessionOptions) {
   )
 
   const scheduleWarnings = computed(() => findReadingWarnings(scheduleComposed.value))
+
+  /**
+   * Podklad v okně doptání: ten, který člověk otevřel, jinak poslední s otevřenými otázkami
+   * (po čtení se okno otevře samo). Starší podklady bez uloženého čtení otázky nemají.
+   */
+  const reviewSource = computed(() => {
+    const sources = me.value?.sources ?? []
+    if (state.review.sourceId) {
+      return (
+        sources.find((source) => source.id === state.review.sourceId && source.questions) ?? null
+      )
+    }
+    return (
+      [...sources]
+        .reverse()
+        .find(
+          (source) =>
+            (source.questions?.length ?? 0) > 0 && !state.review.dismissed.includes(source.id),
+        ) ?? null
+    )
+  })
 
   const scheduleUncertainDays = computed(() =>
     scheduleAction.value ? findUncertainDays(scheduleAction.value, scheduleComposed.value) : [],
@@ -426,6 +467,14 @@ export function createSession(options: SessionOptions) {
     state.lastActionEdit = null
     state.localActions = []
     state.calendar = null
+    state.review = {
+      sourceId: null,
+      dismissed: [],
+      messages: {},
+      proposal: null,
+      sending: false,
+      error: null,
+    }
     fileBlobs.clear()
     // Pozvánka z odkazu zůstává: po přihlášení se nabídne.
     state.invite = inviteToken ? { token: inviteToken, preview: null, error: null } : null
@@ -1022,6 +1071,82 @@ export function createSession(options: SessionOptions) {
     if (updated) replaceMe(updated)
   }
 
+  // Doptání k podkladu
+
+  function openReview(sourceId: string) {
+    state.review.sourceId = sourceId
+    state.review.dismissed = state.review.dismissed.filter((id) => id !== sourceId)
+    state.review.error = null
+  }
+
+  function closeReview() {
+    const sourceId = reviewSource.value?.id
+    if (sourceId) state.review.dismissed.push(sourceId)
+    state.review.sourceId = null
+    state.review.proposal = null
+    state.review.error = null
+  }
+
+  function sayInReview(sourceId: string, message: ReviewMessage) {
+    state.review.messages[sourceId] = [...(state.review.messages[sourceId] ?? []), message]
+  }
+
+  /** Volání serveru z okna doptání. Chyba se ukáže v okně, ne nahoře nad stránkou. */
+  async function reviewCall<T>(work: () => Promise<T>): Promise<T | null> {
+    if (state.review.sending) return null
+    state.review.sending = true
+    state.review.error = null
+    try {
+      return await work()
+    } catch (error) {
+      if (error instanceof BackendError && error.status === 401) signedOut()
+      state.review.error = error instanceof BackendError ? error.message : SAVE_ERROR
+      return null
+    } finally {
+      state.review.sending = false
+    }
+  }
+
+  /** Odpověď z tlačítka. `echo` je moje odpověď, jak se ukáže v rozhovoru. */
+  async function answerReview(sourceId: string, answers: SourceAnswer[], echo: string) {
+    const person = me.value
+    if (!person || state.review.sending) return false
+    const updated = await reviewCall(() => backend.answerSource(person.id, sourceId, answers))
+    if (!updated) return false
+    // Do rozhovoru až po uložení: neuložená odpověď by tam strašila jako platná.
+    sayInReview(sourceId, { from: 'me', text: echo })
+    replaceMe(updated)
+    return true
+  }
+
+  /** Zpráva vlastními slovy: AI z ní navrhne změny, uloží se až po potvrzení. */
+  async function sendReviewMessage(sourceId: string, text: string) {
+    const person = me.value
+    const message = text.trim()
+    if (!person || !message || state.review.sending) return
+    sayInReview(sourceId, { from: 'me', text: message })
+    state.review.proposal = null
+    const result = await reviewCall(() => backend.clarifySource(person.id, sourceId, message))
+    if (!result) return
+    sayInReview(sourceId, { from: 'app', text: result.reply })
+    if (result.answers.length > 0) state.review.proposal = { ...result, sourceId }
+  }
+
+  async function applyReviewProposal() {
+    const proposal = state.review.proposal
+    if (!proposal) return
+    state.review.proposal = null
+    const done = await answerReview(proposal.sourceId, proposal.answers, 'Použít změny')
+    if (done) sayInReview(proposal.sourceId, { from: 'app', text: 'Hotovo, rozpis je upravený.' })
+  }
+
+  function discardReviewProposal() {
+    const proposal = state.review.proposal
+    if (!proposal) return
+    state.review.proposal = null
+    sayInReview(proposal.sourceId, { from: 'app', text: 'Dobře, nic neměním.' })
+  }
+
   /** Posune Můj rozvrh o daný počet týdnů. */
   function shiftSchedule(weeks: number) {
     state.scheduleFrom = addDays(state.scheduleFrom, weeks * 7)
@@ -1052,6 +1177,7 @@ export function createSession(options: SessionOptions) {
     scheduleParityQuestions,
     scheduleWarnings,
     scheduleUncertainDays,
+    reviewSource,
     actionItems,
     contacts,
     selectedResource,
@@ -1109,6 +1235,12 @@ export function createSession(options: SessionOptions) {
     removeSource,
     changeSourceCircle,
     answerWeekParity,
+    openReview,
+    closeReview,
+    answerReview,
+    sendReviewMessage,
+    applyReviewProposal,
+    discardReviewProposal,
     shiftSchedule,
     fileBlob,
   }

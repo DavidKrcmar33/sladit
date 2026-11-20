@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   AcceptInviteResponseSchema,
   CalendarResponseSchema,
+  ClarifyResponseSchema,
   ActionResourceSchema,
   ActionResponseSchema,
   ActionsResponseSchema,
@@ -80,6 +81,12 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     people: () => call(PeopleResponseSchema, 'GET', '/people').then((data) => data.people),
     renamePerson: (personId, name) => person('PATCH', `/people/${personId}`, { name }),
     read: (personId, request) => person('POST', `/people/${personId}/readings`, request),
+    answerSource: (personId, sourceId, answers) =>
+      person('POST', `/people/${personId}/sources/${sourceId}/answers`, { answers }),
+    clarifySource: (personId, sourceId, message) =>
+      call(ClarifyResponseSchema, 'POST', `/people/${personId}/sources/${sourceId}/clarify`, {
+        message,
+      }),
     updateSource: (personId, sourceId, patch) =>
       person('PATCH', `/people/${personId}/sources/${sourceId}`, patch),
     deleteSource: (personId, sourceId) =>

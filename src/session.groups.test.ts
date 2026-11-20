@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { browser, testServer } from '../server/testing'
 import { httpBackend } from './client/http'
 import type { SourceContent } from './core/schema'
+import { buildSource, type ReviewBasis } from './llm/review'
 import {
   createSession,
   INVITE_STORAGE_KEY,
@@ -313,5 +314,118 @@ describe('Google Kalendář v prohlížeči', () => {
 
     await evaSession.setCalendarAutoWrite(true)
     expect(evaSession.state.calendar?.autoWrite).toBe(true)
+  })
+})
+
+describe('doptání v prohlížeči', () => {
+  const block = { weeks: 'every' as const, exceptDates: [], source: 'řádek 1' }
+  /** Rozvrh bez data platnosti s nejistým čtvrtkem „Cv?“. */
+  const basis: ReviewBasis = {
+    readings: [
+      {
+        documentKind: 'timetable',
+        readability: 'good',
+        people: 'one',
+        legend: '',
+        weekParity: 'unstated',
+        coverage: [],
+        dated: [],
+        weekly: [
+          {
+            ...block,
+            weekday: 'thu',
+            start: '12:00',
+            end: '14:00',
+            label: 'Cv',
+            raw: 'Cv?',
+            uncertain: true,
+          },
+        ],
+        warnings: [],
+      },
+    ],
+    period: { from: '2026-11-16', to: '2026-12-13' },
+    extraWarnings: [],
+    notes: [],
+  }
+
+  async function reviewing() {
+    const built = buildSource(basis, [])
+    const clarify = vi.fn(async () => ({
+      reply: 'Rozumím, ve čtvrtek je to až od 13.',
+      answers: [
+        {
+          kind: 'shift' as const,
+          raw: 'Cv?',
+          start: '12:00',
+          end: '14:00',
+          change: { type: 'time' as const, start: '13:00', end: '14:00' },
+        },
+      ],
+    }))
+    const server = await testServer(
+      {},
+      async () => ({
+        source: { ...built, circle: 'Škola', parity: { calendar: false, anchors: [] } },
+        basis,
+      }),
+      () => new Date('2026-11-19T12:00:00Z'),
+      clarify,
+    )
+    const anna = browser(server.app)
+    await anna.login('anna@example.com', 'Anna')
+    const session = sessionFor(anna)
+    await session.init()
+    session.addFiles([new File(['Čt Cv'], 'rozvrh.txt', { type: 'text/plain' })])
+    await session.readSchedule()
+    return { session, clarify }
+  }
+
+  it('opens the questions right after reading and applies a button answer', async () => {
+    const { session } = await reviewing()
+    const source = session.reviewSource.value!
+    expect(source.questions?.map((question) => question.kind)).toEqual(['period', 'shift'])
+
+    await session.answerReview(
+      source.id,
+      [{ kind: 'period', range: { from: '2026-11-16', to: '2026-11-22' } }],
+      'Platí 16.–22. 11. 2026.',
+    )
+    expect(session.reviewSource.value?.questions?.map((question) => question.kind)).toEqual([
+      'shift',
+    ])
+    expect(session.state.review.messages[source.id]).toEqual([
+      { from: 'me', text: 'Platí 16.–22. 11. 2026.' },
+    ])
+
+    // Zavřené okno se samo neotevře, Upřesnit ho vrátí.
+    session.closeReview()
+    expect(session.reviewSource.value).toBeNull()
+    session.openReview(source.id)
+    expect(session.reviewSource.value?.id).toBe(source.id)
+  })
+
+  it('turns a message into a proposal that changes nothing until applied', async () => {
+    const { session, clarify } = await reviewing()
+    const sourceId = session.reviewSource.value!.id
+    await session.sendReviewMessage(sourceId, 've čtvrtek je to až od 13')
+    expect(clarify).toHaveBeenCalledOnce()
+    expect(session.state.review.proposal).toMatchObject({
+      sourceId,
+      changes: expect.arrayContaining(['Změní se čas: 4 (19. 11., 26. 11., 3. 12., 10. 12.)']),
+    })
+    expect(session.me.value!.sources[0].shifts[0].start).toBe('12:00')
+
+    await session.applyReviewProposal()
+    expect(session.me.value!.sources[0].shifts[0]).toMatchObject({
+      start: '13:00',
+      uncertain: false,
+    })
+    expect(session.state.review.messages[sourceId].map((message) => message.text)).toEqual([
+      've čtvrtek je to až od 13',
+      'Rozumím, ve čtvrtek je to až od 13.',
+      'Použít změny',
+      'Hotovo, rozpis je upravený.',
+    ])
   })
 })

@@ -180,6 +180,9 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
         ],
       }))
     },
+    // V ukázce se podklady nečtou, takže se k nim není na co doptat.
+    answerSource: async () => onlyWithAccount(),
+    clarifySource: async () => onlyWithAccount(),
     async updateSource(personId, sourceId, patch) {
       return update(personId, (person) => {
         if (!person.sources.some((source) => source.id === sourceId)) {

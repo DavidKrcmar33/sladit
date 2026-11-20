@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue'
 import { CALENDAR_CIRCLE, type ParityQuestion } from '@/core/compose'
+import type { SourceAnswer } from '@/core/review'
 import { SCHOOL_CIRCLE, WORK_CIRCLE, type Shift } from '@/core/schema'
 import { addDays } from '@/core/time'
 import { useSession } from '@/session'
@@ -10,6 +11,7 @@ import MonthGrid from '@/ui/components/MonthGrid.vue'
 import ParityQuestions from '@/ui/components/ParityQuestions.vue'
 import PasteTextDialog from '@/ui/components/PasteTextDialog.vue'
 import ReadingWarnings from '@/ui/components/ReadingWarnings.vue'
+import ReviewChat from '@/ui/components/ReviewChat.vue'
 import SourceDropZone from '@/ui/components/SourceDropZone.vue'
 import SourceFileChip from '@/ui/components/SourceFileChip.vue'
 import UiButton from '@/ui/components/UiButton.vue'
@@ -37,6 +39,13 @@ const {
   answerWeekParity,
   shiftSchedule,
   fileBlob,
+  reviewSource,
+  openReview,
+  closeReview,
+  answerReview,
+  sendReviewMessage,
+  applyReviewProposal,
+  discardReviewProposal,
 } = useSession()
 
 /** Třetí okruh pro druhou práci: její rozpis musí den pokrýt taky, jinak den neznáme. */
@@ -59,6 +68,22 @@ const circleOptions = computed(() => [
   ]),
 ])
 const period = computed(() => formatDateRange(state.scheduleFrom, addDays(state.scheduleFrom, 27)))
+
+// Na lichý a sudý týden podkladu v okně doptání se ptá okno, u ostatních karta nad kalendářem.
+const reviewParity = computed(() =>
+  scheduleParityQuestions.value.filter((question) => question.sourceId === reviewSource.value?.id),
+)
+const otherParity = computed(() =>
+  scheduleParityQuestions.value.filter((question) => question.sourceId !== reviewSource.value?.id),
+)
+
+function answerReviewSource(answers: SourceAnswer[], echo: string) {
+  if (reviewSource.value) void answerReview(reviewSource.value.id, answers, echo)
+}
+
+function sendReview(text: string) {
+  if (reviewSource.value) void sendReviewMessage(reviewSource.value.id, text)
+}
 
 const editedDay = computed(() =>
   editedDayOf(
@@ -115,6 +140,25 @@ function answerParity(question: ParityQuestion, odd: boolean) {
         </p>
       </div>
 
+      <ReviewChat
+        v-if="reviewSource"
+        :key="reviewSource.id"
+        :file-names="fileNames(reviewSource.files)"
+        :questions="reviewSource.questions ?? []"
+        :parity-questions="reviewParity"
+        :messages="state.review.messages[reviewSource.id] ?? []"
+        :proposal="
+          state.review.proposal?.sourceId === reviewSource.id ? state.review.proposal : null
+        "
+        :sending="state.review.sending"
+        :error="state.review.error"
+        @answer="answerReviewSource"
+        @parity="answerParity"
+        @send="sendReview"
+        @apply="applyReviewProposal"
+        @discard="discardReviewProposal"
+        @close="closeReview"
+      />
       <UncertainNotice
         v-if="scheduleUncertainDays.length > 0"
         :count="scheduleUncertainDays.length"
@@ -122,8 +166,8 @@ function answerParity(question: ParityQuestion, odd: boolean) {
         @show-first="selectDay(scheduleUncertainDays[0])"
       />
       <ParityQuestions
-        v-if="scheduleParityQuestions.length > 0"
-        :questions="scheduleParityQuestions"
+        v-if="otherParity.length > 0"
+        :questions="otherParity"
         @answer="answerParity"
       />
       <ReadingWarnings v-if="scheduleWarnings.length > 0" :items="scheduleWarnings" />
@@ -224,13 +268,23 @@ function answerParity(question: ParityQuestion, odd: boolean) {
               </select>
               <span class="truncate text-muted">{{ fileNames(source.files) }}</span>
             </div>
-            <UiButton
-              variant="danger"
-              :aria-label="`Odebrat podklad ${fileNames(source.files)}`"
-              @click="removeSource(source.id)"
-            >
-              Odebrat
-            </UiButton>
+            <div class="flex shrink-0">
+              <UiButton
+                v-if="source.questions"
+                variant="ghost"
+                :aria-label="`Upřesnit podklad ${fileNames(source.files)}`"
+                @click="openReview(source.id)"
+              >
+                Upřesnit
+              </UiButton>
+              <UiButton
+                variant="danger"
+                :aria-label="`Odebrat podklad ${fileNames(source.files)}`"
+                @click="removeSource(source.id)"
+              >
+                Odebrat
+              </UiButton>
+            </div>
           </li>
         </ul>
       </section>
