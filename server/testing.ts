@@ -44,7 +44,7 @@ export async function testServer(
     ...env,
   })
   const store = createStore(db)
-  const calendar = fakeCalendar(ORIGIN)
+  const calendar = fakeCalendar(config.appOrigin)
   const read = async (input: ExtractInput): Promise<ReadResult> => {
     const result = await extract(input)
     return 'basis' in result ? result : { source: result, basis: null }
@@ -52,7 +52,7 @@ export async function testServer(
   const app = createApp({
     config,
     store,
-    google: fakeGoogle(ORIGIN),
+    google: fakeGoogle(config.appOrigin),
     extract: read,
     clarify,
     now,

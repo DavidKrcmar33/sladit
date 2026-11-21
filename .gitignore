@@ -7,6 +7,8 @@
 node_modules
 dist
 dist-server
+coverage/
+test-results/
 
 # lokální databáze pro vývoj (PGlite)
 .local
@@ -17,3 +19,4 @@ Thumbs.db
 *.log
 .vscode/*
 !.vscode/extensions.json
+.idea/

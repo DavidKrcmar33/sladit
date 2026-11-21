@@ -1,4 +1,6 @@
 dist
+coverage
+test-results
 node_modules
 package-lock.json
 eval/data

@@ -43,10 +43,15 @@ Klíče čte jen server, do prohlížeče se nedostanou. Proto v `.env` nesmí �
 | `npm start`         | spuštění sestavené aplikace (produkce)                                    |
 | `npm run typecheck` | jen kontrola typů                                                         |
 | `npm test`          | testy (Vitest)                                                            |
+| `npm run test:coverage` | pokrytí Vitestu nad `src/` a `server/`, HTML a JSON v `coverage/` |
+| `npm run test:e2e` | test v Chromiu nad sestavenou aplikací a izolovanou databází v paměti |
+| `npm run test:profile-db` | časy otevření PGlite, migrací a zbytku scénářů ve dvou integračních sadách |
 | `npm run lint`      | kontrola kódu (ESLint)                                                    |
 | `npm run format`    | formátování (Prettier)                                                    |
 | `npm run eval`      | měření (eval/), viz níže                                                  |
 | `npm run eval:data` | znovu vygeneruje testovací data                                           |
+
+Před prvním během E2E nainstaluj Chromium příkazem `npx playwright install chromium`. Testy modulů a komponent leží vedle zdrojového kódu, scénáře přes celou aplikaci v `e2e/`. Pokrytí V8 zahrnuje i nenačtené komponenty Vue. Běh v Chromiu se vykazuje samostatně.
 
 ## Jak se čtou rozpisy
 
@@ -61,6 +66,8 @@ Klíče čte jen server, do prohlížeče se nedostanou. Proto v `.env` nesmí �
 - `npm run eval -- --no-cache` ignoruje uloženou cache.
 
 Data jsou fiktivní a vyrábí je `npm run eval:data` (jen macOS, používá `cupsfilter` a `sips`). Už vykreslené podklady nepřepisuje, aby zůstala platná cache odpovědí modelu, `-- --force` vykreslí vše znovu. Správné směny jsou zdroj pravdy, z nich se vykreslí podklad (xlsx, text, PDF, PNG) i `expected.json`. PDF a snímky jsou vykreslený text, žádná skutečná fotka rozpisu, tu je potřeba doplnit ručně. Očekávaný termín skupiny je nejlepší návrh schedulerem nad správnými směnami, takže měření ověřuje, zda chyby čtení termín nezmění.
+
+Skutečnou anonymizovanou fotografii přidej do vlastního adresáře v `eval/data/schedules/` jako `input.jpg` nebo `input.png` spolu s ručně ověřeným `expected.json` a odpovídajícím `meta.json`. Zadej `"format": "photo"`, aby report vypočítal pro fotografie samostatnou precision a recall.
 
 Příklady v `src/llm/skill/examples/` nejsou součástí testovacích dat.
 

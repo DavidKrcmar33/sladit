@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig(({ isSsrBuild }) => ({
+export default defineConfig(({ isSsrBuild, mode }) => ({
   plugins: [vue(), tailwindcss()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
@@ -20,5 +20,13 @@ export default defineConfig(({ isSsrBuild }) => ({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'eval/**/*.test.ts', 'server/**/*.test.ts'],
+    setupFiles: mode === 'db-profile' ? ['./scripts/profile-db.ts'] : [],
+    coverage: {
+      provider: 'v8',
+      all: true,
+      include: ['src/**/*.{ts,vue}', 'server/**/*.ts'],
+      exclude: ['**/*.test.ts', 'server/testing.ts'],
+      reporter: ['text-summary', 'json-summary', 'html'],
+    },
   },
 }))
