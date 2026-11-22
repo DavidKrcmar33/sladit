@@ -8,8 +8,6 @@ import { fakeCalendar } from './calendar/api'
 import { serverConfigFromEnv, type ServerConfig } from './config'
 import { migrate, pgliteDb } from './db/db'
 import { createStore } from './db/store'
-import { memoryMailer } from './mail'
-import { createNotifier } from './notify'
 
 /** Pomůcky pro testy serveru: aplikace nad PGlite v paměti, falešný Google a prohlížeč s cookies. */
 
@@ -57,9 +55,6 @@ export async function testServer(
     const result = await extract(input)
     return 'basis' in result ? result : { source: result, basis: null }
   }
-  // Odeslané e-maily zůstanou v poli. Před kontrolou počkej na notifier.settled().
-  const mailer = memoryMailer()
-  const notifier = createNotifier(store, mailer, config.appOrigin)
   const app = createApp({
     config,
     store,
@@ -69,9 +64,8 @@ export async function testServer(
     draftAction,
     now,
     calendar,
-    notifier,
   })
-  return { app, db, store, config, calendar, mails: mailer.sent, notifier }
+  return { app, db, store, config, calendar }
 }
 
 type App = Awaited<ReturnType<typeof testServer>>['app']

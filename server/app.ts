@@ -16,7 +16,6 @@ import {
   GroupNameSchema,
   ImportRequestSchema,
   InviteToActionRequestSchema,
-  NotificationSettingsSchema,
   PersonNameSchema,
   ReadingRequestSchema,
   RespondToActionRequestSchema,
@@ -41,7 +40,6 @@ import { createCalendarService } from './calendar/service'
 import type { ServerConfig } from './config'
 import { tokenCipher } from './crypto'
 import type { Store } from './db/store'
-import { createNotifier, type Notifier } from './notify'
 import { InvalidSourceError, MAX_READING_BODY_BYTES, pragueDay, validateParts } from './reading'
 import { actionView } from './view'
 
@@ -60,8 +58,6 @@ export interface AppDeps {
   clientDir?: string
   /** Google Kalendář. Bez něj (nebo bez klíče k tokenům) je kalendář vypnutý. */
   calendar?: CalendarApi | null
-  /** E-mailová upozornění (server/notify.ts). Bez nich se nic neposílá. */
-  notifier?: Notifier
 }
 
 /** Přečtený podklad a strukturální čtení, ze kterého ho jde po doptání přepočítat. */
@@ -136,12 +132,6 @@ export function createApp(deps: AppDeps) {
   const secure = config.appOrigin.startsWith('https://')
   const redirectUri = `${config.appOrigin}/api/auth/google/callback`
   const calendarApi = deps.calendar ?? null
-  const notifier = deps.notifier ?? createNotifier(store, null, config.appOrigin)
-
-  /** Akce očima organizátora (pro upozornění). */
-  async function organizerView(ownerId: string | null, actionId: string) {
-    return ownerId ? store.actionOf(ownerId, actionId) : null
-  }
   const calendar = createCalendarService({
     store,
     api: calendarApi,
@@ -585,10 +575,6 @@ export function createApp(deps: AppDeps) {
       body.data.inviteUserIds,
     )
     if (action === 'not-contact') return fail(c, 400, { error: NOT_CONTACT })
-    notifier.invited(
-      action,
-      action.invites.map((invite) => invite.userId),
-    )
     return c.json({ action })
   })
 
@@ -648,7 +634,6 @@ export function createApp(deps: AppDeps) {
   api.post('/actions/:id/invites', async (c) => {
     const body = await parseBody(c, InviteToActionRequestSchema)
     if (!body.ok) return body.response
-    const before = await store.actionOf(c.get('user').id, c.req.param('id'))
     const result = await store.inviteToAction(
       c.get('user').id,
       c.req.param('id'),
@@ -656,18 +641,6 @@ export function createApp(deps: AppDeps) {
     )
     if (result === 'not-found') return refusedEdit(c, 'Akce nenalezena.')
     if (result === 'not-contact') return fail(c, 400, { error: NOT_CONTACT })
-    // E-mail jen těm, kdo pozvánku nově dostali, ne těm, kdo už ji mají nebo přijali.
-    const already = new Set(
-      (before?.invites ?? [])
-        .filter((invite) => invite.status !== 'declined')
-        .map((invite) => invite.userId),
-    )
-    const after = await store.actionOf(c.get('user').id, c.req.param('id'))
-    if (after)
-      notifier.invited(
-        after,
-        body.data.userIds.filter((userId) => !already.has(userId)),
-      )
     return actionResponse(c)
   })
 
@@ -735,8 +708,6 @@ export function createApp(deps: AppDeps) {
     if (!fitsAction(action.details, body.data)) return fail(c, 400, { error: SLOT_MISFIT })
     await store.confirmAction(user.id, action.id, body.data)
     await calendar.afterConfirm(action.id)
-    const proposed = await store.actionOf(user.id, action.id)
-    if (proposed) notifier.proposed(proposed)
     return actionResponse(c)
   })
 
@@ -752,14 +723,9 @@ export function createApp(deps: AppDeps) {
     if (body.data.response === 'counter' && !fitsAction(action.details, body.data.counter)) {
       return fail(c, 400, { error: SLOT_MISFIT })
     }
-    // Domluveno je vidět jen očima organizátora, účastník cizí odpovědi nevidí.
-    const ownerId = await store.actionOwner(action.id)
-    const before = await organizerView(ownerId, action.id)
     await store.respondToSlot(user.id, action.id, body.data)
     // Kdo jde a má automatický zápis, tomu se termín zapíše. Kdo nejde, tomu se smaže.
     await calendar.afterConfirm(action.id)
-    const after = await organizerView(ownerId, action.id)
-    if (ownerId && after?.agreed && !before?.agreed) notifier.agreed(after, ownerId)
     return actionResponse(c)
   })
 
@@ -772,11 +738,6 @@ export function createApp(deps: AppDeps) {
     const adopted = await store.adoptCounter(user.id, action.id, c.req.param('userId'))
     if (!adopted) return fail(c, 404, { error: 'Návrh už neplatí.' })
     await calendar.afterConfirm(action.id)
-    const after = await store.actionOf(user.id, action.id)
-    if (after) {
-      notifier.proposed(after)
-      if (after.agreed) notifier.agreed(after, user.id)
-    }
     return actionResponse(c)
   })
 
@@ -813,19 +774,6 @@ export function createApp(deps: AppDeps) {
     }
     await calendar.removeEvent(user.id, c.req.param('id'))
     return actionResponse(c)
-  })
-
-  // E-mailová upozornění
-
-  api.get('/settings/notifications', async (c) =>
-    c.json({ notifications: { email: await store.emailNotifications(c.get('user').id) } }),
-  )
-
-  api.put('/settings/notifications', async (c) => {
-    const body = await parseBody(c, NotificationSettingsSchema)
-    if (!body.ok) return body.response
-    await store.setEmailNotifications(c.get('user').id, body.data.email)
-    return c.json({ notifications: body.data })
   })
 
   // Přátelé

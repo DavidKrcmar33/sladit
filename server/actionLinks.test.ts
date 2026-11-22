@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ActionResource } from '@/contract/api'
 import { browser, testServer } from './testing'
 
-/** Odkaz rovnou do akce, e-mailová upozornění a akce z jedné věty. */
+/** Odkaz rovnou do akce a akce z jedné věty. */
 
 const details = {
   name: 'Pivo',
@@ -12,7 +12,6 @@ const details = {
   windowStart: '17:00',
   windowEnd: '22:00',
 }
-const slot = { date: '2026-11-26', start: '18:00', end: '20:00' }
 
 async function json<T>(response: Response): Promise<T> {
   return (await response.json()) as T
@@ -100,56 +99,6 @@ describe('odkaz do akce', () => {
     )
     expect(revoked.action.links).toEqual([])
     expect((await eva.get(`/api/invites/${tokenOf(created.url)}`)).status).toBe(404)
-  })
-})
-
-describe('e-mailová upozornění', () => {
-  it('mails the invitation, the proposed date and the agreement', async () => {
-    const { anna, eva, evaId, mails, notifier } = await friends()
-    const { action } = await json<{ action: ActionResource }>(
-      await anna.send('POST', '/api/actions', { details, inviteUserIds: [evaId] }),
-    )
-    await notifier.settled()
-    expect(mails).toHaveLength(1)
-    expect(mails[0]).toMatchObject({ to: 'eva@example.com', subject: 'Anna tě zve do akce Pivo' })
-    expect(mails[0].text).toContain(`http://localhost:5173/?akce=${action.id}`)
-
-    await eva.send('POST', `/api/actions/${action.id}/response`, { accept: true })
-    await anna.send('PUT', `/api/actions/${action.id}/confirmed`, slot)
-    await notifier.settled()
-    expect(mails[1]).toMatchObject({
-      to: 'eva@example.com',
-      subject: 'Pivo: Anna navrhuje čtvrtek 26. 11. 18:00–20:00',
-    })
-
-    await eva.send('POST', `/api/actions/${action.id}/slot-response`, { response: 'going' })
-    await notifier.settled()
-    expect(mails.slice(2).map((mail) => [mail.to, mail.subject])).toEqual([
-      ['anna@example.com', 'Domluveno: Pivo čtvrtek 26. 11. 18:00–20:00'],
-      ['eva@example.com', 'Domluveno: Pivo čtvrtek 26. 11. 18:00–20:00'],
-    ])
-    // E-mail nese termín a odkaz, nikdy rozpisy.
-    expect(mails.every((mail) => !/směn/i.test(mail.text))).toBe(true)
-  })
-
-  it('does not mail whoever turned it off, nor people invited before', async () => {
-    const { anna, eva, evaId, mails, notifier } = await friends()
-    expect(
-      await json<{ notifications: { email: boolean } }>(
-        await eva.get('/api/settings/notifications'),
-      ),
-    ).toEqual({ notifications: { email: true } })
-    await eva.send('PUT', '/api/settings/notifications', { email: false })
-    const { action } = await json<{ action: ActionResource }>(
-      await anna.send('POST', '/api/actions', { details, inviteUserIds: [evaId] }),
-    )
-    await notifier.settled()
-    expect(mails).toEqual([])
-
-    await eva.send('PUT', '/api/settings/notifications', { email: true })
-    await anna.send('POST', `/api/actions/${action.id}/invites`, { userIds: [evaId] })
-    await notifier.settled()
-    expect(mails).toEqual([])
   })
 })
 

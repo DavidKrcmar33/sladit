@@ -27,11 +27,6 @@ export interface ServerConfig {
    * zbytek aplikace běží. S falešným Googlem stačí vývojový klíč.
    */
   tokenKey: Buffer | null
-  /**
-   * E-mailová upozornění. `resend` je posílá, `console` je ve vývoji jen vypíše a `off`
-   * je neposílá (produkce bez klíče).
-   */
-  mail: { mode: 'resend'; apiKey: string; from: string } | { mode: 'console' } | { mode: 'off' }
 }
 
 const EnvSchema = z.object({
@@ -47,8 +42,6 @@ const EnvSchema = z.object({
   READ_LIMIT_PER_USER_PER_DAY: z.coerce.number().int().positive().default(30),
   READ_LIMIT_TOTAL_PER_DAY: z.coerce.number().int().positive().default(300),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
-  MAIL_FROM: z.string().optional(),
 })
 
 export function serverConfigFromEnv(env: Record<string, string | undefined>): ServerConfig {
@@ -81,9 +74,6 @@ export function serverConfigFromEnv(env: Record<string, string | undefined>): Se
   if (tokenKey && tokenKey.length !== 32) {
     problems.push('TOKEN_ENCRYPTION_KEY musí být 32 bajtů zapsaných v base64.')
   }
-  if (values.RESEND_API_KEY && !values.MAIL_FROM) {
-    problems.push('K RESEND_API_KEY patří MAIL_FROM, třeba „Sladit <upozorneni@tvoje-domena.cz>“.')
-  }
   if (problems.length > 0) throw new Error(`Nastavení serveru: ${problems.join(' ')}`)
 
   const { config: llm, legacyNames } = llmConfigFromEnv(env)
@@ -109,10 +99,5 @@ export function serverConfigFromEnv(env: Record<string, string | undefined>): Se
     llm,
     legacyLlmNames: legacyNames,
     tokenKey,
-    mail: values.RESEND_API_KEY
-      ? { mode: 'resend', apiKey: values.RESEND_API_KEY, from: values.MAIL_FROM! }
-      : production
-        ? { mode: 'off' }
-        : { mode: 'console' },
   }
 }
