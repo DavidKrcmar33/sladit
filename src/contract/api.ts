@@ -173,10 +173,11 @@ export const GroupNameSchema = z.object({
 /** Zakladatel přidá do skupiny někoho ze svých přátel, bez odkazu. */
 export const AddMemberSchema = z.object({ userId: z.string().min(1).max(100) })
 
-/** Člen skupiny. Ostatní o něm vidí jen jméno, e-mail ne. */
+/** Člen skupiny. Ostatní členové vidí jeho jméno a e-mail, rozpis ne. */
 export const GroupMemberSchema = z.object({
   userId: z.string(),
   name: z.string(),
+  email: z.string(),
   isOwner: z.boolean(),
   isYou: z.boolean(),
 })
@@ -203,8 +204,8 @@ export const CreateInviteResponseSchema = z.object({
 
 // Přátelé
 
-/** Přítel. Vidí o sobě navzájem jen jméno, e-mail ne. */
-export const FriendSchema = z.object({ userId: z.string(), name: z.string() })
+/** Přítel. Navzájem o sobě vidí jméno a e-mail, rozpis ne. */
+export const FriendSchema = z.object({ userId: z.string(), name: z.string(), email: z.string() })
 
 /**
  * Žádost o přátelství, kterou mi někdo poslal na e-mail. Jeho jméno a e-mail vidím, abych věděl,

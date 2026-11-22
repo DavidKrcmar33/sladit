@@ -87,10 +87,13 @@ async function copyInvite() {
             :key="member.userId"
             class="flex items-center justify-between gap-3 border-t border-line py-2"
           >
-            <span>
-              <span class="font-semibold">{{ member.name }}</span>
-              <span v-if="member.isYou" class="text-muted"> (ty)</span>
-              <span v-if="member.isOwner" class="text-muted"> · zakladatel</span>
+            <span class="flex min-w-0 flex-col">
+              <span>
+                <span class="font-semibold">{{ member.name }}</span>
+                <span v-if="member.isYou" class="text-muted"> (ty)</span>
+                <span v-if="member.isOwner" class="text-muted"> · zakladatel</span>
+              </span>
+              <span class="truncate text-muted">{{ member.email }}</span>
             </span>
             <UiButton
               v-if="group.isOwner && !member.isYou"
@@ -118,8 +121,8 @@ async function copyInvite() {
         </p>
         <template v-else>
           <p class="text-muted">
-            Přítel se přidá hned. Ostatní členové uvidí jen jeho jméno a on může skupinu kdykoli
-            opustit.
+            Přítel se přidá hned. Ostatní členové uvidí jeho jméno a e-mail a on může skupinu
+            kdykoli opustit.
           </p>
           <ul>
             <li

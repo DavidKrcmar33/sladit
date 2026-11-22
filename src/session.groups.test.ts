@@ -137,7 +137,13 @@ describe('pozvánka odkazem', () => {
     await session.acceptInvite()
     expect(session.selectedGroup.value).toMatchObject({ name: 'Parta', isOwner: false })
     expect(session.contacts.value).toEqual([
-      { userId: expect.any(String), name: 'Anna', isFriend: false, groupNames: ['Parta'] },
+      {
+        userId: expect.any(String),
+        name: 'Anna',
+        email: 'anna@example.com',
+        isFriend: false,
+        groupNames: ['Parta'],
+      },
     ])
   })
 
@@ -152,7 +158,13 @@ describe('pozvánka odkazem', () => {
       'Eva',
     ])
     expect(annaSession.contacts.value).toEqual([
-      { userId: eva.userId, name: 'Eva', isFriend: true, groupNames: ['Parta'] },
+      {
+        userId: eva.userId,
+        name: 'Eva',
+        email: 'eva@example.com',
+        isFriend: true,
+        groupNames: ['Parta'],
+      },
     ])
   })
 

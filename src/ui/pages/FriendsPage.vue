@@ -69,8 +69,8 @@ async function confirmRemove(userId: string) {
       <div class="flex flex-col gap-1">
         <h1 id="friends-title" class="text-2xl font-semibold tracking-tight">Přátelé</h1>
         <p class="text-[15px] text-muted">
-          Přátele můžeš zvát do akcí. Z tvého rozvrhu uvidí jen, zda v daný den můžeš. Tvé směny ani
-          e-mail neuvidí.
+          Přátele můžeš zvát do akcí. Navzájem vidíte jméno a e-mail. Z tvého rozvrhu uvidí jen, zda
+          v daný den můžeš, tvé směny ne.
         </p>
       </div>
 
@@ -112,7 +112,10 @@ async function confirmRemove(userId: string) {
           :key="friend.userId"
           class="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2 last:border-b-0"
         >
-          <span class="font-semibold">{{ friend.name }}</span>
+          <span class="flex min-w-0 flex-col">
+            <span class="font-semibold">{{ friend.name }}</span>
+            <span v-if="friend.email" class="truncate text-muted">{{ friend.email }}</span>
+          </span>
           <div v-if="removing === friend.userId" class="flex items-center gap-2">
             <span class="text-warn">Odebrat z přátel?</span>
             <UiButton variant="danger" @click="confirmRemove(friend.userId)">Odebrat</UiButton>

@@ -7,6 +7,7 @@ import InvitePicker from './InvitePicker.vue'
 const member = (userId: string, name: string, isYou = false) => ({
   userId,
   name,
+  email: `${userId}@example.com`,
   isOwner: isYou,
   isYou,
 })
@@ -26,9 +27,21 @@ const borci = group('g', 'Borci', ['eva', 'Eva'], ['petr', 'Petr'], ['jana', 'Ja
 const kluci = group('k', 'Kluci', ['petr', 'Petr'], ['jana', 'Jana'])
 
 const contacts = [
-  { userId: 'eva', name: 'Eva', isFriend: true, groupNames: ['Borci'] },
-  { userId: 'petr', name: 'Petr', isFriend: false, groupNames: ['Borci', 'Kluci'] },
-  { userId: 'jana', name: 'Jana', isFriend: false, groupNames: ['Borci', 'Kluci'] },
+  { userId: 'eva', name: 'Eva', email: 'eva@example.com', isFriend: true, groupNames: ['Borci'] },
+  {
+    userId: 'petr',
+    name: 'Petr',
+    email: 'petr@example.com',
+    isFriend: false,
+    groupNames: ['Borci', 'Kluci'],
+  },
+  {
+    userId: 'jana',
+    name: 'Jana',
+    email: 'jana@example.com',
+    isFriend: false,
+    groupNames: ['Borci', 'Kluci'],
+  },
 ]
 
 let unmount = () => {}

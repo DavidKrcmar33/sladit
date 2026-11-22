@@ -47,8 +47,8 @@ const acceptLabel = computed(() => {
           <strong>{{ preview.groupName }}</strong> (členové: {{ preview.memberCount }}).
         </p>
         <p class="text-muted">
-          Členové tě budou moct zvát do akcí. Z tvého rozvrhu uvidí jen, zda v daný den můžeš. Tvé
-          směny ani e-mail neuvidí.
+          Členové uvidí tvé jméno a e-mail a budou tě moct zvát do akcí. Z tvého rozvrhu uvidí jen,
+          zda v daný den můžeš, tvé směny ne.
         </p>
       </template>
     </template>
@@ -68,8 +68,9 @@ const acceptLabel = computed(() => {
           }}).
         </p>
         <p class="text-muted">
-          Když přijmeš, budete s {{ preview.organizerName }} přátelé a ostatní v akci uvidí jen, kdy
-          můžeš (může / nemůže / nevíme). Tvé směny, události ani e-mail neuvidí.
+          Když přijmeš, budete s {{ preview.organizerName }} přátelé a uvidíte navzájem jméno a
+          e-mail. Ostatní v akci uvidí jen, kdy můžeš (může / nemůže / nevíme), tvé směny ani
+          události ne.
         </p>
       </template>
     </template>
@@ -84,8 +85,8 @@ const acceptLabel = computed(() => {
           <strong>{{ preview.fromName }}</strong> si tě chce přidat do přátel.
         </p>
         <p class="text-muted">
-          Přátelé se můžou zvát do akcí. Z tvého rozvrhu uvidí jen, zda v daný den můžeš. Tvé směny
-          ani e-mail neuvidí.
+          Přátelé vidí navzájem jméno a e-mail a můžou se zvát do akcí. Z tvého rozvrhu uvidí jen,
+          zda v daný den můžeš, tvé směny ne.
         </p>
       </template>
     </template>

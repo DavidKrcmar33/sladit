@@ -312,7 +312,7 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     async friends() {
       signedIn()
       return {
-        friends: friends.map(({ id, name }) => ({ userId: id, name })),
+        friends: friends.map(({ id, name }) => ({ userId: id, name, email: '' })),
         invites: [],
         incoming: [],
         outgoing: [],

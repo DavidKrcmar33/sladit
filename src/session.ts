@@ -95,6 +95,7 @@ export interface PendingInvite {
 export interface Contact {
   userId: string
   name: string
+  email: string
   isFriend: boolean
   groupNames: string[]
 }
@@ -487,6 +488,7 @@ export function createSession(options: SessionOptions) {
         const contact = byId.get(member.userId) ?? {
           userId: member.userId,
           name: member.name,
+          email: member.email,
           isFriend: false,
           groupNames: [],
         }

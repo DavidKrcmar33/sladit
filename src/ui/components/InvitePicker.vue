@@ -104,7 +104,10 @@ function toggleGroup(item: (typeof groupItems.value)[number]) {
 }
 
 function describe(contact: Contact): string {
-  return [contact.isFriend ? 'přítel' : '', ...contact.groupNames].filter(Boolean).join(', ')
+  const relation = [contact.isFriend ? 'přítel' : '', ...contact.groupNames]
+    .filter(Boolean)
+    .join(', ')
+  return [contact.email, relation].filter(Boolean).join(' · ')
 }
 </script>
 
