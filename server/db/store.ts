@@ -1525,42 +1525,6 @@ export function createStore(db: Db) {
       return rows.length > 0
     },
 
-    /** Uživatel, který akci pořádá. */
-    async actionOwner(actionId: string): Promise<string | null> {
-      const [row] = await db.query<{ owner_id: string }>(
-        'select owner_id from actions where id = $1',
-        [actionId],
-      )
-      return row?.owner_id ?? null
-    },
-
-    // E-mailová upozornění
-
-    /** Komu a kam poslat upozornění. Kdo je vypnul, tu není. */
-    async notificationRecipients(
-      userIds: string[],
-    ): Promise<{ userId: string; email: string; name: string }[]> {
-      if (userIds.length === 0) return []
-      return db.query<{ userId: string; email: string; name: string }>(
-        `select u.id as "userId", u.email, coalesce(p.name, u.name) as name
-         from users u left join people p on p.owner_id = u.id and p.is_self
-         where u.id = any($1) and u.email_notifications`,
-        [userIds],
-      )
-    },
-
-    async emailNotifications(userId: string): Promise<boolean> {
-      const [row] = await db.query<{ email_notifications: boolean }>(
-        'select email_notifications from users where id = $1',
-        [userId],
-      )
-      return row?.email_notifications ?? false
-    },
-
-    async setEmailNotifications(userId: string, enabled: boolean): Promise<void> {
-      await db.query('update users set email_notifications = $2 where id = $1', [userId, enabled])
-    },
-
     /** Přítel podle id, pokud jím opravdu je. */
     async friendOf(userId: string, friendId: string): Promise<Friend | null> {
       const [a, b] = pair(userId, friendId)
