@@ -6,7 +6,14 @@ export default defineConfigWithVueTs(
   { name: 'app/files', files: ['**/*.{ts,mts,vue}'] },
   {
     name: 'app/ignores',
-    ignores: ['dist/**', 'coverage/**', 'test-results/**', 'node_modules/**', 'eval/results/**'],
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'test-results/**',
+      'node_modules/**',
+      'eval/results/**',
+      '.claude/**',
+    ],
   },
   pluginVue.configs['flat/recommended'],
   vueTsConfigs.recommended,
