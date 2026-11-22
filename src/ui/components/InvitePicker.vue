@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Group } from '@/contract/api'
 import type { Contact } from '@/session'
 import UiIcon from './UiIcon.vue'
@@ -31,27 +31,76 @@ function membersOf(group: Group): string[] {
 }
 
 /**
- * Stav skupin pro výběr: kolik členů je vybraných. Skupina je vybraná, když jsou vybraní
- * všichni, kdo jdou pozvat. Klik ji vybere celou, nebo celou odebere.
+ * Skupiny, na které člověk klikl. Vybraná je jen skupina, kterou zvolil, ne každá, jejíž
+ * členové náhodou vybraní jsou (menší skupina uvnitř větší se tak neoznačí s ní).
  */
+const chosenGroups = ref<Set<string>>(initialGroups())
+
+/**
+ * Předvybraní (třeba „Nová akce s celou skupinou“): označí se skupiny, které výběr celé
+ * pokrývá, ale jen ty největší. Skupina uvnitř jiné pokryté skupiny se neoznačí.
+ */
+function initialGroups(): Set<string> {
+  const covered = props.groups.filter((group) => {
+    const members = membersOf(group)
+    return members.length > 0 && members.every((id) => selected.value.includes(id))
+  })
+  const inside = (small: Group, big: Group) =>
+    small.id !== big.id &&
+    membersOf(small).length < membersOf(big).length &&
+    membersOf(small).every((id) => membersOf(big).includes(id))
+  return new Set(
+    covered
+      .filter((group) => !covered.some((other) => inside(group, other)))
+      .map((group) => group.id),
+  )
+}
+
+// Skupina, ze které člověk ručně odebral všechny, už zvolená není.
+watch(selected, (ids) => {
+  const left = [...chosenGroups.value].filter((groupId) => {
+    const group = props.groups.find((candidate) => candidate.id === groupId)
+    return group !== undefined && membersOf(group).some((id) => ids.includes(id))
+  })
+  if (left.length !== chosenGroups.value.size) chosenGroups.value = new Set(left)
+})
+
+/** Stav skupin pro výběr. U zvolené skupiny, ze které někdo ubyl, je vidět kolik zbývá. */
 const groupItems = computed(() =>
   props.groups.map((group) => {
     const members = membersOf(group)
     const chosen = members.filter((id) => selected.value.includes(id)).length
+    const picked = chosenGroups.value.has(group.id)
     return {
       group,
       members,
       chosen,
       total: members.length,
-      all: members.length > 0 && chosen === members.length,
+      picked,
+      all: picked && members.length > 0 && chosen === members.length,
     }
   }),
 )
 
+/**
+ * Klik na skupinu: vybere všechny její členy, nebo je odebere. Kdo patří i do jiné zvolené
+ * skupiny, ten zůstane vybraný.
+ */
 function toggleGroup(item: (typeof groupItems.value)[number]) {
-  selected.value = item.all
-    ? selected.value.filter((id) => !item.members.includes(id))
-    : [...new Set([...selected.value, ...item.members])]
+  const next = new Set(chosenGroups.value)
+  if (item.picked) {
+    next.delete(item.group.id)
+    const keep = new Set(
+      groupItems.value
+        .filter((other) => other.group.id !== item.group.id && next.has(other.group.id))
+        .flatMap((other) => other.members),
+    )
+    selected.value = selected.value.filter((id) => !item.members.includes(id) || keep.has(id))
+  } else {
+    next.add(item.group.id)
+    selected.value = [...new Set([...selected.value, ...item.members])]
+  }
+  chosenGroups.value = next
 }
 
 function describe(contact: Contact): string {
@@ -71,7 +120,7 @@ function describe(contact: Contact): string {
           v-for="item in groupItems"
           :key="item.group.id"
           type="button"
-          :aria-pressed="item.all"
+          :aria-pressed="item.picked"
           :disabled="item.total === 0"
           :class="[
             'flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition',
@@ -79,7 +128,7 @@ function describe(contact: Contact): string {
             'disabled:cursor-not-allowed disabled:opacity-50',
             item.all
               ? 'border-accent bg-accent text-white hover:bg-accent-dark'
-              : item.chosen > 0
+              : item.picked
                 ? 'border-accent bg-accent-soft text-accent-dark hover:brightness-95'
                 : 'border-dashed border-outline bg-white text-ink hover:bg-panel',
           ]"
@@ -87,7 +136,7 @@ function describe(contact: Contact): string {
         >
           <UiIcon v-if="item.all" name="check" :size="14" />
           Celá skupina {{ item.group.name }}
-          <span v-if="item.chosen > 0 && !item.all" class="text-xs font-normal">
+          <span v-if="item.picked && !item.all" class="text-xs font-normal">
             ({{ item.chosen }} z {{ item.total }})
           </span>
         </button>
