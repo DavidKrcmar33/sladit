@@ -342,12 +342,6 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     invitePreview: async () => onlyWithAccount(),
     acceptInvite: async () => onlyWithAccount(),
 
-    async notificationSettings() {
-      signedIn()
-      return { email: false }
-    },
-    setNotificationSettings: async () => onlyWithAccount(),
-
     // Kalendář jde jen s účtem a serverem.
     async calendarStatus() {
       signedIn()

@@ -14,7 +14,6 @@ import type {
   Group,
   InviteLink,
   InvitePreview,
-  NotificationSettings,
   OwnedPerson,
   SentFriendRequest,
   SlotResponseRequest,
@@ -56,8 +55,6 @@ import { addDays, eachDay, mondayOf } from './core/time'
 
 /** Klíč, pod kterým pozvánka z odkazu přečká přihlášení přes Google (sessionStorage). */
 export const INVITE_STORAGE_KEY = 'sladit.pozvanka'
-/** Akce z odkazu v e-mailu (?akce=<id>). Přečká přihlášení stejně jako pozvánka. */
-export const ACTION_STORAGE_KEY = 'sladit.akce'
 
 /** Zprávy po návratu od Googlu z připojování kalendáře (?kalendar=…). */
 const CALENDAR_RESULTS: Record<string, string> = {
@@ -163,8 +160,6 @@ export interface SessionOptions {
   today?: () => DateString
   /** Výsledek připojení kalendáře z adresy (?kalendar=pripojen a podobně). */
   calendarResult?: string | null
-  /** Akce z odkazu v e-mailu, otevře se po načtení. */
-  openActionId?: string | null
 }
 
 export function createSession(options: SessionOptions) {
@@ -175,8 +170,6 @@ export function createSession(options: SessionOptions) {
   const inviteStorage = options.inviteStorage ?? null
   if (options.inviteToken) inviteStorage?.setItem(INVITE_STORAGE_KEY, options.inviteToken)
   let inviteToken = options.inviteToken ?? inviteStorage?.getItem(INVITE_STORAGE_KEY) ?? null
-  if (options.openActionId) inviteStorage?.setItem(ACTION_STORAGE_KEY, options.openActionId)
-  let openActionId = options.openActionId ?? inviteStorage?.getItem(ACTION_STORAGE_KEY) ?? null
 
   const state = reactive({
     status: 'loading' as SessionStatus,
@@ -201,8 +194,6 @@ export function createSession(options: SessionOptions) {
     lastInvite: null as { target: 'friends' | string; url: string } | null,
     /** Pozvánka z odkazu. Před přihlášením je známý jen token. */
     invite: null as PendingInvite | null,
-    /** E-mailová upozornění. Null, dokud se nenačtou. */
-    notifications: null as NotificationSettings | null,
     /** Pohledy ze serveru na akce s cizími lidmi: návrhy a stav dne ostatních. */
     views: {} as Record<string, ActionView>,
     /** Vložené a ještě nepřečtené soubory mého rozvrhu. Obsah drží jen paměť (fileBlobs). */
@@ -454,11 +445,17 @@ export function createSession(options: SessionOptions) {
   )
 
   /**
-   * Upozornění nahoře: navržený termín čeká na moji odpověď, nebo organizátorovi někdo
-   * navrhl jiný termín. Jen první, další jsou vidět u akcí v menu.
+   * Upozornění nahoře: nová pozvánka do akce, navržený termín čeká na moji odpověď, nebo
+   * organizátorovi někdo navrhl jiný termín. Jen první, další jsou vidět u akcí v menu.
    */
   const slotNotice = computed<{ actionId: string; text: string } | null>(() => {
     for (const action of state.actions) {
+      if (action.myStatus === 'invited') {
+        return {
+          actionId: action.id,
+          text: `${action.organizerName} tě zve do akce ${action.details.name}.`,
+        }
+      }
       if (action.mySlot === 'pending' && action.confirmed) {
         return {
           actionId: action.id,
@@ -564,16 +561,14 @@ export function createSession(options: SessionOptions) {
   }
 
   async function reload() {
-    const [people, loaded, groups, friends, calendar, notifications] = await Promise.all([
+    const [people, loaded, groups, friends, calendar] = await Promise.all([
       backend.people(),
       backend.actions(),
       backend.groups(),
       backend.friends(),
       backend.calendarStatus(),
-      backend.notificationSettings(),
     ])
     state.calendar = calendar
-    state.notifications = notifications
     state.people = people
     state.actions = loaded
     state.groups = groups
@@ -611,6 +606,25 @@ export function createSession(options: SessionOptions) {
     }
   }
 
+  /**
+   * Tiché obnovení akcí a přátel, aby se nová pozvánka, termín nebo žádost ukázaly i bez
+   * obnovení stránky. Chyba se neukazuje, zkusí se to příště znovu.
+   */
+  async function refresh() {
+    if (state.status !== 'ready' || state.demo) return
+    try {
+      const [loaded, friends] = await Promise.all([backend.actions(), backend.friends()])
+      state.actions = loaded
+      applyFriends(friends)
+      if (!loaded.some((action) => action.id === state.selectedActionId)) {
+        state.selectedActionId = loaded[0]?.id ?? null
+        if (state.page === 'action' && !state.selectedActionId) state.page = 'schedule'
+      }
+    } catch (error) {
+      if (error instanceof BackendError && error.status === 401) signedOut()
+    }
+  }
+
   async function init() {
     state.status = 'loading'
     state.error = null
@@ -633,15 +647,6 @@ export function createSession(options: SessionOptions) {
           ? 'action'
           : 'schedule'
       state.localActions = !state.demo && storage ? (loadState(storage)?.actions ?? []) : []
-      // Odkaz z e-mailu otevře svou akci, i když člověk ještě nemá rozpis.
-      if (openActionId) {
-        if (state.actions.some((action) => action.id === openActionId)) {
-          state.selectedActionId = openActionId
-          state.page = 'action'
-        }
-        openActionId = null
-        inviteStorage?.removeItem(ACTION_STORAGE_KEY)
-      }
       state.status = 'ready'
       if (!state.demo) await loadInvite()
     } catch (error) {
@@ -813,11 +818,6 @@ export function createSession(options: SessionOptions) {
         reply: error instanceof BackendError ? error.message : 'Větu se nepodařilo zpracovat.',
       }
     }
-  }
-
-  async function setEmailNotifications(email: boolean) {
-    const settings = await guarded(() => backend.setNotificationSettings({ email }))
-    if (settings) state.notifications = settings
   }
 
   async function cancelInvite(userId: string) {
@@ -1362,6 +1362,7 @@ export function createSession(options: SessionOptions) {
     readingWarnings,
     parityQuestions,
     init,
+    refresh,
     logout,
     deleteAccount,
     acceptLocalActions,
@@ -1369,7 +1370,6 @@ export function createSession(options: SessionOptions) {
     createActionLink,
     revokeActionLink,
     draftAction,
-    setEmailNotifications,
     showSchedule,
     showFriends,
     showSettings,
@@ -1443,14 +1443,6 @@ function takeCalendarResultFromUrl(): string | null {
   return result
 }
 
-/** Akce z odkazu v e-mailu (?akce=<id>). Adresa se hned přepíše na úvodní. */
-function takeActionFromUrl(): string | null {
-  if (typeof location === 'undefined') return null
-  const actionId = new URLSearchParams(location.search).get('akce')
-  if (actionId) history.replaceState(null, '', '/')
-  return actionId && /^[\w-]{1,100}$/.test(actionId) ? actionId : null
-}
-
 function takeInviteTokenFromUrl(): string | null {
   if (typeof location === 'undefined') return null
   const token = inviteTokenFromPath(location.pathname)
@@ -1469,7 +1461,6 @@ export function useSession(): Session {
       demo,
       inviteToken: demo ? null : takeInviteTokenFromUrl(),
       calendarResult: demo ? null : takeCalendarResultFromUrl(),
-      openActionId: demo ? null : takeActionFromUrl(),
       inviteStorage: typeof sessionStorage === 'undefined' ? null : sessionStorage,
     })
     void session.init()

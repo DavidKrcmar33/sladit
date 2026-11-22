@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { actionDetails, type NewActionErrors, type NewActionInput } from '@/core/newAction'
 import { useSession } from '@/session'
 import AccountBox from '@/ui/components/AccountBox.vue'
@@ -49,6 +49,7 @@ const {
   undoActionUpdate,
   dismissCalendarNotice,
   draftAction,
+  refresh,
 } = useSession()
 
 /** Otevřený formulář akce: nová, nebo úprava vybrané. */
@@ -139,6 +140,24 @@ async function submitAction(input: NewActionInput, inviteUserIds: string[]) {
     actionDialog.value = null
   }
 }
+
+// Upozornění v aplikaci: jednou za minutu a po návratu do záložky se načtou nové pozvánky,
+// termíny a žádosti. Ve skryté záložce se nic nestahuje.
+const REFRESH_MS = 60_000
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+
+function refreshIfVisible() {
+  if (document.visibilityState === 'visible') void refresh()
+}
+
+onMounted(() => {
+  refreshTimer = setInterval(refreshIfVisible, REFRESH_MS)
+  document.addEventListener('visibilitychange', refreshIfVisible)
+})
+onBeforeUnmount(() => {
+  clearInterval(refreshTimer)
+  document.removeEventListener('visibilitychange', refreshIfVisible)
+})
 
 async function submitGroup(name: string) {
   const error = await createGroup(name)

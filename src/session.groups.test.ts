@@ -492,7 +492,7 @@ describe('žádost o přátelství v prohlížeči', () => {
   })
 })
 
-describe('odkaz do akce a e-mail v prohlížeči', () => {
+describe('odkaz do akce a akce z věty v prohlížeči', () => {
   it('joins the action through its link and opens it', async () => {
     const { anna, eva } = await setup()
     const annaSession = sessionFor(anna)
@@ -512,21 +512,6 @@ describe('odkaz do akce a e-mail v prohlížeči', () => {
     expect(evaSession.state.page).toBe('action')
     expect(evaSession.selectedResource.value).toMatchObject({ myStatus: 'accepted' })
     expect(evaSession.state.friends.map((friend) => friend.name)).toEqual(['Anna'])
-  })
-
-  it('opens the action from the e-mail link even before uploading a schedule', async () => {
-    const { anna } = await setup()
-    const annaSession = sessionFor(anna)
-    await annaSession.init()
-    await annaSession.createAction({ ...details, name: 'Kino' }, [])
-    await annaSession.createAction({ ...details }, [])
-    const kino = annaSession.state.actions.find((action) => action.details.name === 'Kino')!
-    const storage = memoryStorage()
-    const again = sessionFor(anna, { openActionId: kino.id, inviteStorage: storage })
-    await again.init()
-    expect(again.state.page).toBe('action')
-    expect(again.state.selectedActionId).toBe(kino.id)
-    expect(storage.items.size).toBe(0)
   })
 
   it('turns a sentence into form values without saving anything', async () => {
@@ -550,8 +535,21 @@ describe('odkaz do akce a e-mail v prohlížeči', () => {
     })
     expect(await session.draftAction('x')).toMatchObject({ details: null })
     expect(session.state.actions).toEqual([])
-    expect(session.state.notifications).toEqual({ email: true })
-    await session.setEmailNotifications(false)
-    expect(session.state.notifications).toEqual({ email: false })
+  })
+})
+
+describe('upozornění v aplikaci', () => {
+  it('shows a new invitation after a silent refresh, without reloading the page', async () => {
+    const { annaSession, evaSession } = await friends()
+    expect(evaSession.slotNotice.value).toBeNull()
+    const evaId = annaSession.contacts.value.find((contact) => contact.name === 'Eva')!.userId
+    await annaSession.createAction(details, [evaId])
+
+    await evaSession.refresh()
+    expect(evaSession.slotNotice.value).toEqual({
+      actionId: evaSession.state.actions[0].id,
+      text: 'Anna tě zve do akce Pivo.',
+    })
+    expect(evaSession.state.error).toBeNull()
   })
 })

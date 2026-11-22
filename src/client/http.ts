@@ -10,7 +10,6 @@ import {
   CreateActionLinkResponseSchema,
   CreateFriendInviteResponseSchema,
   DraftActionResponseSchema,
-  NotificationSettingsResponseSchema,
   CreateInviteResponseSchema,
   ErrorResponseSchema,
   FriendsResponseSchema,
@@ -151,15 +150,6 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     invitePreview: (token) =>
       call(InvitePreviewResponseSchema, 'GET', invite(token)).then((data) => data.invite),
     acceptInvite: (token) => call(AcceptInviteResponseSchema, 'POST', `${invite(token)}/accept`),
-
-    notificationSettings: () =>
-      call(NotificationSettingsResponseSchema, 'GET', '/settings/notifications').then(
-        (data) => data.notifications,
-      ),
-    setNotificationSettings: (settings) =>
-      call(NotificationSettingsResponseSchema, 'PUT', '/settings/notifications', settings).then(
-        (data) => data.notifications,
-      ),
 
     calendarStatus: () => calendar('GET', '/calendar'),
     setCalendarAutoWrite: (autoWrite) => calendar('PATCH', '/calendar', { autoWrite }),

@@ -1,7 +1,6 @@
 import type {
   AcceptInviteResponse,
   DraftActionResponse,
-  NotificationSettings,
   ActionResource,
   ActionView,
   CalendarStatus,
@@ -100,9 +99,6 @@ export interface Backend {
   /** Zapíše potvrzený termín akce do mého kalendáře, nebo ho odtud odebere. */
   addToCalendar(actionId: string): Promise<ActionResource>
   removeFromCalendar(actionId: string): Promise<ActionResource>
-
-  notificationSettings(): Promise<NotificationSettings>
-  setNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings>
 
   importActions(actions: Action[]): Promise<number>
 }

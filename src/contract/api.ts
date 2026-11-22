@@ -301,12 +301,6 @@ export const CreateActionLinkResponseSchema = z.object({
   action: ActionResourceSchema,
 })
 
-/** E-mailová upozornění: pozvánka, navržený termín, domluveno. */
-export const NotificationSettingsSchema = z.object({ email: z.boolean() })
-export const NotificationSettingsResponseSchema = z.object({
-  notifications: NotificationSettingsSchema,
-})
-
 export const UpdateActionRequestSchema = z.object({ details: ActionDetailsSchema })
 
 /** Akce z jedné věty: AI navrhne parametry, člověk je zkontroluje ve formuláři. */
@@ -429,7 +423,6 @@ export type InvitePreview = z.infer<typeof InvitePreviewSchema>
 export type ReadingRequest = z.infer<typeof ReadingRequestSchema>
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequestSchema>
 export type DraftActionResponse = z.infer<typeof DraftActionResponseSchema>
-export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>
 export type ClarifyResponse = z.infer<typeof ClarifyResponseSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 export type CalendarStatus = z.infer<typeof CalendarStatusSchema>
