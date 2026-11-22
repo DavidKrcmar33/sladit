@@ -209,6 +209,8 @@ export function createSession(options: SessionOptions) {
     error: null as string | null,
     /** Akce uložené v tomto prohlížeči z doby před účty, které jde převzít. */
     localActions: [] as Action[],
+    /** Nabídka převzetí je pro tuto návštěvu odložená: zůstane jen v Nastavení. */
+    localActionsDismissed: false,
     calendar: null as CalendarStatus | null,
     /** Zpráva po připojení kalendáře, ukáže se nahoře. */
     calendarNotice: (options.calendarResult && CALENDAR_RESULTS[options.calendarResult]) || null,
@@ -507,6 +509,7 @@ export function createSession(options: SessionOptions) {
     state.pendingFiles = []
     state.lastActionEdit = null
     state.localActions = []
+    state.localActionsDismissed = false
     state.calendar = null
     state.review = {
       sourceId: null,
@@ -650,9 +653,12 @@ export function createSession(options: SessionOptions) {
     await guarded(reload)
   }
 
-  /** Nabídku převzetí skryje jen pro tuto návštěvu, data v prohlížeči zůstanou. */
+  /**
+   * Nabídku nahoře skryje pro tuto návštěvu. Data v prohlížeči zůstanou a převzít je jde
+   * dál v Nastavení.
+   */
   function dismissLocalActions() {
-    state.localActions = []
+    state.localActionsDismissed = true
   }
 
   // Stránky

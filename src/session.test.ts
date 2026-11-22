@@ -381,7 +381,9 @@ describe('převzetí dat z prohlížeče', () => {
     const { storage, data } = storageWith({ [STORAGE_KEY]: stored })
     const { session } = await signedInSession(async () => content, storage)
     session.dismissLocalActions()
-    expect(session.state.localActions).toEqual([])
+    expect(session.state.localActionsDismissed).toBe(true)
+    // Převzít jde dál v Nastavení.
+    expect(session.state.localActions).toHaveLength(1)
     expect(data.has(STORAGE_KEY)).toBe(true)
   })
 })
