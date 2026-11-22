@@ -362,6 +362,7 @@ export function createStore(db: Db) {
     row: ActionRow,
     participants: ParticipantRow[],
     invites: ActionInvite[],
+    links: InviteLink[] = [],
   ): ActionResource {
     const isOrganizer = row.owner_id === viewerId
     const confirmed = toConfirmed(row)
@@ -389,7 +390,26 @@ export function createStore(db: Db) {
             (invite.status === 'accepted' && invite.slot === 'going'),
         ),
       inMyCalendar: row.in_my_calendar ?? false,
+      links: isOrganizer ? links : [],
     }
+  }
+
+  /** Platné odkazy do akcí, které uživatel pořádá. */
+  async function linksOf(
+    viewerId: string,
+    actionIds: string[],
+  ): Promise<Map<string, InviteLink[]>> {
+    const rows = await db.query<InviteRow & { action_id: string }>(
+      `select id, action_id, created_at, expires_at from action_links
+       where action_id = any($2) and created_by = $1 and revoked_at is null and expires_at > now()
+       order by created_at`,
+      [viewerId, actionIds],
+    )
+    const result = new Map<string, InviteLink[]>()
+    for (const row of rows) {
+      result.set(row.action_id, [...(result.get(row.action_id) ?? []), toInvite(row)])
+    }
+    return result
   }
 
   async function actionsOf(viewerId: string, onlyId?: string): Promise<ActionResource[]> {
@@ -401,9 +421,19 @@ export function createStore(db: Db) {
     )
     if (rows.length === 0) return []
     const ids = rows.map((row) => row.id)
-    const [participants, invites] = await Promise.all([participantsOf(ids), invitesOf(ids)])
+    const [participants, invites, links] = await Promise.all([
+      participantsOf(ids),
+      invitesOf(ids),
+      linksOf(viewerId, ids),
+    ])
     return rows.map((row) =>
-      toResource(viewerId, row, participants.get(row.id) ?? [], invites.get(row.id) ?? []),
+      toResource(
+        viewerId,
+        row,
+        participants.get(row.id) ?? [],
+        invites.get(row.id) ?? [],
+        links.get(row.id) ?? [],
+      ),
     )
   }
 
@@ -1337,6 +1367,36 @@ export function createStore(db: Db) {
           isMember: group.is_member,
         }
       }
+      const [action] = await db.query<{
+        action_id: string
+        action_name: string
+        organizer_id: string
+        organizer_name: string | null
+        date_from: string
+        date_to: string
+        is_participant: boolean
+      }>(
+        `select a.id as action_id, a.name as action_name, a.owner_id as organizer_id,
+           (select name from people where owner_id = a.owner_id and is_self) as organizer_name,
+           a.date_from, a.date_to,
+           exists (select 1 from action_invites ai
+                   where ai.action_id = a.id and ai.user_id = $3 and ai.status = 'accepted') as is_participant
+         from action_links l join actions a on a.id = l.action_id
+         where l.token_hash = $1 and l.revoked_at is null and l.expires_at > $2`,
+        [tokenHash, now.toISOString(), userId],
+      )
+      if (action) {
+        return {
+          kind: 'action',
+          actionId: action.action_id,
+          actionName: action.action_name,
+          organizerName: action.organizer_name ?? '',
+          from: action.date_from,
+          to: action.date_to,
+          isParticipant: action.is_participant,
+          isSelf: action.organizer_id === userId,
+        }
+      }
       const [friend] = await db.query<{ created_by: string; from_name: string | null }>(
         `select fi.created_by,
            (select name from people where owner_id = fi.created_by and is_self) as from_name
@@ -1366,6 +1426,7 @@ export function createStore(db: Db) {
     ): Promise<
       | { kind: 'group'; groupId: string }
       | { kind: 'friend'; friendId: string }
+      | { kind: 'action'; actionId: string }
       | 'invalid'
       | 'full'
       | 'self'
@@ -1391,6 +1452,30 @@ export function createStore(db: Db) {
           )
           return { kind: 'group' as const, groupId: group.group_id }
         }
+        // Odkaz do akce: přátelství s organizátorem a přijatá pozvánka v jednom kroku.
+        // Souhlas se sdílením „může, nemůže, nevíme“ dal člověk v okně pozvánky.
+        const [link] = await tx.query<{ action_id: string; created_by: string }>(
+          `select action_id, created_by from action_links
+           where token_hash = $1 and revoked_at is null and expires_at > $2`,
+          [tokenHash, now.toISOString()],
+        )
+        if (link) {
+          if (link.created_by === userId) return 'self' as const
+          const [a, b] = pair(userId, link.created_by)
+          await tx.query(
+            'insert into friendships (user_a, user_b) values ($1, $2) on conflict do nothing',
+            [a, b],
+          )
+          await tx.query(
+            `insert into action_invites (action_id, user_id, status, responded_at)
+             values ($1, $2, 'accepted', now())
+             on conflict (action_id, user_id) do update set status = 'accepted', responded_at = now(),
+               slot_response = null, counter_date = null, counter_start = null, counter_end = null
+             where action_invites.status <> 'accepted'`,
+            [link.action_id, userId],
+          )
+          return { kind: 'action' as const, actionId: link.action_id }
+        }
         const [friend] = await tx.query<{ created_by: string }>(
           `select created_by from friend_invites
            where token_hash = $1 and revoked_at is null and expires_at > $2`,
@@ -1405,6 +1490,75 @@ export function createStore(db: Db) {
         )
         return { kind: 'friend' as const, friendId: friend.created_by }
       })
+    },
+
+    // Odkaz rovnou do akce
+
+    /** Uloží otisk nového odkazu do akce. Smí jen organizátor. */
+    async createActionLink(
+      ownerId: string,
+      actionId: string,
+      tokenHash: string,
+      expiresAt: Date,
+    ): Promise<InviteLink | null> {
+      return db.transaction(async (tx) => {
+        const [action] = await tx.query('select id from actions where owner_id = $1 and id = $2', [
+          ownerId,
+          actionId,
+        ])
+        if (!action) return null
+        const [row] = await tx.query<InviteRow>(
+          `insert into action_links (id, token_hash, action_id, created_by, expires_at)
+           values ($1, $2, $3, $4, $5) returning id, created_at, expires_at`,
+          [randomUUID(), tokenHash, actionId, ownerId, expiresAt.toISOString()],
+        )
+        return toInvite(row)
+      })
+    },
+
+    async revokeActionLink(ownerId: string, actionId: string, linkId: string): Promise<boolean> {
+      const rows = await db.query(
+        `update action_links set revoked_at = now()
+         where id = $3 and action_id = $2 and created_by = $1 and revoked_at is null returning id`,
+        [ownerId, actionId, linkId],
+      )
+      return rows.length > 0
+    },
+
+    /** Uživatel, který akci pořádá. */
+    async actionOwner(actionId: string): Promise<string | null> {
+      const [row] = await db.query<{ owner_id: string }>(
+        'select owner_id from actions where id = $1',
+        [actionId],
+      )
+      return row?.owner_id ?? null
+    },
+
+    // E-mailová upozornění
+
+    /** Komu a kam poslat upozornění. Kdo je vypnul, tu není. */
+    async notificationRecipients(
+      userIds: string[],
+    ): Promise<{ userId: string; email: string; name: string }[]> {
+      if (userIds.length === 0) return []
+      return db.query<{ userId: string; email: string; name: string }>(
+        `select u.id as "userId", u.email, coalesce(p.name, u.name) as name
+         from users u left join people p on p.owner_id = u.id and p.is_self
+         where u.id = any($1) and u.email_notifications`,
+        [userIds],
+      )
+    },
+
+    async emailNotifications(userId: string): Promise<boolean> {
+      const [row] = await db.query<{ email_notifications: boolean }>(
+        'select email_notifications from users where id = $1',
+        [userId],
+      )
+      return row?.email_notifications ?? false
+    },
+
+    async setEmailNotifications(userId: string, enabled: boolean): Promise<void> {
+      await db.query('update users set email_notifications = $2 where id = $1', [userId, enabled])
     },
 
     /** Přítel podle id, pokud jím opravdu je. */
