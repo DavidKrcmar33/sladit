@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { serve } from '@hono/node-server'
+import { draftAction } from '@/llm/actionDraft'
 import { clarifyAnswers } from '@/llm/clarify'
 import { buildSource } from '@/llm/review'
 import { depsFromConfig, extractWithReport } from '@/llm/extract'
@@ -9,6 +10,8 @@ import { fakeCalendar, realCalendar } from './calendar/api'
 import { serverConfigFromEnv } from './config'
 import { migrate, pgliteDb, postgresDb } from './db/db'
 import { createStore } from './db/store'
+import { consoleMailer, resendMailer } from './mail'
+import { createNotifier } from './notify'
 
 /**
  * Spuštění serveru. Ve vývoji (`npm run dev`) podává jen API a frontend běží přes Vite,
@@ -48,6 +51,14 @@ async function start() {
     console.warn('Google Kalendář je vypnutý: chybí TOKEN_ENCRYPTION_KEY (32 bajtů v base64).')
   }
 
+  const mailer =
+    config.mail.mode === 'resend'
+      ? resendMailer(config.mail.apiKey, config.mail.from)
+      : config.mail.mode === 'console'
+        ? consoleMailer()
+        : null
+  if (!mailer) console.warn('E-mailová upozornění jsou vypnutá: chybí RESEND_API_KEY a MAIL_FROM.')
+
   const app = createApp({
     config,
     store,
@@ -58,6 +69,8 @@ async function start() {
       return { source, basis }
     },
     clarify: (input) => clarifyAnswers(input, extractDeps),
+    draftAction: (input) => draftAction(input, extractDeps),
+    notifier: createNotifier(store, mailer, config.appOrigin),
     clientDir: config.production ? './dist' : undefined,
   })
 

@@ -1,4 +1,5 @@
 import type { SourceContent } from '@/core/schema'
+import type { ActionDraft, ActionDraftInput } from '@/llm/actionDraft'
 import type { ClarifyInput, ClarifyResult } from '@/llm/clarify'
 import type { ExtractInput } from '@/llm/extract'
 import { createApp, type ReadResult } from './app'
@@ -7,6 +8,8 @@ import { fakeCalendar } from './calendar/api'
 import { serverConfigFromEnv, type ServerConfig } from './config'
 import { migrate, pgliteDb } from './db/db'
 import { createStore } from './db/store'
+import { memoryMailer } from './mail'
+import { createNotifier } from './notify'
 
 /** Pomůcky pro testy serveru: aplikace nad PGlite v paměti, falešný Google a prohlížeč s cookies. */
 
@@ -33,6 +36,11 @@ export async function testServer(
     reply: 'Nerozuměl jsem.',
     answers: [],
   }),
+  /** Falešná akce z jedné věty. */
+  draftAction: (input: ActionDraftInput) => Promise<ActionDraft> = async () => ({
+    details: null,
+    reply: 'Nerozuměl jsem.',
+  }),
 ) {
   const db = await pgliteDb()
   await migrate(db)
@@ -49,16 +57,21 @@ export async function testServer(
     const result = await extract(input)
     return 'basis' in result ? result : { source: result, basis: null }
   }
+  // Odeslané e-maily zůstanou v poli. Před kontrolou počkej na notifier.settled().
+  const mailer = memoryMailer()
+  const notifier = createNotifier(store, mailer, config.appOrigin)
   const app = createApp({
     config,
     store,
     google: fakeGoogle(config.appOrigin),
     extract: read,
     clarify,
+    draftAction,
     now,
     calendar,
+    notifier,
   })
-  return { app, db, store, config, calendar }
+  return { app, db, store, config, calendar, mails: mailer.sent, notifier }
 }
 
 type App = Awaited<ReturnType<typeof testServer>>['app']

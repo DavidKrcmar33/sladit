@@ -10,11 +10,13 @@ import {
   ClarifyRequestSchema,
   ConfirmedSlotSchema,
   CreateActionRequestSchema,
+  DraftActionRequestSchema,
   SendFriendRequestSchema,
   SlotResponseRequestSchema,
   GroupNameSchema,
   ImportRequestSchema,
   InviteToActionRequestSchema,
+  NotificationSettingsSchema,
   PersonNameSchema,
   ReadingRequestSchema,
   RespondToActionRequestSchema,
@@ -29,6 +31,7 @@ import {
 import { withAnchor } from '@/core/parity'
 import { DateStringSchema, type ActionDetails, type SourceContent } from '@/core/schema'
 import { toMinutes } from '@/core/time'
+import type { ActionDraft, ActionDraftInput } from '@/llm/actionDraft'
 import type { ClarifyInput, ClarifyResult } from '@/llm/clarify'
 import type { ExtractInput } from '@/llm/extract'
 import { buildSource, describeChanges, type ReviewBasis } from '@/llm/review'
@@ -38,6 +41,7 @@ import { createCalendarService } from './calendar/service'
 import type { ServerConfig } from './config'
 import { tokenCipher } from './crypto'
 import type { Store } from './db/store'
+import { createNotifier, type Notifier } from './notify'
 import { InvalidSourceError, MAX_READING_BODY_BYTES, pragueDay, validateParts } from './reading'
 import { actionView } from './view'
 
@@ -49,11 +53,15 @@ export interface AppDeps {
   extract: (input: ExtractInput) => Promise<ReadResult>
   /** Doptání vlastními slovy (src/llm/clarify.ts). V testech se nahrazuje. */
   clarify: (input: ClarifyInput) => Promise<ClarifyResult>
+  /** Akce z jedné věty (src/llm/actionDraft.ts). V testech se nahrazuje. */
+  draftAction: (input: ActionDraftInput) => Promise<ActionDraft>
   now?: () => Date
   /** Adresář se sestaveným frontendem. Bez něj server podává jen API (vývoj, testy). */
   clientDir?: string
   /** Google Kalendář. Bez něj (nebo bez klíče k tokenům) je kalendář vypnutý. */
   calendar?: CalendarApi | null
+  /** E-mailová upozornění (server/notify.ts). Bez nich se nic neposílá. */
+  notifier?: Notifier
 }
 
 /** Přečtený podklad a strukturální čtení, ze kterého ho jde po doptání přepočítat. */
@@ -128,6 +136,12 @@ export function createApp(deps: AppDeps) {
   const secure = config.appOrigin.startsWith('https://')
   const redirectUri = `${config.appOrigin}/api/auth/google/callback`
   const calendarApi = deps.calendar ?? null
+  const notifier = deps.notifier ?? createNotifier(store, null, config.appOrigin)
+
+  /** Akce očima organizátora (pro upozornění). */
+  async function organizerView(ownerId: string | null, actionId: string) {
+    return ownerId ? store.actionOf(ownerId, actionId) : null
+  }
   const calendar = createCalendarService({
     store,
     api: calendarApi,
@@ -571,7 +585,30 @@ export function createApp(deps: AppDeps) {
       body.data.inviteUserIds,
     )
     if (action === 'not-contact') return fail(c, 400, { error: NOT_CONTACT })
+    notifier.invited(
+      action,
+      action.invites.map((invite) => invite.userId),
+    )
     return c.json({ action })
+  })
+
+  // Akce z jedné věty. Nic se neuloží: parametry se vrátí do formuláře ke kontrole.
+  api.post('/actions/draft', async (c) => {
+    const body = await parseBody(c, DraftActionRequestSchema)
+    if (!body.ok) return body.response
+    // Volání placeného modelu, počítá se do stejného denního limitu jako čtení.
+    const limited = await reserveModelCall(c, c.get('user').id)
+    if (limited) return limited
+    try {
+      return c.json(await deps.draftAction({ text: body.data.text, today: pragueDay(now()) }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (/\b429\b/.test(message)) {
+        return fail(c, 503, { error: 'Došel limit modelu, zkus to za chvíli.', code: 'busy' })
+      }
+      console.error('Akce z věty selhala:', message)
+      return fail(c, 502, { error: 'Větu se nepodařilo zpracovat, vyplň akci ručně.' })
+    }
   })
 
   // Návrhy a stav dne ostatních účastníků. Cizí rozpisy server jen použije, nevrátí.
@@ -611,6 +648,7 @@ export function createApp(deps: AppDeps) {
   api.post('/actions/:id/invites', async (c) => {
     const body = await parseBody(c, InviteToActionRequestSchema)
     if (!body.ok) return body.response
+    const before = await store.actionOf(c.get('user').id, c.req.param('id'))
     const result = await store.inviteToAction(
       c.get('user').id,
       c.req.param('id'),
@@ -618,6 +656,46 @@ export function createApp(deps: AppDeps) {
     )
     if (result === 'not-found') return refusedEdit(c, 'Akce nenalezena.')
     if (result === 'not-contact') return fail(c, 400, { error: NOT_CONTACT })
+    // E-mail jen těm, kdo pozvánku nově dostali, ne těm, kdo už ji mají nebo přijali.
+    const already = new Set(
+      (before?.invites ?? [])
+        .filter((invite) => invite.status !== 'declined')
+        .map((invite) => invite.userId),
+    )
+    const after = await store.actionOf(c.get('user').id, c.req.param('id'))
+    if (after)
+      notifier.invited(
+        after,
+        body.data.userIds.filter((userId) => !already.has(userId)),
+      )
+    return actionResponse(c)
+  })
+
+  // Odkaz rovnou do akce. Kdo ho otevře a přijme, je přítel organizátora i účastník.
+  api.post('/actions/:id/links', async (c) => {
+    const user = c.get('user')
+    const token = randomToken()
+    const link = await store.createActionLink(
+      user.id,
+      c.req.param('id'),
+      hash(token),
+      new Date(now().getTime() + INVITE_DAYS * DAY_MS),
+    )
+    if (!link) return refusedEdit(c, 'Akce nenalezena.')
+    return c.json({
+      link,
+      url: `${config.appOrigin}/pozvanka/${token}`,
+      action: await store.actionOf(user.id, c.req.param('id')),
+    })
+  })
+
+  api.delete('/actions/:id/links/:linkId', async (c) => {
+    const done = await store.revokeActionLink(
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.param('linkId'),
+    )
+    if (!done) return refusedEdit(c, 'Odkaz nenalezen.')
     return actionResponse(c)
   })
 
@@ -657,6 +735,8 @@ export function createApp(deps: AppDeps) {
     if (!fitsAction(action.details, body.data)) return fail(c, 400, { error: SLOT_MISFIT })
     await store.confirmAction(user.id, action.id, body.data)
     await calendar.afterConfirm(action.id)
+    const proposed = await store.actionOf(user.id, action.id)
+    if (proposed) notifier.proposed(proposed)
     return actionResponse(c)
   })
 
@@ -672,9 +752,14 @@ export function createApp(deps: AppDeps) {
     if (body.data.response === 'counter' && !fitsAction(action.details, body.data.counter)) {
       return fail(c, 400, { error: SLOT_MISFIT })
     }
+    // Domluveno je vidět jen očima organizátora, účastník cizí odpovědi nevidí.
+    const ownerId = await store.actionOwner(action.id)
+    const before = await organizerView(ownerId, action.id)
     await store.respondToSlot(user.id, action.id, body.data)
     // Kdo jde a má automatický zápis, tomu se termín zapíše. Kdo nejde, tomu se smaže.
     await calendar.afterConfirm(action.id)
+    const after = await organizerView(ownerId, action.id)
+    if (ownerId && after?.agreed && !before?.agreed) notifier.agreed(after, ownerId)
     return actionResponse(c)
   })
 
@@ -687,6 +772,11 @@ export function createApp(deps: AppDeps) {
     const adopted = await store.adoptCounter(user.id, action.id, c.req.param('userId'))
     if (!adopted) return fail(c, 404, { error: 'Návrh už neplatí.' })
     await calendar.afterConfirm(action.id)
+    const after = await store.actionOf(user.id, action.id)
+    if (after) {
+      notifier.proposed(after)
+      if (after.agreed) notifier.agreed(after, user.id)
+    }
     return actionResponse(c)
   })
 
@@ -723,6 +813,19 @@ export function createApp(deps: AppDeps) {
     }
     await calendar.removeEvent(user.id, c.req.param('id'))
     return actionResponse(c)
+  })
+
+  // E-mailová upozornění
+
+  api.get('/settings/notifications', async (c) =>
+    c.json({ notifications: { email: await store.emailNotifications(c.get('user').id) } }),
+  )
+
+  api.put('/settings/notifications', async (c) => {
+    const body = await parseBody(c, NotificationSettingsSchema)
+    if (!body.ok) return body.response
+    await store.setEmailNotifications(c.get('user').id, body.data.email)
+    return c.json({ notifications: body.data })
   })
 
   // Přátelé
@@ -885,6 +988,9 @@ export function createApp(deps: AppDeps) {
     }
     if (result.kind === 'friend') {
       return c.json({ kind: 'friend', friend: await store.friendOf(user.id, result.friendId) })
+    }
+    if (result.kind === 'action') {
+      return c.json({ kind: 'action', action: await store.actionOf(user.id, result.actionId) })
     }
     return c.json({ kind: 'group', group: await store.groupOf(user.id, result.groupId, now()) })
   })
