@@ -3,7 +3,7 @@
 AI nástroj, který z rozpisů směn v libovolném formátu (Excel, fotka, screenshot, PDF, text) najde společný termín pro skupinu.
 Semestrální projekt do předmětu Umělá inteligence.
 
-> Stav: přihlášení přes Google, vlastní rozpis v účtu (Můj rozvrh), přátelé přes odkaz i e-mail, skupiny (odkazem i z přátel), doptání po čtení (tlačítka i vlastní slova přes AI), akce s pozvanými a domluvou termínu (jdu, nejdu, jiný termín) (ostatní vidí jen může, nemůže, nevíme), čtení rozpisů přes server (Gemini nebo Claude), výpočet termínů a měření fungují. Poslední měření na vygenerovaných podkladech: 121 ze 121 směn správně, správný termín u 23 z 23 skupin (model `claude-opus-5-5`). Skutečné fotky rozpisů v testovací sadě zatím nejsou. Aplikace je nasazená na Railway, viz [docs/BACKEND.md](docs/BACKEND.md). Google Kalendář (obsazenost a zápis domluvených akcí) se připojuje v Nastavení.
+> Stav: přihlášení přes Google, vlastní rozpis v účtu (Můj rozvrh), přátelé přes odkaz i e-mail, skupiny (odkazem i z přátel), doptání po čtení (tlačítka i vlastní slova přes AI), akce s pozvanými (i odkazem rovnou do akce) a domluvou termínu (jdu, nejdu, jiný termín), akce z jedné věty přes AI, upozornění e-mailem (ostatní vidí jen může, nemůže, nevíme), čtení rozpisů přes server (Gemini nebo Claude), výpočet termínů a měření fungují. Poslední měření na vygenerovaných podkladech: 121 ze 121 směn správně, správný termín u 23 z 23 skupin (model `claude-opus-5-5`). Skutečné fotky rozpisů v testovací sadě zatím nejsou. Aplikace je nasazená na Railway, viz [docs/BACKEND.md](docs/BACKEND.md). Google Kalendář (obsazenost a zápis domluvených akcí) se připojuje v Nastavení.
 
 ## Spuštění u sebe
 
@@ -36,20 +36,20 @@ Klíče čte jen server, do prohlížeče se nedostanou. Proto v `.env` nesmí �
 
 ## Příkazy
 
-| Příkaz              | Co dělá                                                                   |
-| ------------------- | ------------------------------------------------------------------------- |
-| `npm run dev`       | vývoj: frontend i server                                                  |
-| `npm run build`     | kontrola typů, sestavení frontendu do `dist/` a serveru do `dist-server/` |
-| `npm start`         | spuštění sestavené aplikace (produkce)                                    |
-| `npm run typecheck` | jen kontrola typů                                                         |
-| `npm test`          | testy (Vitest)                                                            |
-| `npm run test:coverage` | pokrytí Vitestu nad `src/` a `server/`, HTML a JSON v `coverage/` |
-| `npm run test:e2e` | test v Chromiu nad sestavenou aplikací a izolovanou databází v paměti |
+| Příkaz                    | Co dělá                                                                    |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `npm run dev`             | vývoj: frontend i server                                                   |
+| `npm run build`           | kontrola typů, sestavení frontendu do `dist/` a serveru do `dist-server/`  |
+| `npm start`               | spuštění sestavené aplikace (produkce)                                     |
+| `npm run typecheck`       | jen kontrola typů                                                          |
+| `npm test`                | testy (Vitest)                                                             |
+| `npm run test:coverage`   | pokrytí Vitestu nad `src/` a `server/`, HTML a JSON v `coverage/`          |
+| `npm run test:e2e`        | test v Chromiu nad sestavenou aplikací a izolovanou databází v paměti      |
 | `npm run test:profile-db` | časy otevření PGlite, migrací a zbytku scénářů ve dvou integračních sadách |
-| `npm run lint`      | kontrola kódu (ESLint)                                                    |
-| `npm run format`    | formátování (Prettier)                                                    |
-| `npm run eval`      | měření (eval/), viz níže                                                  |
-| `npm run eval:data` | znovu vygeneruje testovací data                                           |
+| `npm run lint`            | kontrola kódu (ESLint)                                                     |
+| `npm run format`          | formátování (Prettier)                                                     |
+| `npm run eval`            | měření (eval/), viz níže                                                   |
+| `npm run eval:data`       | znovu vygeneruje testovací data                                            |
 
 Před prvním během E2E nainstaluj Chromium příkazem `npx playwright install chromium`. Testy modulů a komponent leží vedle zdrojového kódu, scénáře přes celou aplikaci v `e2e/`. Pokrytí V8 zahrnuje i nenačtené komponenty Vue. Běh v Chromiu se vykazuje samostatně.
 
