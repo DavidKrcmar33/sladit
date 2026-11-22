@@ -506,9 +506,11 @@ export function createStore(db: Db) {
       user_id: string
       role: string
       name: string
+      email: string
     }>(
-      `select m.group_id, m.user_id, m.role, p.name from memberships m
+      `select m.group_id, m.user_id, m.role, p.name, u.email from memberships m
        join people p on p.owner_id = m.user_id and p.is_self
+       join users u on u.id = m.user_id
        where m.group_id = any($1) order by m.position`,
       [ids],
     )
@@ -528,6 +530,7 @@ export function createStore(db: Db) {
         .map((member) => ({
           userId: member.user_id,
           name: member.name,
+          email: member.email,
           isOwner: member.role === 'owner',
           isYou: member.user_id === userId,
         })),
@@ -538,8 +541,9 @@ export function createStore(db: Db) {
   async function friendsOf(userId: string, now: Date) {
     const since = new Date(now.getTime() - FRIEND_REQUEST_DAYS * DAY_MS).toISOString()
     const friends = await db.query<Friend>(
-      `select p.owner_id as "userId", p.name from friendships f
+      `select p.owner_id as "userId", p.name, u.email from friendships f
        join people p on p.is_self and p.owner_id = case when f.user_a = $1 then f.user_b else f.user_a end
+       join users u on u.id = p.owner_id
        where f.user_a = $1 or f.user_b = $1 order by p.name`,
       [userId],
     )
@@ -1529,8 +1533,9 @@ export function createStore(db: Db) {
     async friendOf(userId: string, friendId: string): Promise<Friend | null> {
       const [a, b] = pair(userId, friendId)
       const [row] = await db.query<Friend>(
-        `select p.owner_id as "userId", p.name from friendships f
+        `select p.owner_id as "userId", p.name, u.email from friendships f
          join people p on p.owner_id = $3 and p.is_self
+         join users u on u.id = p.owner_id
          where f.user_a = $1 and f.user_b = $2`,
         [a, b, friendId],
       )

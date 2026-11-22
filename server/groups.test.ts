@@ -51,7 +51,7 @@ async function party(now?: () => Date) {
 }
 
 describe('pozvánka do skupiny', () => {
-  it('lets the invited user see who invites them and join; members see names, never e-mails', async () => {
+  it('lets the invited user see who invites them and join; members see names and e-mails', async () => {
     const { anna, eva, token, groupId, inviteUrl } = await party()
     expect(inviteUrl).toMatch(/^http:\/\/localhost:5173\/pozvanka\/[\w-]{20,}$/)
 
@@ -84,9 +84,7 @@ describe('pozvánka do skupiny', () => {
 
     const annaGroups = await json<{ groups: Group[] }>(await anna.get('/api/groups'))
     expect(annaGroups.groups[0].invites).toHaveLength(1)
-    expect(JSON.stringify(await json(await eva.get('/api/groups')))).not.toContain(
-      'anna@example.com',
-    )
+    expect(JSON.stringify(await json(await eva.get('/api/groups')))).toContain('anna@example.com')
     // Odkaz s pozvánkou server neuloží, zná jen jeho otisk.
     expect(JSON.stringify(annaGroups)).not.toContain(token)
   })

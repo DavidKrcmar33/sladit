@@ -98,13 +98,13 @@ async function invited() {
 }
 
 describe('přátelé', () => {
-  it('connects two people through a personal link; both see each other by name only', async () => {
+  it('connects two people through a personal link; both see each other by name and e-mail', async () => {
     const { anna, eva, jana } = await people()
     const annaFriends = await json<{ friends: Friend[] }>(await anna.get('/api/friends'))
     const evaFriends = await json<{ friends: Friend[] }>(await eva.get('/api/friends'))
     expect(annaFriends.friends.map((friend) => friend.name)).toEqual(['Eva'])
     expect(evaFriends.friends.map((friend) => friend.name)).toEqual(['Anna'])
-    expect(JSON.stringify(evaFriends)).not.toContain('anna@example.com')
+    expect(evaFriends.friends[0].email).toBe('anna@example.com')
     expect(await json(await jana.get('/api/friends'))).toMatchObject({ friends: [] })
   })
 
