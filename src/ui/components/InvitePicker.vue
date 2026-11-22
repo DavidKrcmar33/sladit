@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { Group } from '@/contract/api'
 import type { Contact } from '@/session'
-import UiButton from './UiButton.vue'
+import UiIcon from './UiIcon.vue'
 
 /** Výběr, koho pozvat: přátelé a lidé z mých skupin. Skupinu jde přidat celou najednou. */
 const props = defineProps<{
@@ -23,11 +23,35 @@ function toggle(userId: string, checked: boolean) {
     : selected.value.filter((id) => id !== userId)
 }
 
-function addGroup(group: Group) {
-  const members = group.members
+/** Členové skupiny, které jde pozvat: bez mě a bez těch, kdo už pozvaní jsou. */
+function membersOf(group: Group): string[] {
+  return group.members
     .filter((member) => !member.isYou && !(props.excluded ?? []).includes(member.userId))
     .map((member) => member.userId)
-  selected.value = [...new Set([...selected.value, ...members])]
+}
+
+/**
+ * Stav skupin pro výběr: kolik členů je vybraných. Skupina je vybraná, když jsou vybraní
+ * všichni, kdo jdou pozvat. Klik ji vybere celou, nebo celou odebere.
+ */
+const groupItems = computed(() =>
+  props.groups.map((group) => {
+    const members = membersOf(group)
+    const chosen = members.filter((id) => selected.value.includes(id)).length
+    return {
+      group,
+      members,
+      chosen,
+      total: members.length,
+      all: members.length > 0 && chosen === members.length,
+    }
+  }),
+)
+
+function toggleGroup(item: (typeof groupItems.value)[number]) {
+  selected.value = item.all
+    ? selected.value.filter((id) => !item.members.includes(id))
+    : [...new Set([...selected.value, ...item.members])]
 }
 
 function describe(contact: Contact): string {
@@ -43,9 +67,30 @@ function describe(contact: Contact): string {
     </p>
     <template v-else>
       <div v-if="groups.length > 0" class="flex flex-wrap gap-2">
-        <UiButton v-for="group in groups" :key="group.id" variant="dashed" @click="addGroup(group)">
-          Celá skupina {{ group.name }}
-        </UiButton>
+        <button
+          v-for="item in groupItems"
+          :key="item.group.id"
+          type="button"
+          :aria-pressed="item.all"
+          :disabled="item.total === 0"
+          :class="[
+            'flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition',
+            'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            item.all
+              ? 'border-accent bg-accent text-white hover:bg-accent-dark'
+              : item.chosen > 0
+                ? 'border-accent bg-accent-soft text-accent-dark hover:brightness-95'
+                : 'border-dashed border-outline bg-white text-ink hover:bg-panel',
+          ]"
+          @click="toggleGroup(item)"
+        >
+          <UiIcon v-if="item.all" name="check" :size="14" />
+          Celá skupina {{ item.group.name }}
+          <span v-if="item.chosen > 0 && !item.all" class="text-xs font-normal">
+            ({{ item.chosen }} z {{ item.total }})
+          </span>
+        </button>
       </div>
       <ul class="flex max-h-56 flex-col overflow-y-auto rounded-lg border border-line">
         <li
