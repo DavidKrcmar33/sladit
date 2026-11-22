@@ -491,3 +491,67 @@ describe('žádost o přátelství v prohlížeči', () => {
     expect(evaSession.state.friendRequests.incoming).toEqual([])
   })
 })
+
+describe('odkaz do akce a e-mail v prohlížeči', () => {
+  it('joins the action through its link and opens it', async () => {
+    const { anna, eva } = await setup()
+    const annaSession = sessionFor(anna)
+    await annaSession.init()
+    await annaSession.createAction({ ...details }, [])
+    await annaSession.createActionLink()
+    const url = annaSession.state.lastInvite!.url
+    expect(annaSession.state.lastInvite?.target).toBe(
+      `action:${annaSession.state.selectedActionId}`,
+    )
+
+    await eva.login('eva@example.com', 'Eva')
+    const evaSession = sessionFor(eva, { inviteToken: inviteTokenFromPath(new URL(url).pathname) })
+    await evaSession.init()
+    expect(evaSession.state.invite?.preview).toMatchObject({ kind: 'action', actionName: 'Pivo' })
+    await evaSession.acceptInvite()
+    expect(evaSession.state.page).toBe('action')
+    expect(evaSession.selectedResource.value).toMatchObject({ myStatus: 'accepted' })
+    expect(evaSession.state.friends.map((friend) => friend.name)).toEqual(['Anna'])
+  })
+
+  it('opens the action from the e-mail link even before uploading a schedule', async () => {
+    const { anna } = await setup()
+    const annaSession = sessionFor(anna)
+    await annaSession.init()
+    await annaSession.createAction({ ...details, name: 'Kino' }, [])
+    await annaSession.createAction({ ...details }, [])
+    const kino = annaSession.state.actions.find((action) => action.details.name === 'Kino')!
+    const storage = memoryStorage()
+    const again = sessionFor(anna, { openActionId: kino.id, inviteStorage: storage })
+    await again.init()
+    expect(again.state.page).toBe('action')
+    expect(again.state.selectedActionId).toBe(kino.id)
+    expect(storage.items.size).toBe(0)
+  })
+
+  it('turns a sentence into form values without saving anything', async () => {
+    const server = await testServer(
+      {},
+      undefined,
+      () => new Date('2026-11-19T12:00:00Z'),
+      undefined,
+      async () => ({
+        details,
+        reply: 'Pivo příští týden večer.',
+      }),
+    )
+    const anna = browser(server.app)
+    await anna.login('anna@example.com', 'Anna')
+    const session = sessionFor(anna)
+    await session.init()
+    expect(await session.draftAction('pivo příští týden večer')).toEqual({
+      details,
+      reply: 'Pivo příští týden večer.',
+    })
+    expect(await session.draftAction('x')).toMatchObject({ details: null })
+    expect(session.state.actions).toEqual([])
+    expect(session.state.notifications).toEqual({ email: true })
+    await session.setEmailNotifications(false)
+    expect(session.state.notifications).toEqual({ email: false })
+  })
+})

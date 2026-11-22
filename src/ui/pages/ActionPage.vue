@@ -34,6 +34,8 @@ const {
   deleteAction,
   inviteToAction,
   cancelInvite,
+  createActionLink,
+  revokeActionLink,
   confirmSlot,
   respondToSlot,
   adoptCounter,
@@ -297,8 +299,14 @@ function confirm(proposal: Proposal) {
         :action="resource"
         :contacts="contacts"
         :groups="state.groups"
+        :link-url="
+          state.lastInvite?.target === `action:${resource.id}` ? state.lastInvite.url : null
+        "
+        :can-link="!state.demo"
         @invite="inviteToAction"
         @cancel="cancelInvite"
+        @create-link="createActionLink"
+        @revoke-link="revokeActionLink"
       />
     </aside>
   </div>

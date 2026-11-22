@@ -48,6 +48,7 @@ const {
   updateAction,
   undoActionUpdate,
   dismissCalendarNotice,
+  draftAction,
 } = useSession()
 
 /** Otevřený formulář akce: nová, nebo úprava vybrané. */
@@ -309,6 +310,7 @@ async function submitGroup(name: string) {
       :contacts="contacts"
       :groups="state.groups"
       :initial-invitees="dialogInvitees"
+      :draft="state.demo ? undefined : draftAction"
       @submit="submitAction"
       @close="actionDialog = null"
     />

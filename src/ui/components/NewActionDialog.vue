@@ -19,6 +19,11 @@ const props = defineProps<{
   groups?: Group[]
   /** Předvybraní pozvaní, třeba celá skupina. */
   initialInvitees?: string[]
+  /**
+   * Akce z jedné věty: AI vrátí parametry do formuláře, nebo zprávu, proč to nešlo.
+   * Bez ní (ukázka, úprava akce) pole pro větu není.
+   */
+  draft?: (text: string) => Promise<{ details: NewActionInput | null; reply: string }>
 }>()
 const emit = defineEmits<{
   submit: [input: NewActionInput, inviteUserIds: string[]]
@@ -38,6 +43,21 @@ function localToday(): DateString {
 }
 
 const today = localToday()
+
+// Akce z jedné věty
+const sentence = ref('')
+const drafting = ref(false)
+const draftReply = ref<{ ok: boolean; text: string } | null>(null)
+
+async function fillFromSentence() {
+  if (!props.draft || drafting.value || sentence.value.trim().length < 3) return
+  drafting.value = true
+  draftReply.value = null
+  const result = await props.draft(sentence.value.trim())
+  drafting.value = false
+  if (result.details) Object.assign(input, result.details)
+  draftReply.value = { ok: result.details !== null, text: result.reply }
+}
 
 const isEditing = props.initial !== undefined
 
@@ -62,6 +82,35 @@ const input = reactive<NewActionInput>(
       novalidate
       @submit.prevent="emit('submit', { ...input }, invitees)"
     >
+      <div
+        v-if="draft && !isEditing"
+        class="flex flex-col gap-2 rounded-lg border border-line bg-panel p-3"
+      >
+        <label for="action-sentence" class="font-medium">Popiš akci vlastními slovy</label>
+        <textarea
+          id="action-sentence"
+          v-model="sentence"
+          rows="2"
+          maxlength="500"
+          placeholder="třeba „pivo s klukama příští týden večer, tak na 3 hodiny“"
+          class="field-input h-auto resize-none py-2"
+          @keydown.enter.exact.prevent="fillFromSentence"
+        />
+        <div class="flex flex-wrap items-center gap-2">
+          <UiButton :disabled="drafting || sentence.trim().length < 3" @click="fillFromSentence">
+            {{ drafting ? 'Vyplňuji…' : 'Vyplnit podle věty' }}
+          </UiButton>
+          <span class="text-xs text-muted">AI vyplní formulář, ty ho zkontroluješ.</span>
+        </div>
+        <p
+          v-if="draftReply"
+          :role="draftReply.ok ? 'status' : 'alert'"
+          :class="draftReply.ok ? 'text-accent-dark' : 'font-medium text-warn'"
+        >
+          {{ draftReply.text }}
+        </p>
+      </div>
+
       <div class="flex flex-col gap-1.5">
         <label for="action-name" class="font-medium">Název</label>
         <input id="action-name" v-model="input.name" class="field-input" autocomplete="off" />

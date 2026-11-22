@@ -79,6 +79,13 @@ export const SlotResponseRequestSchema = z.discriminatedUnion('response', [
   z.object({ response: z.literal('counter'), counter: ConfirmedSlotSchema }),
 ])
 
+/** Platný odkaz s pozvánkou. Samotný odkaz se ukáže jen jednou, při založení. */
+export const InviteLinkSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+})
+
 /** Akce s parametry a lidmi, kteří se jí účastní. */
 export const ActionResourceSchema = z.object({
   id: z.string(),
@@ -104,6 +111,8 @@ export const ActionResourceSchema = z.object({
   agreed: z.boolean(),
   /** Termín je zapsaný v mém Google Kalendáři. */
   inMyCalendar: z.boolean(),
+  /** Platné odkazy rovnou do akce. Vidí je jen organizátor. */
+  links: z.array(InviteLinkSchema),
 })
 
 export const ActionsResponseSchema = z.object({ actions: z.array(ActionResourceSchema) })
@@ -163,13 +172,6 @@ export const GroupNameSchema = z.object({
 
 /** Zakladatel přidá do skupiny někoho ze svých přátel, bez odkazu. */
 export const AddMemberSchema = z.object({ userId: z.string().min(1).max(100) })
-
-/** Platný odkaz s pozvánkou. Samotný odkaz se ukáže jen jednou, při založení. */
-export const InviteLinkSchema = z.object({
-  id: z.string(),
-  createdAt: z.string(),
-  expiresAt: z.string(),
-})
 
 /** Člen skupiny. Ostatní o něm vidí jen jméno, e-mail ne. */
 export const GroupMemberSchema = z.object({
@@ -270,6 +272,18 @@ export const InvitePreviewSchema = z.discriminatedUnion('kind', [
     /** Vlastní odkaz: sám sebe si do přátel přidat nejde. */
     isSelf: z.boolean(),
   }),
+  /** Odkaz rovnou do akce: po přijetí je člověk přítel organizátora i účastník. */
+  z.object({
+    kind: z.literal('action'),
+    actionId: z.string(),
+    actionName: z.string(),
+    organizerName: z.string(),
+    from: DateStringSchema,
+    to: DateStringSchema,
+    isParticipant: z.boolean(),
+    /** Vlastní akce: organizátor se do ní zvát nemusí. */
+    isSelf: z.boolean(),
+  }),
 ])
 
 export const InvitePreviewResponseSchema = z.object({ invite: InvitePreviewSchema })
@@ -277,9 +291,38 @@ export const InvitePreviewResponseSchema = z.object({ invite: InvitePreviewSchem
 export const AcceptInviteResponseSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('group'), group: GroupSchema }),
   z.object({ kind: z.literal('friend'), friend: FriendSchema }),
+  z.object({ kind: z.literal('action'), action: ActionResourceSchema }),
 ])
 
+export const CreateActionLinkResponseSchema = z.object({
+  link: InviteLinkSchema,
+  /** Odkaz do akce. Server ho neuloží, zná jen jeho otisk. */
+  url: z.string(),
+  action: ActionResourceSchema,
+})
+
+/** E-mailová upozornění: pozvánka, navržený termín, domluveno. */
+export const NotificationSettingsSchema = z.object({ email: z.boolean() })
+export const NotificationSettingsResponseSchema = z.object({
+  notifications: NotificationSettingsSchema,
+})
+
 export const UpdateActionRequestSchema = z.object({ details: ActionDetailsSchema })
+
+/** Akce z jedné věty: AI navrhne parametry, člověk je zkontroluje ve formuláři. */
+export const DraftActionRequestSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(3, 'Napiš, o jakou akci jde.')
+    .max(500, 'Popis je příliš dlouhý, stačí jedna věta.'),
+})
+
+export const DraftActionResponseSchema = z.object({
+  /** Null, když z věty nejde akci poskládat. Důvod je v reply. */
+  details: ActionDetailsSchema.nullable(),
+  reply: z.string(),
+})
 
 /** Část podkladu připravená v prohlížeči (ingest.ts): text, nebo soubor v base64. */
 export const ModelPartSchema = z.union([
@@ -385,6 +428,8 @@ export type GroupInvite = InviteLink
 export type InvitePreview = z.infer<typeof InvitePreviewSchema>
 export type ReadingRequest = z.infer<typeof ReadingRequestSchema>
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequestSchema>
+export type DraftActionResponse = z.infer<typeof DraftActionResponseSchema>
+export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>
 export type ClarifyResponse = z.infer<typeof ClarifyResponseSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 export type CalendarStatus = z.infer<typeof CalendarStatusSchema>

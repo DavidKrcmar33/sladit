@@ -7,7 +7,10 @@ import {
   ActionResponseSchema,
   ActionsResponseSchema,
   ActionViewResponseSchema,
+  CreateActionLinkResponseSchema,
   CreateFriendInviteResponseSchema,
+  DraftActionResponseSchema,
+  NotificationSettingsResponseSchema,
   CreateInviteResponseSchema,
   ErrorResponseSchema,
   FriendsResponseSchema,
@@ -103,6 +106,11 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     deleteAction: (actionId) => ok('DELETE', `/actions/${actionId}`),
     actionView: (actionId) =>
       call(ActionViewResponseSchema, 'GET', `/actions/${actionId}/view`).then((data) => data.view),
+    draftAction: (text) => call(DraftActionResponseSchema, 'POST', '/actions/draft', { text }),
+    createActionLink: (actionId) =>
+      call(CreateActionLinkResponseSchema, 'POST', `/actions/${actionId}/links`),
+    revokeActionLink: (actionId, linkId) =>
+      action('DELETE', `/actions/${actionId}/links/${linkId}`),
     inviteToAction: (actionId, userIds) =>
       action('POST', `/actions/${actionId}/invites`, { userIds }),
     cancelInvite: (actionId, userId) => action('DELETE', `/actions/${actionId}/invites/${userId}`),
@@ -143,6 +151,15 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     invitePreview: (token) =>
       call(InvitePreviewResponseSchema, 'GET', invite(token)).then((data) => data.invite),
     acceptInvite: (token) => call(AcceptInviteResponseSchema, 'POST', `${invite(token)}/accept`),
+
+    notificationSettings: () =>
+      call(NotificationSettingsResponseSchema, 'GET', '/settings/notifications').then(
+        (data) => data.notifications,
+      ),
+    setNotificationSettings: (settings) =>
+      call(NotificationSettingsResponseSchema, 'PUT', '/settings/notifications', settings).then(
+        (data) => data.notifications,
+      ),
 
     calendarStatus: () => calendar('GET', '/calendar'),
     setCalendarAutoWrite: (autoWrite) => calendar('PATCH', '/calendar', { autoWrite }),

@@ -1,5 +1,7 @@
 import type {
   AcceptInviteResponse,
+  DraftActionResponse,
+  NotificationSettings,
   ActionResource,
   ActionView,
   CalendarStatus,
@@ -53,6 +55,11 @@ export interface Backend {
   actionView(actionId: string): Promise<ActionView>
   inviteToAction(actionId: string, userIds: string[]): Promise<ActionResource>
   cancelInvite(actionId: string, userId: string): Promise<ActionResource>
+  /** Akce z jedné věty: AI navrhne parametry do formuláře. Nic neuloží. */
+  draftAction(text: string): Promise<DraftActionResponse>
+  /** Odkaz rovnou do akce. Ukáže se jen jednou. */
+  createActionLink(actionId: string): Promise<{ action: ActionResource; url: string }>
+  revokeActionLink(actionId: string, linkId: string): Promise<ActionResource>
   /** Odpověď pozvaného. Po odmítnutí akci neuvidí, vrátí se null. */
   respondToAction(actionId: string, accept: boolean): Promise<ActionResource | null>
   confirmAction(actionId: string, slot: ConfirmedSlot | null): Promise<ActionResource>
@@ -93,6 +100,9 @@ export interface Backend {
   /** Zapíše potvrzený termín akce do mého kalendáře, nebo ho odtud odebere. */
   addToCalendar(actionId: string): Promise<ActionResource>
   removeFromCalendar(actionId: string): Promise<ActionResource>
+
+  notificationSettings(): Promise<NotificationSettings>
+  setNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings>
 
   importActions(actions: Action[]): Promise<number>
 }

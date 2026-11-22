@@ -14,6 +14,7 @@ const {
   disconnectCalendar,
   deleteAccount,
   acceptLocalActions,
+  setEmailNotifications,
 } = useSession()
 
 const confirmingDelete = ref(false)
@@ -50,6 +51,28 @@ async function saveName() {
       <p v-if="state.calendar?.state === 'unavailable'" class="text-muted">
         Google Kalendář teď připojit nejde, server ho nemá nastavený.
       </p>
+
+      <section
+        v-if="state.notifications && !state.demo"
+        aria-labelledby="notifications-title"
+        class="flex flex-col gap-3 rounded-xl border border-line bg-white p-5"
+      >
+        <h2 id="notifications-title" class="text-base font-semibold">Upozornění e-mailem</h2>
+        <label class="flex items-start gap-3">
+          <input
+            type="checkbox"
+            class="mt-0.5 size-4 accent-accent"
+            :checked="state.notifications.email"
+            @change="setEmailNotifications(($event.target as HTMLInputElement).checked)"
+          />
+          <span>
+            Poslat e-mail, když mě někdo pozve do akce, navrhne termín, nebo když je akce domluvená.
+            <span class="block text-muted"
+              >Na {{ state.user?.email }}. Rozpisy v e-mailu nejsou.</span
+            >
+          </span>
+        </label>
+      </section>
 
       <section
         v-if="state.localActions.length > 0"

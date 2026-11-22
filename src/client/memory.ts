@@ -140,6 +140,7 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
       mySlot: null,
       agreed: action.confirmed !== null,
       inMyCalendar: false,
+      links: [],
     })
   }
 
@@ -298,6 +299,10 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
       return resource(action)
     },
     respondToAction: async () => onlyWithAccount(),
+    // V ukázce se model nevolá a odkazy nikam nevedou.
+    draftAction: async () => onlyWithAccount(),
+    createActionLink: async () => onlyWithAccount(),
+    revokeActionLink: async () => onlyWithAccount(),
     async confirmAction(actionId, slot) {
       const action = stored(actionId)
       action.confirmed = slot ? copy(slot) : null
@@ -336,6 +341,12 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
     revokeInvite: async () => onlyWithAccount(),
     invitePreview: async () => onlyWithAccount(),
     acceptInvite: async () => onlyWithAccount(),
+
+    async notificationSettings() {
+      signedIn()
+      return { email: false }
+    },
+    setNotificationSettings: async () => onlyWithAccount(),
 
     // Kalendář jde jen s účtem a serverem.
     async calendarStatus() {
