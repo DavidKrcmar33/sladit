@@ -31,6 +31,7 @@ const {
   usesServerView,
   contacts,
   respondToAction,
+  deleteAction,
   inviteToAction,
   cancelInvite,
   confirmSlot,
@@ -50,6 +51,7 @@ const {
 } = useSession()
 
 const leaving = ref(false)
+const confirmingDelete = ref(false)
 /** Přijetí pozvánky: nejdřív souhlas se sdílením toho, kdy můžu. */
 const consenting = ref(false)
 
@@ -107,13 +109,31 @@ const alternatives = computed(() =>
   ),
 )
 
+/**
+ * Proč nejsou návrhy: plánovač nemá z čeho počítat, nebo se v okně akce nikdo nevešel.
+ * Bez rozpisu je u člověka všude „nevíme“ a termín pro něj nejde najít.
+ */
+const proposalsEmpty = computed<'mine' | 'others' | 'nofit'>(() => {
+  if (takesPart.value && !hasSchedule.value) return 'mine'
+  const others = (calendar.value?.rows ?? []).filter((row) => row.personId !== me.value?.id)
+  const knowsSomething = others.some((row) => row.days.some((day) => day.attendance !== 'unknown'))
+  return knowsSomething ? 'nofit' : 'others'
+})
+
+/** Sloupec, na který se má v kalendáři dívat: navržený, jinak nejlepší termín. */
+const highlightDate = computed(
+  () => resource.value.confirmed?.date ?? proposals.value[0]?.date ?? null,
+)
+
 function confirm(proposal: Proposal) {
   void confirmSlot({ date: proposal.date, start: proposal.start, end: proposal.end })
 }
 </script>
 
 <template>
-  <div class="flex h-full flex-wrap content-start gap-8 overflow-auto px-8 py-6">
+  <div
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 py-5 sm:px-6 lg:gap-8 lg:px-8 lg:py-6"
+  >
     <section
       aria-labelledby="calendar-title"
       class="flex min-w-0 flex-[999_1_560px] flex-col gap-4"
@@ -212,6 +232,7 @@ function confirm(proposal: Proposal) {
         <CalendarGrid
           :calendar="calendar"
           :selected-day="state.selectedDay"
+          :highlight-date="highlightDate"
           @select="selectDay($event)"
           @edit-person="showSchedule"
         />
@@ -242,9 +263,24 @@ function confirm(proposal: Proposal) {
         </div>
         <UiButton v-else variant="danger" @click="leaving = true">Odejít z akce</UiButton>
       </div>
+
+      <!-- Smazání je dole, daleko od běžných tlačítek: je nevratné a týká se všech pozvaných. -->
+      <div v-if="resource.isOrganizer" class="border-t border-line pt-3">
+        <div
+          v-if="confirmingDelete"
+          role="alertdialog"
+          aria-label="Smazat akci"
+          class="flex flex-wrap items-center gap-2"
+        >
+          <span class="text-warn">Smazat akci pro všechny? Vrátit to nejde.</span>
+          <UiButton variant="danger" @click="deleteAction">Smazat</UiButton>
+          <UiButton @click="confirmingDelete = false">Nechat</UiButton>
+        </div>
+        <UiButton v-else variant="danger" @click="confirmingDelete = true">Smazat akci</UiButton>
+      </div>
     </section>
 
-    <aside class="flex min-w-0 max-w-sm flex-[1_1_300px] flex-col gap-6">
+    <aside class="flex min-w-0 flex-[1_1_300px] flex-col gap-6 lg:max-w-sm">
       <ProposalList
         :proposals="proposals"
         :people="participants"
@@ -253,7 +289,9 @@ function confirm(proposal: Proposal) {
         :confirmed="resource.confirmed"
         :busy="state.pending !== null"
         :confirming="state.pending === 'confirm'"
+        :empty-reason="proposalsEmpty"
         @confirm="confirm"
+        @upload="showSchedule"
       />
       <ActionPeople
         :action="resource"

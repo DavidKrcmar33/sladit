@@ -29,7 +29,7 @@ function dayNumber(date: string): string {
 
 <template>
   <div class="overflow-x-auto">
-    <table class="w-full border-separate border-spacing-1.5">
+    <table class="w-full table-fixed border-separate border-spacing-1 sm:border-spacing-1.5">
       <thead>
         <tr>
           <th
@@ -44,7 +44,7 @@ function dayNumber(date: string): string {
       </thead>
       <tbody>
         <tr v-for="week in weeks" :key="week[0].date">
-          <td v-for="item in week" :key="item.date">
+          <td v-for="item in week" :key="item.date" class="align-top">
             <span class="block pb-0.5 text-center text-xs text-muted">
               {{ dayNumber(item.date) }}
             </span>
@@ -52,6 +52,7 @@ function dayNumber(date: string): string {
               :day="item.day"
               :label="`${formatDayLong(item.date)}: ${describeCalendarDay(item.day)}`"
               :selected="selectedDay?.date === item.date"
+              compact
               @select="emit('select', { personId: row.personId, date: item.date })"
             />
           </td>

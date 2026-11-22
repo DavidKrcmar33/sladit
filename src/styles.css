@@ -14,6 +14,8 @@
   --color-accent-dark: #0a4f49;
   --color-accent-soft: #e6f0ef;
   --color-accent-ring: #7fa9a4;
+  /* Den, kdy člověk může: stejně světlá jako směna, aby žádný stav nepřebíjel ostatní. */
+  --color-free: #b9dbd5;
   --color-shift: #f1c9a5;
   --color-warn: #7a4410;
   --color-warn-strong: #b5651d;
@@ -39,6 +41,15 @@ body {
   font-family: var(--font-sans);
   color: var(--color-ink);
   background: var(--color-ground);
+}
+
+/* iOS při psaní do pole menšího než 16 px přiblíží stránku. Na dotyku proto pole drží 16 px. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
 }
 
 dialog::backdrop {

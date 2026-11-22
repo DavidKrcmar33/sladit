@@ -18,8 +18,13 @@ const props = defineProps<{
   busy?: boolean
   /** Právě se ukládá potvrzení termínu. */
   confirming?: boolean
+  /**
+   * Proč návrhy chybí: přihlášený nemá rozpis, ostatní ho nemají (nebo pozvánku nepřijali),
+   * nebo se v okně akce nikdo nevešel.
+   */
+  emptyReason?: 'mine' | 'others' | 'nofit'
 }>()
-const emit = defineEmits<{ confirm: [proposal: Proposal] }>()
+const emit = defineEmits<{ confirm: [proposal: Proposal]; upload: [] }>()
 
 /** Termín, na který organizátor naposledy klikl, aby u něj bylo vidět „Navrhuji…“. */
 const clicked = ref<string | null>(null)
@@ -60,12 +65,25 @@ function namesOf(personIds: string[]): string {
   <section aria-labelledby="proposals-title" class="flex flex-col gap-3">
     <h2 id="proposals-title" class="text-base font-semibold">Návrhy termínů</h2>
 
-    <p
+    <div
       v-if="proposals.length === 0"
-      class="rounded-xl border border-dashed border-outline px-4 py-6 text-center text-muted"
+      class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-outline px-4 py-5"
     >
-      Zatím žádné návrhy.
-    </p>
+      <p class="font-semibold">Zatím žádné návrhy</p>
+      <template v-if="emptyReason === 'mine'">
+        <p class="text-muted">
+          Návrhy se počítají z rozpisů. Ty zatím žádný nemáš, takže u tebe je všude „nevíme“.
+        </p>
+        <UiButton variant="primary" @click="emit('upload')">Nahrát můj rozvrh</UiButton>
+      </template>
+      <p v-else-if="emptyReason === 'others'" class="text-muted">
+        Ostatní zatím nemají nahraný rozpis, nebo ještě nepřijali pozvánku. Jakmile ho nahrají,
+        návrhy se objeví tady. Klidně jim napiš, ať to udělají.
+      </p>
+      <p v-else class="text-muted">
+        V okně akce se nikdo nevešel. Zkus delší období, širší čas během dne nebo kratší akci.
+      </p>
+    </div>
 
     <ol v-else class="flex flex-col gap-3">
       <li

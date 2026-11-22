@@ -1,6 +1,6 @@
 <script setup lang="ts">
 export type IconName =
-  'check' | 'close' | 'arrow-right' | 'plus' | 'settings' | 'logout' | 'chevron-down'
+  'check' | 'close' | 'arrow-right' | 'plus' | 'settings' | 'logout' | 'chevron-down' | 'menu'
 
 const { name, size = 16 } = defineProps<{ name: IconName; size?: number }>()
 
@@ -16,6 +16,7 @@ const paths: Record<IconName, string[]> = {
   ],
   logout: ['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'M16 17l5-5-5-5', 'M21 12H9'],
   'chevron-down': ['M6 9l6 6 6-6'],
+  menu: ['M4 7h16', 'M4 12h16', 'M4 17h16'],
 }
 </script>
 

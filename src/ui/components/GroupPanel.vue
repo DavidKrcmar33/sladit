@@ -54,7 +54,9 @@ async function copyInvite() {
 </script>
 
 <template>
-  <div class="flex h-full flex-wrap content-start gap-8 overflow-auto px-8 py-6">
+  <div
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 py-5 sm:px-6 lg:gap-8 lg:px-8 lg:py-6"
+  >
     <section aria-labelledby="group-title" class="flex min-w-0 flex-[999_1_480px] flex-col gap-5">
       <div class="flex flex-col gap-1">
         <h1 id="group-title" class="text-2xl font-semibold tracking-tight">{{ group.name }}</h1>
@@ -69,42 +71,9 @@ async function copyInvite() {
           Nová akce s celou skupinou
         </UiButton>
       </div>
-
-      <div class="flex flex-col gap-2 border-t border-line pt-4">
-        <template v-if="confirming === null">
-          <div class="flex flex-wrap gap-2">
-            <UiButton variant="danger" @click="confirming = 'leave'">Odejít ze skupiny</UiButton>
-            <UiButton v-if="group.isOwner" variant="danger" @click="confirming = 'remove'">
-              Smazat skupinu
-            </UiButton>
-          </div>
-        </template>
-        <div v-else role="alertdialog" aria-label="Potvrzení" class="flex flex-col gap-2">
-          <p class="text-warn">
-            <template v-if="confirming === 'remove'">
-              Smaže se skupina. Akce i rozpisy členů zůstanou. Vrátit to nejde.
-            </template>
-            <template v-else>
-              Akce zůstanou, jen tě ostatní nebudou moct zvát přes skupinu.
-              <template v-if="group.isOwner && group.members.length > 1">
-                Skupinu převezme nejdéle přítomný člen.
-              </template>
-              <template v-else-if="group.members.length === 1">
-                Jsi poslední člen, skupina se smaže.
-              </template>
-            </template>
-          </p>
-          <div class="flex gap-2">
-            <UiButton variant="danger" @click="confirm">
-              {{ confirming === 'remove' ? 'Smazat' : 'Odejít' }}
-            </UiButton>
-            <UiButton @click="confirming = null">Nechat</UiButton>
-          </div>
-        </div>
-      </div>
     </section>
 
-    <aside class="flex min-w-0 max-w-sm flex-[1_1_300px] flex-col gap-5">
+    <aside class="flex min-w-0 flex-[1_1_300px] flex-col gap-5 lg:max-w-sm">
       <section
         aria-labelledby="members-title"
         class="flex flex-col rounded-xl border border-line bg-white p-5"
@@ -210,6 +179,39 @@ async function copyInvite() {
           </ul>
         </template>
       </section>
+      <!-- Odchod a smazání až na konci, daleko od hlavního tlačítka: jsou nevratné. -->
+      <div class="flex flex-col gap-2 pt-2">
+        <template v-if="confirming === null">
+          <div class="flex flex-wrap gap-2">
+            <UiButton variant="danger" @click="confirming = 'leave'">Odejít ze skupiny</UiButton>
+            <UiButton v-if="group.isOwner" variant="danger" @click="confirming = 'remove'">
+              Smazat skupinu
+            </UiButton>
+          </div>
+        </template>
+        <div v-else role="alertdialog" aria-label="Potvrzení" class="flex flex-col gap-2">
+          <p class="text-warn">
+            <template v-if="confirming === 'remove'">
+              Smaže se skupina. Akce i rozpisy členů zůstanou. Vrátit to nejde.
+            </template>
+            <template v-else>
+              Akce zůstanou, jen tě ostatní nebudou moct zvát přes skupinu.
+              <template v-if="group.isOwner && group.members.length > 1">
+                Skupinu převezme nejdéle přítomný člen.
+              </template>
+              <template v-else-if="group.members.length === 1">
+                Jsi poslední člen, skupina se smaže.
+              </template>
+            </template>
+          </p>
+          <div class="flex gap-2">
+            <UiButton variant="danger" @click="confirm">
+              {{ confirming === 'remove' ? 'Smazat' : 'Odejít' }}
+            </UiButton>
+            <UiButton @click="confirming = null">Nechat</UiButton>
+          </div>
+        </div>
+      </div>
     </aside>
   </div>
 </template>

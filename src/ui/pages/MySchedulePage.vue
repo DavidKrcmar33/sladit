@@ -68,6 +68,10 @@ const circleOptions = computed(() => [
     EXTRA_CIRCLE,
   ]),
 ])
+/** Zatím žádný podklad ani ruční den: místo prázdné mřížky nejdřív výzva nahoře. */
+const isEmpty = computed(
+  () => sources.value.length === 0 && (me.value?.overrides.length ?? 0) === 0,
+)
 const period = computed(() => formatDateRange(state.scheduleFrom, addDays(state.scheduleFrom, 27)))
 
 // Na lichý a sudý týden podkladu v okně doptání se ptá okno, u ostatních karta nad kalendářem.
@@ -133,7 +137,9 @@ function answerParity(question: ParityQuestion, odd: boolean) {
 </script>
 
 <template>
-  <div class="flex h-full flex-wrap content-start gap-8 overflow-auto px-8 py-6">
+  <div
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 py-5 sm:px-6 lg:gap-8 lg:px-8 lg:py-6"
+  >
     <section
       aria-labelledby="schedule-title"
       class="flex min-w-0 flex-[999_1_560px] flex-col gap-4"
@@ -145,6 +151,23 @@ function answerParity(question: ParityQuestion, odd: boolean) {
           použije ve všech akcích. Ostatní z něj uvidí jen, kdy můžeš.
         </p>
       </div>
+
+      <section
+        v-if="isEmpty"
+        aria-labelledby="empty-title"
+        class="flex flex-col items-start gap-3 rounded-xl border-2 border-accent bg-white p-5"
+      >
+        <h2 id="empty-title" class="text-base font-semibold">Nahraj rozpis, ať víme, kdy můžeš</h2>
+        <p class="text-muted">
+          Stačí fotka, screenshot, PDF, Excel nebo zkopírovaný text. Dokud tu nic není, je u tebe
+          každý den „nevíme“ a v akcích tě nejde započítat. Den můžeš zadat i ručně kliknutím do
+          kalendáře.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <UiButton variant="primary" @click="dropZone?.openFilePicker()">Nahrát rozpis</UiButton>
+          <UiButton @click="isPastingText = true">Vložit rozpis jako text</UiButton>
+        </div>
+      </section>
 
       <ReviewChat
         v-if="reviewSource"
@@ -190,10 +213,14 @@ function answerParity(question: ParityQuestion, odd: boolean) {
       />
       <ReadingWarnings v-if="scheduleWarnings.length > 0" :items="scheduleWarnings" />
 
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <UiButton variant="ghost" @click="shiftSchedule(-1)">← Předchozí týden</UiButton>
-        <p class="font-medium">{{ period }}</p>
-        <UiButton variant="ghost" @click="shiftSchedule(1)">Další týden →</UiButton>
+      <div class="flex items-center justify-between gap-2">
+        <UiButton variant="ghost" @click="shiftSchedule(-1)">
+          ←<span class="max-sm:sr-only"> Předchozí týden</span>
+        </UiButton>
+        <p class="text-center font-medium">{{ period }}</p>
+        <UiButton variant="ghost" @click="shiftSchedule(1)">
+          <span class="max-sm:sr-only">Další týden </span>→
+        </UiButton>
       </div>
       <template v-if="scheduleCalendar">
         <MonthGrid
@@ -203,10 +230,6 @@ function answerParity(question: ParityQuestion, odd: boolean) {
         />
         <CalendarLegend />
       </template>
-      <p v-if="sources.length === 0" class="text-muted">
-        Zatím tu nic není: dny bez podkladu jsou „nevíme“. Nahraj podklad vpravo, nebo klikni na den
-        a zadej ho ručně.
-      </p>
 
       <DayEditor
         v-if="editedDay"
@@ -225,7 +248,7 @@ function answerParity(question: ParityQuestion, odd: boolean) {
       />
     </section>
 
-    <aside class="flex min-w-0 max-w-sm flex-[1_1_300px] flex-col gap-4">
+    <aside class="flex min-w-0 flex-[1_1_300px] flex-col gap-4 lg:max-w-sm">
       <section
         aria-labelledby="upload-title"
         class="flex flex-col gap-3 rounded-xl border border-line bg-white p-5"

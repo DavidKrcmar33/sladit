@@ -1,11 +1,11 @@
 <template>
   <ul class="flex flex-wrap gap-x-5 gap-y-2 text-muted">
     <li class="flex items-center gap-2">
-      <span class="size-3.5 rounded-sm bg-accent" />
+      <span class="size-3.5 rounded-sm bg-free" />
       Může
     </li>
     <li class="flex items-center gap-2">
-      <span class="size-3.5 rounded-sm border-2 border-accent-ring bg-accent-soft" />
+      <span class="size-3.5 rounded-sm border-2 border-accent-ring bg-white" />
       Může jen část okna
     </li>
     <li class="flex items-center gap-2">

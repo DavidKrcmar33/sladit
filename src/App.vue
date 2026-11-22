@@ -47,7 +47,6 @@ const {
   createAction,
   updateAction,
   undoActionUpdate,
-  deleteAction,
   dismissCalendarNotice,
 } = useSession()
 
@@ -67,6 +66,33 @@ const canUndoEdit = computed(
 )
 const showsAction = computed(() => state.page === 'action' && selectedAction.value !== null)
 
+/** Horní lišta na úzké obrazovce: název otevřené stránky. */
+const pageTitle = computed(() => {
+  // Název akce nese její hlavička hned pod lištou, nahoře by byl dvakrát.
+  if (showsAction.value) return 'Akce'
+  if (state.page === 'group' && selectedGroup.value) return selectedGroup.value.name
+  if (state.page === 'friends') return 'Přátelé'
+  if (state.page === 'settings') return 'Nastavení'
+  return 'Můj rozvrh'
+})
+/** Mění se s každou navigací, aby se vysunutý panel po výběru zavřel. */
+const navKey = computed(
+  () => `${state.page}:${state.selectedActionId ?? ''}:${state.selectedGroupId ?? ''}`,
+)
+/** Čekající žádost nebo pozvánka: tečka na tlačítku menu. */
+const menuAttention = computed(
+  () =>
+    state.friendRequests.incoming.length > 0 ||
+    actionItems.value.some((action) => action.waitingForMe || action.slotWaiting),
+)
+/**
+ * Nabídka převzetí starých akcí jen na úvodní stránce a jen do „Teď ne“. Potom zůstane
+ * v Nastavení, aby neodsouvala obsah všech stránek.
+ */
+const offersLocalActions = computed(
+  () => state.localActions.length > 0 && !state.localActionsDismissed && state.page === 'schedule',
+)
+
 /** Žádosti o přátelství, které čekají na mou odpověď: odznak v menu a upozornění nahoře. */
 const requestCount = computed(() => {
   const count = state.friendRequests.incoming.length
@@ -82,7 +108,7 @@ const requestNotice = computed(() => {
 
 function navClass(active: boolean) {
   return [
-    'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left font-semibold',
+    'flex min-h-11 w-full items-center justify-between rounded-lg border px-3 py-2 text-left font-semibold lg:min-h-0',
     active ? 'border-line bg-white' : 'border-transparent hover:bg-white/60',
   ]
 }
@@ -143,7 +169,7 @@ async function submitGroup(name: string) {
   </main>
 
   <template v-else>
-    <AppShell>
+    <AppShell :title="pageTitle" :nav-key="navKey" :attention="menuAttention">
       <template #sidebar>
         <p class="flex items-center gap-2 px-2 text-xl font-semibold tracking-tight">
           <img src="/favicon.svg" alt="" class="size-6" />
@@ -171,7 +197,6 @@ async function submitGroup(name: string) {
             >
               {{ requestCount }}
             </span>
-            <span v-else class="text-xs font-normal text-muted">{{ state.friends.length }}</span>
           </button>
         </nav>
         <ActionList
@@ -205,14 +230,13 @@ async function submitGroup(name: string) {
           :organizer-name="selectedResource.organizerName"
           @edit="openActionDialog('edit')"
           @undo-edit="undoActionUpdate"
-          @delete="deleteAction"
         />
       </template>
 
       <div
-        v-if="state.localActions.length > 0"
+        v-if="offersLocalActions"
         role="status"
-        class="mx-8 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white px-4 py-2"
+        class="mx-4 mt-4 sm:mx-6 lg:mx-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white px-4 py-2"
       >
         <p>
           V tomto prohlížeči jsou uložené akce z doby před účty ({{ state.localActions.length }}).
@@ -228,7 +252,7 @@ async function submitGroup(name: string) {
           slotNotice && !(state.page === 'action' && state.selectedActionId === slotNotice.actionId)
         "
         role="status"
-        class="mx-8 mt-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
+        class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark sm:mx-6 lg:mx-8"
       >
         <p>{{ slotNotice.text }}</p>
         <UiButton variant="ghost" @click="selectAction(slotNotice.actionId)">Odpovědět</UiButton>
@@ -236,7 +260,7 @@ async function submitGroup(name: string) {
       <div
         v-if="state.friendRequests.incoming.length > 0 && state.page !== 'friends'"
         role="status"
-        class="mx-8 mt-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
+        class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark sm:mx-6 lg:mx-8"
       >
         <p>{{ requestNotice }}</p>
         <UiButton variant="ghost" @click="showFriends">Zobrazit</UiButton>
@@ -244,7 +268,7 @@ async function submitGroup(name: string) {
       <div
         v-if="state.calendarNotice"
         role="status"
-        class="mx-8 mt-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark"
+        class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-accent-soft px-4 py-2 text-accent-dark sm:mx-6 lg:mx-8"
       >
         <p>{{ state.calendarNotice }}</p>
         <UiButton variant="ghost" @click="dismissCalendarNotice">Zavřít</UiButton>
@@ -252,7 +276,7 @@ async function submitGroup(name: string) {
       <p
         v-if="state.error"
         role="alert"
-        class="mx-8 mt-4 rounded-lg bg-warn-soft px-4 py-2 font-medium text-warn"
+        class="mx-4 mt-4 rounded-lg bg-warn-soft sm:mx-6 lg:mx-8 px-4 py-2 font-medium text-warn"
       >
         {{ state.error }}
       </p>

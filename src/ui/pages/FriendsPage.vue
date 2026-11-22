@@ -2,7 +2,6 @@
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { useSession } from '@/session'
 import UiButton from '@/ui/components/UiButton.vue'
-import UiIcon from '@/ui/components/UiIcon.vue'
 
 const {
   state,
@@ -63,22 +62,12 @@ async function confirmRemove(userId: string) {
 </script>
 
 <template>
-  <div class="flex h-full flex-wrap content-start gap-8 overflow-auto px-8 py-6">
+  <div
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 py-5 sm:px-6 lg:gap-8 lg:px-8 lg:py-6"
+  >
     <section aria-labelledby="friends-title" class="flex min-w-0 flex-[999_1_480px] flex-col gap-4">
       <div class="flex flex-col gap-1">
-        <div class="flex items-center gap-2">
-          <h1 id="friends-title" class="text-2xl font-semibold tracking-tight">Přátelé</h1>
-          <button
-            v-if="!state.demo"
-            type="button"
-            aria-label="Přidat přítele podle e-mailu"
-            title="Přidat přítele podle e-mailu"
-            class="flex size-9 items-center justify-center rounded-lg text-muted hover:bg-white hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-            @click="startAdding"
-          >
-            <UiIcon name="plus" :size="20" />
-          </button>
-        </div>
+        <h1 id="friends-title" class="text-2xl font-semibold tracking-tight">Přátelé</h1>
         <p class="text-[15px] text-muted">
           Přátele můžeš zvát do akcí. Z tvého rozvrhu uvidí jen, zda v daný den můžeš. Tvé směny ani
           e-mail neuvidí.
@@ -111,46 +100,11 @@ async function confirmRemove(userId: string) {
         </ul>
       </section>
 
-      <form
-        v-if="adding"
-        class="flex flex-col gap-2 rounded-xl border border-line bg-white p-5"
-        @submit.prevent="sendRequest"
-      >
-        <label for="friend-email" class="font-medium">E-mail kamaráda</label>
-        <div class="flex flex-wrap gap-2">
-          <input
-            id="friend-email"
-            ref="emailInput"
-            v-model="email"
-            type="email"
-            autocomplete="off"
-            maxlength="200"
-            placeholder="jmeno@example.com"
-            class="field-input min-w-0 flex-1"
-          />
-          <UiButton variant="primary" type="submit" :disabled="sending || !email.trim()">
-            {{ sending ? 'Posílám…' : 'Poslat žádost' }}
-          </UiButton>
-          <UiButton @click="adding = false">Zavřít</UiButton>
-        </div>
-        <p class="text-xs text-muted">
-          Adresát uvidí tvé jméno a e-mail, ať pozná, od koho žádost je. Kdo ještě nemá účet, uvidí
-          žádost po prvním přihlášení.
-        </p>
-        <p
-          v-if="sendResult"
-          :role="sendResult.ok ? 'status' : 'alert'"
-          :class="sendResult.ok ? 'text-accent-dark' : 'font-medium text-warn'"
-        >
-          {{ sendResult.message }}
-        </p>
-      </form>
-
       <p
         v-if="state.friends.length === 0"
         class="rounded-xl border border-dashed border-outline px-4 py-6 text-center text-muted"
       >
-        Zatím tu nikdo není. Přidej kamaráda přes + podle e-mailu, nebo mu pošli odkaz vpravo.
+        Zatím tu nikdo není. Přidej kamaráda podle e-mailu, nebo mu pošli odkaz.
       </p>
       <ul v-else class="flex flex-col rounded-xl border border-line bg-white px-5 py-2">
         <li
@@ -204,12 +158,50 @@ async function confirmRemove(userId: string) {
 
     <aside
       v-if="!state.demo"
-      aria-labelledby="friend-link-title"
-      class="flex min-w-0 max-w-sm flex-[1_1_300px] flex-col gap-3 self-start rounded-xl border border-line bg-white p-5"
+      aria-labelledby="friend-add-title"
+      class="flex min-w-0 flex-[1_1_300px] flex-col gap-3 self-start rounded-xl border border-line bg-white p-5 lg:max-w-sm"
     >
-      <h2 id="friend-link-title" class="text-base font-semibold">Přidat si přítele</h2>
+      <h2 id="friend-add-title" class="text-base font-semibold">Přidat přítele</h2>
+
+      <h3 class="font-medium">Podle e-mailu</h3>
+      <form v-if="adding" class="flex flex-col gap-2" @submit.prevent="sendRequest">
+        <label for="friend-email" class="font-medium">E-mail kamaráda</label>
+        <input
+          id="friend-email"
+          ref="emailInput"
+          v-model="email"
+          type="email"
+          autocomplete="off"
+          maxlength="200"
+          placeholder="jmeno@example.com"
+          class="field-input"
+        />
+        <div class="flex flex-wrap gap-2">
+          <UiButton variant="primary" type="submit" :disabled="sending || !email.trim()">
+            {{ sending ? 'Posílám…' : 'Poslat žádost' }}
+          </UiButton>
+          <UiButton @click="adding = false">Zavřít</UiButton>
+        </div>
+        <p class="text-xs text-muted">
+          Adresát uvidí tvé jméno a e-mail, ať pozná, od koho žádost je. Kdo ještě nemá účet, uvidí
+          žádost po prvním přihlášení.
+        </p>
+        <p
+          v-if="sendResult"
+          :role="sendResult.ok ? 'status' : 'alert'"
+          :class="sendResult.ok ? 'text-accent-dark' : 'font-medium text-warn'"
+        >
+          {{ sendResult.message }}
+        </p>
+      </form>
+      <template v-if="!adding">
+        <p class="text-muted">Kamarádovi přijde žádost v aplikaci.</p>
+        <UiButton @click="startAdding">Přidat přítele podle e-mailu</UiButton>
+      </template>
+
+      <h3 class="border-t border-line pt-3 font-medium">Odkazem</h3>
       <p class="text-muted">
-        Vytvoř odkaz a pošli ho kamarádovi. Až ho po přihlášení otevře a potvrdí, budete přátelé.
+        Pošli odkaz třeba do chatu. Až ho kamarád po přihlášení otevře a potvrdí, budete přátelé.
         Odkaz platí 7 dní a jde kdykoli zrušit.
       </p>
       <template v-if="state.lastInvite?.target === 'friends'">
