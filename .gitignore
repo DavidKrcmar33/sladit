@@ -20,3 +20,10 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Vlastní testovací podklady a soukromé měření (osobní údaje)
+testDocs/
+eval/data/local/
+
+# nastavení a skilly Claude Code
+.claude/
