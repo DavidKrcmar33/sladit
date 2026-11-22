@@ -45,7 +45,7 @@ Migrace jsou v `server/db/migrations/`, spouští je server sám při startu (`m
 
 | Tabulka                | Co drží                                                                                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `users`                | Účet podle účtu Google: `google_sub`, e-mail, jméno a zda chce upozornění e-mailem (`email_notifications`, výchozí ano).                         |
+| `users`                | Účet podle účtu Google: `google_sub`, e-mail, jméno.                                                                                             |
 | `sessions`             | Přihlášení. V databázi je jen otisk tokenu (SHA-256), samotný token má jen cookie v prohlížeči.                                                  |
 | `oauth_states`         | Rozpracované přihlášení: náhodný `state` a ověřovač PKCE. Platí 15 minut a jde použít jen jednou.                                                |
 | `people`               | Rozpis uživatele (`is_self`). Hosté z doby před fází 5 tu zůstali, aplikace je už nepoužívá.                                                     |
@@ -108,7 +108,6 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `POST /groups/:id/invites`                             | Nový odkaz s pozvánkou. Odkaz je v odpovědi jen tentokrát.         |
 | `DELETE /groups/:id/invites/:inviteId`                 | Zrušení pozvánky.                                                  |
 | `GET /invites/:token`, `POST /invites/:token/accept`   | Náhled a přijetí odkazu: do skupiny, přátel, nebo akce (`kind`).   |
-| `GET`, `PUT /settings/notifications`                   | Upozornění e-mailem zapnout nebo vypnout.                          |
 | `GET`, `PATCH`, `DELETE /calendar`                     | Stav kalendáře, automatický zápis, odpojení (odvolá přístup).      |
 | `GET /calendar/connect`                                | Souhlas s kalendářem u Googlu, návrat přes stejné přesměrování.    |
 | `POST /calendar/sync`                                  | Načíst obsazenost hned (jinak nejvýš jednou za 10 minut).          |
@@ -147,7 +146,7 @@ Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`).
 
 **Tajemství.** Klíče jsou jen v proměnných prostředí serveru, v repozitáři žádné nejsou. Žádný klíč nesmí mít jméno začínající `VITE_`: takové proměnné Vite může vložit do aplikace pro prohlížeč. Server dřívější názvy s touto předponou ještě přečte, ale při startu vypíše, které je potřeba přejmenovat. Sestavení v `dist/` klíč neobsahuje, ověřeno 19. 11. 2026.
 
-**Upozornění e-mailem.** Server pošle e-mail, když mě někdo pozve do akce, když organizátor navrhne termín (těm, kdo pozvánku přijali a ještě neodpověděli) a když je akce domluvená (organizátorovi a těm, kdo jdou). E-mail obsahuje jen název akce, jméno organizátora, termín a odkaz `/?akce=<id>`, nikdy rozpisy. Kdo dostal pozvánku dřív, nedostane ji e-mailem znovu. Vypnout to jde v Nastavení. Posílá se na pozadí přes Resend (`server/mail.ts`, `server/notify.ts`), takže pomalá služba odpověď API nezdrží a chyba se jen zapíše do logu. Bez `RESEND_API_KEY` se v produkci nic neposílá, ve vývoji se e-mail jen vypíše do konzole. Testy v `server/notifications.test.ts`.
+**Upozornění v aplikaci.** E-maily aplikace neposílá. Nová pozvánka do akce, navržený termín a protinávrh se ukážou nahoře v aplikaci a u akce v menu (na telefonu tečka na tlačítku menu). Aplikace si jednou za minutu a po návratu do záložky potichu načte akce a přátele, takže se upozornění objeví i bez obnovení stránky. Ve skryté záložce nic nestahuje.
 
 **Odkaz do akce.** Organizátor vytvoří odkaz a pošle ho třeba do skupinového chatu. Kdo ho otevře, uvidí název akce, organizátora a období a před přijetím i to, co z jeho rozvrhu ostatní uvidí. Přijetím je přítel organizátora a účastník akce v jednom kroku. Platí 7 dní, jde zrušit a v databázi je jen otisk tokenu.
 
@@ -208,7 +207,6 @@ Heroku se studentským kreditem by vyšlo zdarma, ale jeho směrovač ukončí p
    - `LLM_PROVIDER` a klíč k modelu (`ANTHROPIC_API_KEY` a případně `ANTHROPIC_MODEL`, nebo `GEMINI_API_KEY` a `GEMINI_MODEL`)
    - `TOKEN_ENCRYPTION_KEY`: 32 náhodných bajtů v base64 pro šifrování tokenů ke kalendáři. Vyrobíš ho u sebe příkazem `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` a vložíš rovnou do Railway. Když ho později změníš, připojené kalendáře je potřeba připojit znovu.
    - volitelně `ALLOWED_EMAILS`, `READ_LIMIT_PER_USER_PER_DAY`, `READ_LIMIT_TOTAL_PER_DAY`
-   - volitelně `RESEND_API_KEY` a `MAIL_FROM` pro upozornění e-mailem (viz níže)
 6. **Zdroj.** Settings, Source, Connect Repo a větev `main`. Railway musí mít na GitHubu přístup k repozitáři (aplikace Railway na GitHubu). Ke cizímu repozitáři ho musí povolit jeho vlastník.
 7. **Kontrola běhu.** Settings, Deploy, Healthcheck Path: `/api/health`. Nová verze se pak pustí ven, až když server odpovídá.
 8. **Sestavení a start** Railway (Railpack) pozná sám: `npm install`, `npm run build` a `npm start`. Verzi Node bere nejdřív z `.nvmrc` (proto je tam `22`), až potom z `engines` v `package.json`. Migrace databáze spustí server při startu.
@@ -218,14 +216,6 @@ Změny v Railway se nejdřív jen připraví a projeví se až po „Deploy“ n
 Bez kompletního nastavení server záměrně nenastartuje a v Deploy Logs řekne proč, třeba „Chybí GOOGLE_CLIENT_ID a GOOGLE_CLIENT_SECRET“.
 
 Zálohy databáze na plánu Hobby Railway podle dostupných informací automaticky nedělá. Před ukázkou nebo odevzdáním si zálohu udělej sám: `pg_dump "$DATABASE_URL" > zaloha.sql`.
-
-## Návod: upozornění e-mailem (Resend)
-
-1. Založ si účet na [resend.com](https://resend.com) (na začátek stačí bezplatný plán).
-2. Bez vlastní domény posílá Resend jen z adresy `onboarding@resend.dev` a jen na e-mail, se kterým ses registroval. Na zkoušku to stačí. Pro ostatní je potřeba v Resend přidat vlastní doménu (Domains) a do jejího DNS vložit záznamy, které Resend ukáže.
-3. V Resend vytvoř API klíč (API Keys, oprávnění Sending access).
-4. V Railway přidej proměnné `RESEND_API_KEY` (klíč) a `MAIL_FROM`, třeba `Sladit <upozorneni@tvoje-domena.cz>`, nebo na zkoušku `Sladit <onboarding@resend.dev>`.
-5. Po nasazení pozvi do akce někoho s e-mailem, na který Resend smí posílat, a zkontroluj, že e-mail přišel. Odeslané e-maily i chyby jsou vidět v Resend (Emails).
 
 ## Současné nasazení
 
@@ -247,7 +237,6 @@ Nového člena týmu pustíš dovnitř ve dvou krocích: přidej jeho e-mail do 
 ## Co zatím chybí
 
 - Google Kalendář v produkci: Google Calendar API je zapnuté a obě oprávnění přidaná (20. 11. 2026), chybí ještě `TOKEN_ENCRYPTION_KEY` v Railway.
-- Upozornění e-mailem v produkci: chybí účet v Resend a proměnné `RESEND_API_KEY`, `MAIL_FROM` v Railway (viz návod výše).
 - Návrhy a upozornění od AI (fáze 7), třeba „dlouho jste se neviděli“.
 - Pohled ze serveru se obnoví při otevření akce a po vlastní změně. Změnu rozpisu jiného člena uvidíš až po přepnutí na jinou akci a zpět nebo po obnovení stránky.
 - Nasazení běží ze soukromé kopie repozitáře. Až bude práce ve společném repozitáři, přepni v Railway zdroj služby na něj (vlastník repozitáře musí Railway povolit přístup).
