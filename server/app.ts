@@ -10,6 +10,7 @@ import {
   ClarifyRequestSchema,
   ConfirmedSlotSchema,
   CreateActionRequestSchema,
+  CreatePollRequestSchema,
   DraftActionRequestSchema,
   SendFriendRequestSchema,
   SlotResponseRequestSchema,
@@ -20,15 +21,18 @@ import {
   ReadingRequestSchema,
   RespondToActionRequestSchema,
   SetOverrideRequestSchema,
+  SetRequiredRequestSchema,
   UpdateActionRequestSchema,
   UpdateCalendarRequestSchema,
   UpdateSourceRequestSchema,
+  VoteRequestSchema,
   type ConfirmedSlot,
   type ErrorResponse,
   type User,
 } from '@/contract/api'
 import { withAnchor } from '@/core/parity'
 import { DateStringSchema, type ActionDetails, type SourceContent } from '@/core/schema'
+import { windowFor } from '@/core/scheduler'
 import { toMinutes } from '@/core/time'
 import type { ActionDraft, ActionDraftInput } from '@/llm/actionDraft'
 import type { ClarifyInput, ClarifyResult } from '@/llm/clarify'
@@ -41,7 +45,7 @@ import type { ServerConfig } from './config'
 import { tokenCipher } from './crypto'
 import type { Store } from './db/store'
 import { InvalidSourceError, MAX_READING_BODY_BYTES, pragueDay, validateParts } from './reading'
-import { actionView } from './view'
+import { actionDaySlots, actionView } from './view'
 
 export interface AppDeps {
   config: ServerConfig
@@ -70,13 +74,14 @@ type Env = { Variables: { user: User } }
 
 const SLOT_MISFIT = 'Termín neodpovídá období, oknu nebo délce akce.'
 
-/** Termín leží v období a v denním okně akce a má její délku. */
+/** Termín leží v období a v denním okně akce (o víkendu ve víkendovém) a má její délku. */
 function fitsAction(details: ActionDetails, slot: ConfirmedSlot): boolean {
+  const window = windowFor(details, slot.date)
   return (
     details.from <= slot.date &&
     slot.date <= details.to &&
-    details.windowStart <= slot.start &&
-    slot.end <= details.windowEnd &&
+    window.start <= slot.start &&
+    slot.end <= window.end &&
     toMinutes(slot.end) - toMinutes(slot.start) === details.durationMinutes
   )
 }
@@ -615,6 +620,15 @@ export function createApp(deps: AppDeps) {
     if (!body.ok) return body.response
     const done = await store.updateAction(c.get('user').id, c.req.param('id'), body.data.details)
     if (!done) return refusedEdit(c, 'Akce nenalezena.')
+    // Termíny v hlasování, které po úpravě do akce nepasují, z hlasování zmizí.
+    const edited = await store.actionOf(c.get('user').id, c.req.param('id'))
+    const misfits = (edited?.poll?.candidates ?? []).filter(
+      (candidate) => !fitsAction(body.data.details, candidate),
+    )
+    await store.removeCandidates(
+      c.req.param('id'),
+      misfits.map((candidate) => candidate.id),
+    )
     // Zapsané události: změnil se název, nebo zmizelo potvrzení.
     const updated = await store.actionOf(c.get('user').id, c.req.param('id'))
     if (updated?.confirmed) await calendar.afterConfirm(updated.id)
@@ -680,6 +694,91 @@ export function createApp(deps: AppDeps) {
     )
     if (!done) return refusedEdit(c, 'Pozvánka nenalezena.')
     await calendar.removeEvent(c.req.param('userId'), c.req.param('id'))
+    return actionResponse(c)
+  })
+
+  // Nezbytný účastník: bez něj se termín nenavrhne.
+  api.patch('/actions/:id/invites/:userId', async (c) => {
+    const body = await parseBody(c, SetRequiredRequestSchema)
+    if (!body.ok) return body.response
+    const done = await store.setRequired(
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.param('userId'),
+      body.data.required,
+    )
+    if (!done) return refusedEdit(c, 'Pozvánka nenalezena.')
+    return actionResponse(c)
+  })
+
+  // Prosba o rozpis: účastník ji uvidí jako upozornění v aplikaci.
+  api.post('/actions/:id/invites/:userId/remind', async (c) => {
+    const result = await store.remind(
+      c.get('user').id,
+      c.req.param('id'),
+      c.req.param('userId'),
+      now(),
+    )
+    if (result === 'not-found') return refusedEdit(c, 'Pozvánka nenalezena.')
+    if (result === 'too-soon') {
+      return fail(c, 429, { error: 'Poprosit jde zase až zítra.', code: 'limit' })
+    }
+    return actionResponse(c)
+  })
+
+  // Všechny možné začátky jednoho dne a kdo v nich může (výběr vlastního času).
+  api.get('/actions/:id/days/:date', async (c) => {
+    const user = c.get('user')
+    const date = DateStringSchema.safeParse(c.req.param('date'))
+    const found = await store.actionForView(user.id, c.req.param('id'))
+    if (!found) return fail(c, 404, { error: 'Akce nenalezena.' })
+    const { from, to } = found.action.details
+    if (!date.success || date.data < from || date.data > to) {
+      return fail(c, 400, { error: 'Den neleží v období akce.' })
+    }
+    return c.json({ slots: actionDaySlots(found.action, found.people, date.data) })
+  })
+
+  // Hlasování o 1–3 termínech místo jednoho návrhu.
+  api.put('/actions/:id/poll', async (c) => {
+    const body = await parseBody(c, CreatePollRequestSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    const action = await store.actionOf(user.id, c.req.param('id'))
+    if (!action) return fail(c, 404, { error: 'Akce nenalezena.' })
+    if (!action.isOrganizer) return fail(c, 403, { error: ORGANIZER_ONLY })
+    if (body.data.slots.some((slot) => !fitsAction(action.details, slot))) {
+      return fail(c, 400, { error: SLOT_MISFIT })
+    }
+    const keys = body.data.slots.map((slot) => `${slot.date} ${slot.start}`)
+    if (new Set(keys).size !== keys.length) {
+      return fail(c, 400, { error: 'Stejný termín je v hlasování dvakrát.' })
+    }
+    await store.createPoll(user.id, action.id, body.data.slots, body.data.deadline)
+    // Navržený termín zmizel, i z kalendářů.
+    await calendar.removeEvents(action.id)
+    return actionResponse(c)
+  })
+
+  api.delete('/actions/:id/poll', async (c) => {
+    const done = await store.deletePoll(c.get('user').id, c.req.param('id'))
+    if (!done) return refusedEdit(c, 'Akce nenalezena.')
+    return actionResponse(c)
+  })
+
+  api.put('/actions/:id/poll/votes', async (c) => {
+    const body = await parseBody(c, VoteRequestSchema)
+    if (!body.ok) return body.response
+    const done = await store.vote(c.get('user').id, c.req.param('id'), body.data.votes)
+    if (!done) return fail(c, 404, { error: 'Hlasování nenalezeno.' })
+    return actionResponse(c)
+  })
+
+  api.post('/actions/:id/poll/candidates/:candidateId/choose', async (c) => {
+    const user = c.get('user')
+    const slot = await store.choosePoll(user.id, c.req.param('id'), c.req.param('candidateId'))
+    if (!slot) return refusedEdit(c, 'Termín v hlasování nenalezen.')
+    await calendar.afterConfirm(c.req.param('id'))
     return actionResponse(c)
   })
 
