@@ -64,6 +64,8 @@ const {
   deletePoll,
   vote,
   choosePoll,
+  dismissWarning,
+  warningSources,
 } = useSession()
 
 // Výběr vlastního času: den otevřený kliknutím na hlavičku kalendáře.
@@ -335,7 +337,12 @@ function confirm(proposal: Proposal) {
         :questions="parityQuestions"
         @answer="answerParity"
       />
-      <ReadingWarnings v-if="readingWarnings.length > 0" :items="readingWarnings" />
+      <ReadingWarnings
+        v-if="readingWarnings.length > 0"
+        :items="readingWarnings"
+        :dismissable="warningSources"
+        @dismiss="dismissWarning"
+      />
 
       <template v-if="calendar && calendar.rows.length > 0">
         <CalendarGrid

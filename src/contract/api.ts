@@ -335,6 +335,9 @@ export const CreateActionLinkResponseSchema = z.object({
 
 export const UpdateActionRequestSchema = z.object({ details: ActionDetailsSchema })
 
+/** Skrytí poznámky ke čtení u vlastního podkladu. */
+export const DismissWarningRequestSchema = z.object({ warning: z.string().min(1).max(1000) })
+
 /** Organizátor označí účastníka jako nezbytného. */
 export const SetRequiredRequestSchema = z.object({ required: z.boolean() })
 

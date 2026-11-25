@@ -220,6 +220,16 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
         }
       })
     },
+    async dismissWarning(personId, sourceId, warning) {
+      return update(personId, (person) => ({
+        ...person,
+        sources: person.sources.map((source) =>
+          source.id === sourceId
+            ? { ...source, warnings: source.warnings.filter((item) => item !== warning) }
+            : source,
+        ),
+      }))
+    },
     async deleteSource(personId, sourceId) {
       return update(personId, (person) => ({
         ...person,

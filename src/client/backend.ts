@@ -44,6 +44,8 @@ export interface Backend {
   /** Návrh změn od AI z věty napsané vlastními slovy. Nic neuloží. */
   clarifySource(personId: string, sourceId: string, message: string): Promise<ClarifyResponse>
   deleteSource(personId: string, sourceId: string): Promise<OwnedPerson>
+  /** Skryje poznámku ke čtení u vlastního podkladu. */
+  dismissWarning(personId: string, sourceId: string, warning: string): Promise<OwnedPerson>
   setOverride(personId: string, date: string, shifts: Shift[]): Promise<OwnedPerson>
   deleteOverride(personId: string, date: string): Promise<OwnedPerson>
 

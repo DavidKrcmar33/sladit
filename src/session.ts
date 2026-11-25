@@ -1284,6 +1284,23 @@ export function createSession(options: SessionOptions) {
     if (updated) replaceMe(updated)
   }
 
+  /** Skryje poznámku ke čtení u mého podkladu. */
+  async function dismissWarning(sourceId: string, warning: string) {
+    const person = me.value
+    if (!person) return
+    const updated = await guarded(() => backend.dismissWarning(person.id, sourceId, warning))
+    if (updated) replaceMe(updated)
+  }
+
+  /** U kterého mého podkladu je která poznámka, aby šla skrýt. */
+  const warningSources = computed<Record<string, string>>(() =>
+    Object.fromEntries(
+      (me.value?.sources ?? []).flatMap((source) =>
+        source.warnings.map((warning) => [warning, source.id]),
+      ),
+    ),
+  )
+
   async function removeSource(sourceId: string) {
     const person = me.value
     if (!person) return
@@ -1448,6 +1465,8 @@ export function createSession(options: SessionOptions) {
     revokeActionLink,
     setRequired,
     remindParticipant,
+    dismissWarning,
+    warningSources,
     createPoll,
     deletePoll,
     vote,

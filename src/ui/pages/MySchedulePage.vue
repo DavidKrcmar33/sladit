@@ -47,6 +47,8 @@ const {
   sendReviewMessage,
   applyReviewProposal,
   discardReviewProposal,
+  dismissWarning,
+  warningSources,
 } = useSession()
 
 /** Třetí okruh pro druhou práci: její rozpis musí den pokrýt taky, jinak den neznáme. */
@@ -211,7 +213,12 @@ function answerParity(question: ParityQuestion, odd: boolean) {
         :questions="otherParity"
         @answer="answerParity"
       />
-      <ReadingWarnings v-if="scheduleWarnings.length > 0" :items="scheduleWarnings" />
+      <ReadingWarnings
+        v-if="scheduleWarnings.length > 0"
+        :items="scheduleWarnings"
+        :dismissable="warningSources"
+        @dismiss="dismissWarning"
+      />
 
       <div class="flex items-center justify-between gap-2">
         <UiButton variant="ghost" @click="shiftSchedule(-1)">

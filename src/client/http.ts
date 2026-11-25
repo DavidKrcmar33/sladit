@@ -93,6 +93,8 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
       }),
     updateSource: (personId, sourceId, patch) =>
       person('PATCH', `/people/${personId}/sources/${sourceId}`, patch),
+    dismissWarning: (personId, sourceId, warning) =>
+      person('POST', `/people/${personId}/sources/${sourceId}/dismiss`, { warning }),
     deleteSource: (personId, sourceId) =>
       person('DELETE', `/people/${personId}/sources/${sourceId}`),
     setOverride: (personId, date, shifts) =>
