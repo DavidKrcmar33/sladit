@@ -11,6 +11,7 @@ import {
   ConfirmedSlotSchema,
   CreateActionRequestSchema,
   CreatePollRequestSchema,
+  DismissWarningRequestSchema,
   DraftActionRequestSchema,
   SendFriendRequestSchema,
   SlotResponseRequestSchema,
@@ -521,6 +522,22 @@ export function createApp(deps: AppDeps) {
     )
     if (!done) return fail(c, 404, { error: 'Podklad nenalezen.' })
     return c.json({ person: await store.personOf(user.id, c.req.param('id')) })
+  })
+
+  // Skrytí poznámky ke čtení. Už skrytá poznámka nevadí, výsledek je stejný.
+  api.post('/people/:id/sources/:sourceId/dismiss', async (c) => {
+    const body = await parseBody(c, DismissWarningRequestSchema)
+    if (!body.ok) return body.response
+    const user = c.get('user')
+    await store.dismissWarning(
+      user.id,
+      c.req.param('id'),
+      c.req.param('sourceId'),
+      body.data.warning,
+    )
+    const person = await store.personOf(user.id, c.req.param('id'))
+    if (!person) return fail(c, 404, { error: 'Podklad nenalezen.' })
+    return c.json({ person })
   })
 
   api.delete('/people/:id/sources/:sourceId', async (c) => {

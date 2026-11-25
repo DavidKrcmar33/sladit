@@ -193,3 +193,24 @@ describe('doptání po čtení', () => {
     expect((await eva.send('POST', `${base}/clarify`, { message: 'x' })).status).toBe(404)
   })
 })
+
+describe('skrytí poznámky ke čtení', () => {
+  it('hides a note for good, even after the source is rebuilt, and only for its owner', async () => {
+    const { app, anna, person, base, store } = await setup()
+    const [note] = person.sources[0].warnings
+    expect(note).toMatch(/Platnost rozpisu není/)
+
+    const hidden = await json<{ person: OwnedPerson }>(
+      await anna.send('POST', `${base}/dismiss`, { warning: note }),
+    )
+    expect(hidden.person.sources[0].warnings).not.toContain(note)
+    // Přepočet po startu serveru poznámku vrátí do podkladu, ale skrytá zůstane.
+    await store.rebuildReviewedSources(() => ({ ...buildSource(basis, []), warnings: [note] }))
+    const { people } = await json<{ people: OwnedPerson[] }>(await anna.get('/api/people'))
+    expect(people[0].sources[0].warnings).not.toContain(note)
+
+    const petr = browser(app)
+    await petr.login('petr@example.com', 'Petr')
+    expect((await petr.send('POST', `${base}/dismiss`, { warning: note })).status).toBe(404)
+  })
+})
