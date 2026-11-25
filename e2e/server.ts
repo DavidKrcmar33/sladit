@@ -72,7 +72,13 @@ export async function startServer(env: Record<string, string>) {
       }),
     )
     app.use('*', serveStatic({ root }))
-    app.get('/pozvanka/:token', serveStatic({ path: `${root}/index.html` }))
+    // Jednostránková aplikace jako v produkci: adresy stránek (/pozvanka/…, /akce/…,
+    // /pratele…) dostanou index.html, API ne.
+    app.get('*', async (c, next) =>
+      c.req.path.startsWith('/api/')
+        ? next()
+        : serveStatic({ path: `${root}/index.html` })(c, next),
+    )
     http.on('request', getRequestListener(app.fetch))
     return {
       origin,

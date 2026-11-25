@@ -42,7 +42,9 @@ test('povolení, synchronizace obsazenosti a odpojení kalendáře', async ({ pa
   await click(page, 'Nastavení')
   await click(page, 'Odpojit')
   await expect(button(page, 'Připojit Google Kalendář')).toBeVisible()
+  // Obnovení stránky zůstane v Nastavení, Můj rozvrh se otevře ručně.
   await page.reload()
+  await click(page, 'Můj rozvrh')
   await expect(page.getByRole('table')).toBeVisible()
   await expect(occupied).toHaveCount(0)
 })
