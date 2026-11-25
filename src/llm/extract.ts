@@ -224,12 +224,22 @@ export async function extractWithReport(
       warnings: built.warnings,
       questions: built.questions,
       // Výchozí okruh podle typu podkladu, uživatel ho může změnit.
-      circle: first.documentKind === 'timetable' ? SCHOOL_CIRCLE : WORK_CIRCLE,
+      circle: defaultCircle(first),
       parity: { calendar: first.weekParity === 'calendar', anchors: [] },
     },
     report,
     basis,
   }
+}
+
+/**
+ * Škola, když je většina bloků výuka (model ji značí „ŠK“). Týdenní vzor sám o sobě školu
+ * neznamená: pravidelné směny „každé pondělí ranní“ jsou práce.
+ */
+export function defaultCircle(reading: Reading): string {
+  const blocks = [...reading.dated, ...reading.weekly]
+  const school = blocks.filter((block) => block.label.trim().toUpperCase() === 'ŠK').length
+  return school > 0 && school * 2 >= blocks.length ? SCHOOL_CIRCLE : WORK_CIRCLE
 }
 
 export async function extractSchedule(

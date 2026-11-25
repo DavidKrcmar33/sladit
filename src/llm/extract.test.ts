@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   UnreadableSourceError,
+  defaultCircle,
   extractSchedule,
   extractWithReport,
   type ExtractDeps,
@@ -153,6 +154,26 @@ describe('extractSchedule', () => {
     expect(result.shifts).toHaveLength(13)
     expect(result.shifts.map((shift) => shift.date)).toContain('2026-11-25')
     expect(result.circle).toBe('Škola')
+  })
+
+  it('files a weekly pattern of shifts under work, not school', () => {
+    const shift = (label: string) => ({
+      weekday: 'mon' as const,
+      weeks: 'every' as const,
+      exceptDates: [],
+      start: '06:00',
+      end: '14:00',
+      label,
+      raw: label,
+      uncertain: false,
+      source: 'Po',
+    })
+    const pattern = (...labels: string[]) =>
+      reading({ documentKind: 'timetable', dated: [], weekly: labels.map(shift) })
+    expect(defaultCircle(pattern('R', 'O'))).toBe('Práce')
+    expect(defaultCircle(pattern('ŠK', 'ŠK', 'R'))).toBe('Škola')
+    expect(defaultCircle(pattern())).toBe('Práce')
+    expect(defaultCircle(reading())).toBe('Práce')
   })
 
   it('remembers when the document says odd weeks follow the calendar', async () => {

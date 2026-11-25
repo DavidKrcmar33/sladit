@@ -47,13 +47,27 @@ function blockKey(shift: Pick<Shift, 'raw' | 'start' | 'end'>): string {
 
 /**
  * Poznámky modelu o chybějící platnosti („Podklad neuvádí období platnosti“). Model je píše
- * vlastními slovy, proto podle slov. Po odpovědi na období už neplatí.
+ * vlastními slovy, proto podle slov. Když platnost chybí, řekne to jednou program a zeptá se
+ * na ni. Po odpovědi na období už neplatí vůbec.
  */
 const PERIOD_NOTE = /platnost|obdob/i
 
+/**
+ * Poznámky modelu, které člověku nic neřeknou: že platnost končí dřív než hledané období
+ * (aplikace to sama ukáže jako „nevíme“) a že jsou ve stejný čas dva předměty (blok je jeden
+ * a člověk je obsazený tak jako tak). Starší čtení je ještě obsahují, proto podle slov.
+ */
+const NEEDLESS_NOTE = /hledan\S* obdob|stejn\S* čas.*(dva|dvě|více) předmět|vrácen jeden blok/i
+
 /** Odpovědi, které mění samotné čtení: platnost a dny, kdy podklad neplatí. */
 function patchReading(reading: Reading, answers: SourceAnswer[]): Reading {
-  let next = reading
+  const useful = {
+    ...reading,
+    warnings: reading.warnings.filter((warning) => !NEEDLESS_NOTE.test(warning)),
+  }
+  let next = statesPeriod(useful)
+    ? useful
+    : { ...useful, warnings: useful.warnings.filter((warning) => !PERIOD_NOTE.test(warning)) }
   for (const answer of answers) {
     if (answer.kind === 'period') {
       next = {

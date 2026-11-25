@@ -38,7 +38,7 @@ function documentRanges(reading: Reading, period: DateRange, warnings: string[])
   const stated = reading.coverage.filter((range) => range.from <= range.to)
   if (stated.length > 0) return stated
   if (reading.weekly.length > 0) {
-    warnings.push('Platnost rozvrhu není v podkladu uvedena, počítá se s celým hledaným obdobím.')
+    warnings.push('Platnost rozpisu není v podkladu uvedena, počítá se s celým hledaným obdobím.')
     return [period]
   }
   if (reading.dated.length > 0) {

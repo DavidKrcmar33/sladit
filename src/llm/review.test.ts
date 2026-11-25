@@ -96,6 +96,45 @@ describe('doptání: otázky ze čtení', () => {
   })
 })
 
+describe('doptání: upozornění', () => {
+  it('says once that the period is missing, not in the model words too', () => {
+    const built = buildSource(
+      basis(
+        timetable({
+          warnings: ['Podklad neuvádí období platnosti, coverage ponecháno prázdné.', 'Jiná věc.'],
+        }),
+      ),
+      [],
+    )
+    expect(built.warnings.filter((warning) => /platnost/i.test(warning))).toEqual([
+      'Platnost rozpisu není v podkladu uvedena, počítá se s celým hledaným obdobím.',
+    ])
+    expect(built.warnings).toContain('Jiná věc.')
+  })
+
+  it('keeps model notes about the period when the document states one', () => {
+    const stated = timetable({
+      coverage: [{ from: '2026-11-16', to: '2026-11-22' }],
+      warnings: ['Platnost končí 22. 11.'],
+    })
+    expect(buildSource(basis(stated), []).warnings).toContain('Platnost končí 22. 11.')
+  })
+
+  it('drops notes about the searched period and two subjects at the same time', () => {
+    const stated = timetable({
+      coverage: [{ from: '2026-11-16', to: '2026-11-22' }],
+      warnings: [
+        'Platnost rozvrhu končí 20. 12. 2026, hledané období sahá až do 14. 2. 2027.',
+        'St 15:00–16:50: ve stejný čas jsou dva předměty (A, B), vrácen jeden blok.',
+        'Buňka C3 je špatně čitelná.',
+      ],
+    })
+    const { warnings } = buildSource(basis(stated), [])
+    expect(warnings).toContain('Buňka C3 je špatně čitelná.')
+    expect(warnings.join(' ')).not.toMatch(/hledané období|stejný čas/)
+  })
+})
+
 describe('doptání: odpovědi', () => {
   it('re-expands the timetable over the answered period and stops asking', () => {
     const built = buildSource(basis(), [
@@ -108,7 +147,7 @@ describe('doptání: odpovědi', () => {
       '2026-12-08',
     ])
     expect(built.questions.map((question) => question.kind)).toEqual(['shift'])
-    expect(built.warnings.join(' ')).not.toMatch(/Platnost rozvrhu není/)
+    expect(built.warnings.join(' ')).not.toMatch(/Platnost rozpisu není/)
   })
 
   it('drops the timetable on holidays, or accepts them without a warning', () => {
@@ -157,7 +196,8 @@ describe('doptání: odpovědi', () => {
       warnings: ['Podklad neuvádí období platnosti rozpisu.', 'Buňka C3 je špatně čitelná.'],
     })
     const asRead = buildSource(basis(reading), [])
-    expect(asRead.warnings).toContain('Podklad neuvádí období platnosti rozpisu.')
+    expect(asRead.warnings).not.toContain('Podklad neuvádí období platnosti rozpisu.')
+    expect(asRead.warnings.join(' ')).toMatch(/Platnost rozpisu není/)
 
     const answered = buildSource(basis(reading), [
       { kind: 'period', range: { from: '2026-11-16', to: '2026-11-29' } },

@@ -48,7 +48,7 @@
       "end": "16:50",
       "label": "ŠK",
       "raw": "Strategický management v AJ (Q01) / Strojové učení (Q06)",
-      "uncertain": true,
+      "uncertain": false,
       "source": "St, 15:00–16:50 (dva řádky)"
     },
     {
@@ -85,5 +85,5 @@
       "source": "Čt, 16:00–16:50"
     }
   ],
-  "warnings": ["St 15:00–16:50: ve stejný čas jsou dva předměty, vrácen jeden blok."]
+  "warnings": []
 }
