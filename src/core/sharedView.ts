@@ -1,6 +1,6 @@
 import { composePeople } from './compose'
 import type { Action, DateString, Proposal } from './schema'
-import { dayAttendance, findProposals, type Attendance } from './scheduler'
+import { bestCountPerDay, dayAttendance, findProposals, type Attendance } from './scheduler'
 import { analyzeStability, type Stability } from './sensitivity'
 import { eachDay } from './time'
 
@@ -11,6 +11,8 @@ export interface SharedView {
   others: { personId: string; days: Attendance[] }[]
   proposals: Proposal[]
   stability: Stability
+  /** Kolik lidí nejvíc může v nějakém čase každého dne (přehled nad kalendářem). */
+  dayBest: number[]
 }
 
 /**
@@ -19,8 +21,16 @@ export interface SharedView {
  * bez důvodu (chybí rozpis, nejisté čtení). Počítá server pro každého diváka zvlášť,
  * ukázka bez přihlášení stejně v prohlížeči.
  */
-export function sharedView(action: Action, foreignIds: ReadonlySet<string>): SharedView {
-  const composed = composePeople(action)
+export function sharedView(
+  action: Action,
+  foreignIds: ReadonlySet<string>,
+  /** Lidé, bez kterých akce není (id osob). */
+  requiredIds: ReadonlySet<string> = new Set(),
+): SharedView {
+  const composed = composePeople(action).map((person) => ({
+    ...person,
+    required: requiredIds.has(person.id),
+  }))
   const dates = eachDay(action.from, action.to)
   const stability = analyzeStability(action, composed)
   return {
@@ -32,6 +42,7 @@ export function sharedView(action: Action, foreignIds: ReadonlySet<string>): Sha
         days: dates.map((date) => dayAttendance(action, person.schedule, date)),
       })),
     proposals: findProposals(action, composed),
+    dayBest: bestCountPerDay(action, composed),
     stability: {
       ...stability,
       pivots: stability.pivots.map((pivot) =>

@@ -137,11 +137,20 @@ export function analyzeStability(
       slot.date !== winner.date &&
       (slot.date < winner.date ? slot.upper >= winnerLower : slot.upper > winnerLower),
   )
-  if (rivals.length === 0) return { winner, certain: true, pivots: [] }
+  // Nezbytný člověk, o kterém v čase vítěze nic nevíme: když nebude moct, vítěz padne.
+  const requiredUnknown = participants.filter(
+    (participant) => participant.required && winner.unknown.includes(participant.id),
+  )
+  if (rivals.length === 0 && requiredUnknown.length === 0) {
+    return { winner, certain: true, pivots: [] }
+  }
 
   // Kdo může vítězný den shodit (otevřený v čase vítěze) a kdo může pomoct jinému dni.
   const winnerSlot = bounds.find((slot) => slot.date === winner.date && slot.start === winner.start)
   const datesByPerson = new Map<string, Set<DateString>>()
+  for (const participant of requiredUnknown) {
+    datesByPerson.set(participant.id, new Set([winner.date]))
+  }
   for (const slot of [...(winnerSlot ? [winnerSlot] : []), ...rivals]) {
     for (const personId of slot.open) {
       datesByPerson.set(personId, (datesByPerson.get(personId) ?? new Set()).add(slot.date))

@@ -34,5 +34,16 @@ export function updateActionDetails(action: Action, input: NewActionInput): Crea
 /** Parametry akce, jak je ukazuje formulář. */
 export function actionDetails(action: Action): NewActionInput {
   const { name, from, to, durationMinutes, windowStart, windowEnd } = action
-  return { name, from, to, durationMinutes, windowStart, windowEnd }
+  const { preferredStart, weekendWindowStart, weekendWindowEnd, minPeople } = action
+  return {
+    name,
+    from,
+    to,
+    durationMinutes,
+    windowStart,
+    windowEnd,
+    ...(preferredStart ? { preferredStart } : {}),
+    ...(weekendWindowStart && weekendWindowEnd ? { weekendWindowStart, weekendWindowEnd } : {}),
+    ...(minPeople ? { minPeople } : {}),
+  }
 }

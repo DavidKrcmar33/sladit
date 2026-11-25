@@ -7,7 +7,7 @@ import type {
   Shift,
   TimeString,
 } from './schema'
-import { absoluteMinutes, addDays, eachDay, formatMinutes, toMinutes } from './time'
+import { absoluteMinutes, addDays, eachDay, formatMinutes, toMinutes, weekdayOf } from './time'
 
 export type Attendance = 'available' | 'busy' | 'unknown'
 
@@ -43,6 +43,8 @@ export interface TimeSlot {
 export interface Participant {
   id: string
   schedule: PersonSchedule | null
+  /** Bez něj akce není: termín, kdy nemůže, se nenavrhne. */
+  required?: boolean
 }
 
 interface Interval {
@@ -114,6 +116,14 @@ export function attendanceInSlot(
   return 'available'
 }
 
+/** Denní okno pro daný den: o víkendu víkendové, když ho akce má. */
+export function windowFor(action: ActionParams, date: DateString): TimeRange {
+  const weekend = weekdayOf(date) >= 6
+  return weekend && action.weekendWindowStart && action.weekendWindowEnd
+    ? { start: action.weekendWindowStart, end: action.weekendWindowEnd }
+    : { start: action.windowStart, end: action.windowEnd }
+}
+
 /** Možné začátky akce v jednom dni, po krocích z pravidel. */
 export function candidateSlots(
   action: ActionParams,
@@ -121,12 +131,9 @@ export function candidateSlots(
   rules: SchedulingRules,
 ): TimeSlot[] {
   const slots: TimeSlot[] = []
-  const lastStart = toMinutes(action.windowEnd) - action.durationMinutes
-  for (
-    let start = toMinutes(action.windowStart);
-    start <= lastStart;
-    start += rules.slotStepMinutes
-  ) {
+  const window = windowFor(action, date)
+  const lastStart = toMinutes(window.end) - action.durationMinutes
+  for (let start = toMinutes(window.start); start <= lastStart; start += rules.slotStepMinutes) {
     slots.push({
       date,
       start: formatMinutes(start),
@@ -204,13 +211,57 @@ function evaluateSlot(
   return proposal
 }
 
-function compareProposals(a: Proposal, b: Proposal): number {
-  return (
+/**
+ * Pořadí návrhů: víc lidí, méně chybějících, dřívější den. Ideální začátek rozhoduje jen
+ * mezi časy téhož dne, takže pořadí dnů (a z něj odvozená jistota termínu) se nemění.
+ */
+function compareProposals(action: ActionParams) {
+  const distance = (proposal: Proposal) =>
+    action.preferredStart
+      ? Math.abs(toMinutes(proposal.start) - toMinutes(action.preferredStart))
+      : 0
+  return (a: Proposal, b: Proposal): number =>
     b.available.length - a.available.length ||
     a.missing.length - b.missing.length ||
     a.date.localeCompare(b.date) ||
+    distance(a) - distance(b) ||
     a.start.localeCompare(b.start)
+}
+
+/** Termín splňuje podmínky akce: můžou všichni nezbytní a je dost lidí. */
+function meetsConditions(
+  action: ActionParams,
+  participants: Participant[],
+  proposal: Proposal,
+): boolean {
+  if (proposal.available.length < (action.minPeople ?? 1)) return false
+  return participants.every(
+    (participant) => !participant.required || !proposal.missing.includes(participant.id),
   )
+}
+
+/** Kolik lidí nejvíc může v nějakém čase dne, pro každý den období (přehled nad kalendářem). */
+export function bestCountPerDay(
+  action: ActionParams,
+  participants: Participant[],
+  rules: SchedulingRules = DEFAULT_SCHEDULING_RULES,
+): number[] {
+  return eachDay(action.from, action.to).map((date) =>
+    Math.max(
+      0,
+      ...daySlots(action, participants, date, rules).map((slot) => slot.available.length),
+    ),
+  )
+}
+
+/** Všechny možné začátky jednoho dne s tím, kdo může (výběr vlastního času v akci). */
+export function daySlots(
+  action: ActionParams,
+  participants: Participant[],
+  date: DateString,
+  rules: SchedulingRules = DEFAULT_SCHEDULING_RULES,
+): Proposal[] {
+  return candidateSlots(action, date, rules).map((slot) => evaluateSlot(participants, slot, rules))
 }
 
 export function findProposals(
@@ -223,8 +274,9 @@ export function findProposals(
     const [best] = candidateSlots(action, date, rules)
       .map((slot) => evaluateSlot(participants, slot, rules))
       .filter((proposal) => proposal.available.length > 0)
-      .sort(compareProposals)
+      .filter((proposal) => meetsConditions(action, participants, proposal))
+      .sort(compareProposals(action))
     if (best) bestPerDay.push(best)
   }
-  return bestPerDay.sort(compareProposals).slice(0, rules.proposalCount)
+  return bestPerDay.sort(compareProposals(action)).slice(0, rules.proposalCount)
 }

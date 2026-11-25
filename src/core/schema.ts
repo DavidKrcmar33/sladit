@@ -180,6 +180,13 @@ const actionFields = {
   /** Denní okno, do kterého se akce musí vejít. */
   windowStart: TimeStringSchema,
   windowEnd: TimeStringSchema,
+  /** Ideální začátek: ze dne se navrhne čas, který mu je nejblíž. Bez něj co nejdřív. */
+  preferredStart: TimeStringSchema.optional(),
+  /** Jiné denní okno pro sobotu a neděli. Bez něj platí i o víkendu `windowStart`–`windowEnd`. */
+  weekendWindowStart: TimeStringSchema.optional(),
+  weekendWindowEnd: TimeStringSchema.optional(),
+  /** Nejmenší počet lidí, kteří musí moct. Termín s méně lidmi se nenavrhne. */
+  minPeople: z.number().int().min(1, 'Aspoň 1 člověk').max(50).optional(),
 }
 
 type ActionFields = z.infer<z.ZodObject<typeof actionFields>>
@@ -202,6 +209,22 @@ const actionChecks = [
       minutesOf(action.windowEnd) - minutesOf(action.windowStart) >= action.durationMinutes,
     message: 'Akce se do denního okna nevejde',
     path: ['durationMinutes'],
+  },
+  {
+    check: (action: ActionFields) =>
+      (action.weekendWindowStart === undefined) === (action.weekendWindowEnd === undefined),
+    message: 'Víkendové okno potřebuje začátek i konec',
+    path: ['weekendWindowEnd'],
+  },
+  {
+    check: (action: ActionFields) =>
+      !action.weekendWindowStart ||
+      !action.weekendWindowEnd ||
+      (action.weekendWindowStart < action.weekendWindowEnd &&
+        minutesOf(action.weekendWindowEnd) - minutesOf(action.weekendWindowStart) >=
+          action.durationMinutes),
+    message: 'Akce se do víkendového okna nevejde',
+    path: ['weekendWindowEnd'],
   },
 ]
 
@@ -250,7 +273,15 @@ export type Action = z.infer<typeof ActionSchema>
 /** Parametry akce bez lidí: podle nich se hledá termín. */
 export type ActionParams = Pick<
   Action,
-  'from' | 'to' | 'durationMinutes' | 'windowStart' | 'windowEnd'
+  | 'from'
+  | 'to'
+  | 'durationMinutes'
+  | 'windowStart'
+  | 'windowEnd'
+  | 'preferredStart'
+  | 'weekendWindowStart'
+  | 'weekendWindowEnd'
+  | 'minPeople'
 >
 /** Parametry akce včetně názvu, jak je zadává formulář. */
 export type ActionDetails = z.infer<typeof ActionDetailsSchema>

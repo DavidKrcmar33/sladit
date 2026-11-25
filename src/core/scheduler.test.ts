@@ -3,7 +3,9 @@ import { composePeople } from './compose'
 import { sampleAction } from './fixtures'
 import {
   attendanceInSlot,
+  bestCountPerDay,
   dayAttendance,
+  daySlots,
   dayAvailability,
   DEFAULT_SCHEDULING_RULES,
   findProposals,
@@ -272,5 +274,51 @@ describe('dayAvailability', () => {
       windows: [],
       isPartial: false,
     })
+  })
+})
+
+describe('podmínky akce a výběr času', () => {
+  // Anna a Petr mají volný celý týden, Eva v pondělí odpolední do 22:00.
+  const free = scheduleWith([])
+  const people = [
+    person('anna', free),
+    person('petr', free),
+    person('eva', scheduleWith([shift('2026-11-23', '14:00', '22:00')])),
+  ]
+
+  it('picks the time closest to the preferred start within a day, not the earliest', () => {
+    const [best] = findProposals(actionWith({ preferredStart: '19:00' }), people)
+    expect(best).toMatchObject({ date: '2026-11-24', start: '19:00', end: '22:00' })
+    // Bez ideálu co nejdřív.
+    expect(findProposals(actionWith(), people)[0].start).toBe('16:00')
+  })
+
+  it('uses the weekend window on Saturday and Sunday', () => {
+    const action = actionWith({ weekendWindowStart: '10:00', weekendWindowEnd: '14:00' })
+    expect(daySlots(action, people, '2026-11-28').map((slot) => slot.start)).toEqual([
+      '10:00',
+      '10:30',
+      '11:00',
+    ])
+    expect(daySlots(action, people, '2026-11-27')[0].start).toBe('16:00')
+  })
+
+  it('never proposes a date without a required person, nor with too few people', () => {
+    const required = people.map((p) => ({ ...p, required: p.id === 'eva' }))
+    const onlyMonday = actionWith({ to: '2026-11-23' })
+    expect(findProposals(onlyMonday, people)).toHaveLength(1)
+    expect(findProposals(onlyMonday, required)).toEqual([])
+    expect(findProposals(actionWith({ to: '2026-11-23', minPeople: 3 }), people)).toEqual([])
+    expect(findProposals(actionWith({ to: '2026-11-23', minPeople: 2 }), people)).toHaveLength(1)
+  })
+
+  it('lists every start of a day with who can, and the best count per day', () => {
+    const slots = daySlots(actionWith(), people, '2026-11-23')
+    expect(slots[0]).toMatchObject({
+      start: '16:00',
+      available: ['anna', 'petr'],
+      missing: ['eva'],
+    })
+    expect(bestCountPerDay(actionWith({ to: '2026-11-24' }), people)).toEqual([2, 3])
   })
 })
