@@ -9,9 +9,11 @@ import type {
   InviteLink,
   InvitePreview,
   OwnedPerson,
+  PollCandidate,
   SlotResponse,
   SlotResponseRequest,
   User,
+  Vote,
 } from '@/contract/api'
 import {
   DateRangeSchema,
@@ -95,6 +97,12 @@ interface ActionRow {
   confirmed_end: string | null
   in_my_calendar: boolean | null
   my_slot_response: string | null
+  my_reminded_at: Date | string | null
+  preferred_start: string | null
+  weekend_window_start: string | null
+  weekend_window_end: string | null
+  min_people: number | null
+  poll_deadline: Date | string | null
 }
 
 interface ParticipantRow {
@@ -120,6 +128,7 @@ const ACTION_COLUMNS = `a.*,
   (select name from people where owner_id = a.owner_id and is_self) as organizer_name,
   (select status from action_invites where action_id = a.id and user_id = $1) as my_status,
   (select slot_response from action_invites where action_id = a.id and user_id = $1) as my_slot_response,
+  (select reminded_at from action_invites where action_id = a.id and user_id = $1) as my_reminded_at,
   exists (select 1 from calendar_events ce where ce.action_id = a.id and ce.user_id = $1) as in_my_calendar`
 
 /** Dvojice v tabulce přátel: menší id první. */
@@ -171,7 +180,22 @@ function toDetails(row: ActionRow): ActionDetails {
     durationMinutes: row.duration_minutes,
     windowStart: row.window_start,
     windowEnd: row.window_end,
+    ...(row.preferred_start ? { preferredStart: row.preferred_start } : {}),
+    ...(row.weekend_window_start && row.weekend_window_end
+      ? { weekendWindowStart: row.weekend_window_start, weekendWindowEnd: row.weekend_window_end }
+      : {}),
+    ...(row.min_people ? { minPeople: row.min_people } : {}),
   }
+}
+
+/** Volitelná pole akce v pořadí sloupců preferred_start, weekend_window_*, min_people. */
+function extraDetails(details: ActionDetails): (string | number | null)[] {
+  return [
+    details.preferredStart ?? null,
+    details.weekendWindowStart ?? null,
+    details.weekendWindowEnd ?? null,
+    details.minPeople ?? null,
+  ]
 }
 
 /** Připojený Google Kalendář jednoho uživatele. Token je zašifrovaný (server/crypto.ts). */
@@ -333,9 +357,13 @@ export function createStore(db: Db) {
       counter_date: string | null
       counter_start: string | null
       counter_end: string | null
+      required: boolean
+      has_schedule: boolean
     }>(
       `select ai.action_id, ai.user_id, p.name, ai.status, ai.slot_response,
-         ai.counter_date, ai.counter_start, ai.counter_end
+         ai.counter_date, ai.counter_start, ai.counter_end, ai.required,
+         (exists (select 1 from sources s where s.person_id = p.id)
+           or exists (select 1 from day_overrides o where o.person_id = p.id)) as has_schedule
        from action_invites ai join people p on p.owner_id = ai.user_id and p.is_self
        where ai.action_id = any($1) order by ai.position`,
       [actionIds],
@@ -351,6 +379,8 @@ export function createStore(db: Db) {
           row.counter_date && row.counter_start && row.counter_end
             ? { date: row.counter_date, start: row.counter_start, end: row.counter_end }
             : null,
+        required: row.required,
+        hasSchedule: row.has_schedule,
       }
       byAction.set(row.action_id, [...(byAction.get(row.action_id) ?? []), invite])
     }
@@ -363,6 +393,7 @@ export function createStore(db: Db) {
     participants: ParticipantRow[],
     invites: ActionInvite[],
     links: InviteLink[] = [],
+    candidates: PollCandidate[] = [],
   ): ActionResource {
     const isOrganizer = row.owner_id === viewerId
     const confirmed = toConfirmed(row)
@@ -391,7 +422,59 @@ export function createStore(db: Db) {
         ),
       inMyCalendar: row.in_my_calendar ?? false,
       links: isOrganizer ? links : [],
+      poll:
+        candidates.length > 0
+          ? {
+              deadline: row.poll_deadline ? isoTime(row.poll_deadline) : null,
+              candidates: candidates.map((candidate) => ({
+                ...candidate,
+                myVote: candidate.votes.find((vote) => vote.userId === viewerId)?.vote ?? null,
+              })),
+            }
+          : null,
+      remindedAt: !isOrganizer && row.my_reminded_at ? isoTime(row.my_reminded_at) : null,
     }
+  }
+
+  /** Termíny v hlasování a hlasy. Hlasy vidí všichni účastníci, jsou to jejich odpovědi. */
+  async function candidatesOf(actionIds: string[]): Promise<Map<string, PollCandidate[]>> {
+    const candidates = await db.query<{
+      id: string
+      action_id: string
+      date: string
+      start_time: string
+      end_time: string
+    }>(
+      `select id, action_id, date, start_time, end_time from action_candidates
+       where action_id = any($1) order by position`,
+      [actionIds],
+    )
+    const votes = await db.query<{
+      candidate_id: string
+      user_id: string
+      name: string
+      vote: Vote
+    }>(
+      `select v.candidate_id, v.user_id, p.name, v.vote from candidate_votes v
+       join people p on p.owner_id = v.user_id and p.is_self
+       where v.candidate_id = any($1) order by p.name`,
+      [candidates.map((candidate) => candidate.id)],
+    )
+    const result = new Map<string, PollCandidate[]>()
+    for (const candidate of candidates) {
+      const item: PollCandidate = {
+        id: candidate.id,
+        date: candidate.date,
+        start: candidate.start_time,
+        end: candidate.end_time,
+        votes: votes
+          .filter((vote) => vote.candidate_id === candidate.id)
+          .map((vote) => ({ userId: vote.user_id, name: vote.name, vote: vote.vote })),
+        myVote: null,
+      }
+      result.set(candidate.action_id, [...(result.get(candidate.action_id) ?? []), item])
+    }
+    return result
   }
 
   /** Platné odkazy do akcí, které uživatel pořádá. */
@@ -421,10 +504,11 @@ export function createStore(db: Db) {
     )
     if (rows.length === 0) return []
     const ids = rows.map((row) => row.id)
-    const [participants, invites, links] = await Promise.all([
+    const [participants, invites, links, candidates] = await Promise.all([
       participantsOf(ids),
       invitesOf(ids),
       linksOf(viewerId, ids),
+      candidatesOf(ids),
     ])
     return rows.map((row) =>
       toResource(
@@ -433,6 +517,7 @@ export function createStore(db: Db) {
         participants.get(row.id) ?? [],
         invites.get(row.id) ?? [],
         links.get(row.id) ?? [],
+        candidates.get(row.id) ?? [],
       ),
     )
   }
@@ -926,8 +1011,9 @@ export function createStore(db: Db) {
         if (wanted.some((userId) => !allowed.has(userId))) return null
         const actionId = randomUUID()
         await tx.query(
-          `insert into actions (id, owner_id, name, date_from, date_to, duration_minutes, window_start, window_end)
-           values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          `insert into actions (id, owner_id, name, date_from, date_to, duration_minutes, window_start, window_end,
+             preferred_start, weekend_window_start, weekend_window_end, min_people)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           [
             actionId,
             ownerId,
@@ -937,6 +1023,7 @@ export function createStore(db: Db) {
             details.durationMinutes,
             details.windowStart,
             details.windowEnd,
+            ...extraDetails(details),
           ],
         )
         await invite(tx, actionId, wanted)
@@ -962,7 +1049,8 @@ export function createStore(db: Db) {
            confirmed_end = case when (date_from, date_to, duration_minutes, window_start, window_end)
              = ($4, $5, $6, $7, $8) then confirmed_end end,
            name = $3, date_from = $4, date_to = $5, duration_minutes = $6,
-           window_start = $7, window_end = $8
+           window_start = $7, window_end = $8,
+           preferred_start = $9, weekend_window_start = $10, weekend_window_end = $11, min_people = $12
          where owner_id = $1 and id = $2 returning id, confirmed_date`,
         [
           ownerId,
@@ -973,6 +1061,7 @@ export function createStore(db: Db) {
           details.durationMinutes,
           details.windowStart,
           details.windowEnd,
+          ...extraDetails(details),
         ],
       )
       // Zmizel-li termín, zmizí i odpovědi na něj.
@@ -1047,7 +1136,175 @@ export function createStore(db: Db) {
         )
         if (rows.length === 0) return false
         await resetSlotResponses(tx, actionId, null)
+        // Navržený termín ukončí hlasování, o termínu už je rozhodnuto.
+        if (slot) {
+          await tx.query('update actions set poll_deadline = null where id = $1', [actionId])
+          await tx.query('delete from action_candidates where action_id = $1', [actionId])
+        }
         return true
+      })
+    },
+
+    // Nezbytní účastníci a prosba o rozpis
+
+    /** Organizátor označí pozvaného jako nezbytného (bez něj se termín nenavrhne). */
+    async setRequired(
+      ownerId: string,
+      actionId: string,
+      userId: string,
+      required: boolean,
+    ): Promise<boolean> {
+      const rows = await db.query(
+        `update action_invites ai set required = $4 from actions a
+         where a.id = ai.action_id and a.owner_id = $1 and ai.action_id = $2 and ai.user_id = $3
+         returning ai.user_id`,
+        [ownerId, actionId, userId, required],
+      )
+      return rows.length > 0
+    },
+
+    /**
+     * Organizátor poprosí účastníka o rozpis. Účastník to uvidí jako upozornění v aplikaci.
+     * Nejvýš jednou za 12 hodin, aby se z toho nestalo otravování.
+     */
+    async remind(
+      ownerId: string,
+      actionId: string,
+      userId: string,
+      now: Date,
+    ): Promise<'ok' | 'not-found' | 'too-soon'> {
+      const [row] = await db.query<{ reminded_at: Date | string | null }>(
+        `select ai.reminded_at from action_invites ai join actions a on a.id = ai.action_id
+         where a.owner_id = $1 and ai.action_id = $2 and ai.user_id = $3 and ai.status <> 'declined'`,
+        [ownerId, actionId, userId],
+      )
+      if (!row) return 'not-found'
+      if (row.reminded_at && now.getTime() - new Date(row.reminded_at).getTime() < 12 * 3600_000) {
+        return 'too-soon'
+      }
+      await db.query(
+        'update action_invites set reminded_at = $3 where action_id = $1 and user_id = $2',
+        [actionId, userId, now.toISOString()],
+      )
+      return 'ok'
+    },
+
+    // Hlasování o termínu
+
+    /**
+     * Spustí hlasování o 1–3 termínech (předchozí nahradí). Navržený termín a odpovědi na něj
+     * zmizí: o termínu se teď hlasuje.
+     */
+    async createPoll(
+      ownerId: string,
+      actionId: string,
+      slots: ConfirmedSlot[],
+      deadline: string | null,
+    ): Promise<boolean> {
+      return db.transaction(async (tx) => {
+        const rows = await tx.query(
+          `update actions set poll_deadline = $3,
+             confirmed_date = null, confirmed_start = null, confirmed_end = null
+           where owner_id = $1 and id = $2 returning id`,
+          [ownerId, actionId, deadline],
+        )
+        if (rows.length === 0) return false
+        await resetSlotResponses(tx, actionId, null)
+        await tx.query('delete from action_candidates where action_id = $1', [actionId])
+        for (const slot of slots) {
+          await tx.query(
+            `insert into action_candidates (id, action_id, date, start_time, end_time)
+             values ($1, $2, $3, $4, $5)`,
+            [randomUUID(), actionId, slot.date, slot.start, slot.end],
+          )
+        }
+        return true
+      })
+    },
+
+    /** Odebere z hlasování termíny, které po úpravě akce do ní nepasují. */
+    async removeCandidates(actionId: string, candidateIds: string[]): Promise<void> {
+      if (candidateIds.length === 0) return
+      await db.query('delete from action_candidates where action_id = $1 and id = any($2)', [
+        actionId,
+        candidateIds,
+      ])
+    },
+
+    async deletePoll(ownerId: string, actionId: string): Promise<boolean> {
+      return db.transaction(async (tx) => {
+        const rows = await tx.query(
+          'update actions set poll_deadline = null where owner_id = $1 and id = $2 returning id',
+          [ownerId, actionId],
+        )
+        if (rows.length === 0) return false
+        await tx.query('delete from action_candidates where action_id = $1', [actionId])
+        return true
+      })
+    },
+
+    /** Hlasy účastníka. Hlasovat smí jen ten, kdo pozvánku přijal, a jen o termínech akce. */
+    async vote(
+      userId: string,
+      actionId: string,
+      votes: { candidateId: string; vote: Vote }[],
+    ): Promise<boolean> {
+      return db.transaction(async (tx) => {
+        const [participant] = await tx.query(
+          `select 1 from action_invites where action_id = $1 and user_id = $2 and status = 'accepted'`,
+          [actionId, userId],
+        )
+        if (!participant) return false
+        const candidates = await tx.query<{ id: string }>(
+          'select id from action_candidates where action_id = $1',
+          [actionId],
+        )
+        const valid = new Set(candidates.map((candidate) => candidate.id))
+        if (votes.some((item) => !valid.has(item.candidateId))) return false
+        for (const item of votes) {
+          await tx.query(
+            `insert into candidate_votes (candidate_id, user_id, vote) values ($1, $2, $3)
+             on conflict (candidate_id, user_id) do update set vote = $3, voted_at = now()`,
+            [item.candidateId, userId, item.vote],
+          )
+        }
+        return true
+      })
+    },
+
+    /**
+     * Organizátor vybere termín z hlasování. Stane se navrženým termínem, kdo hlasoval „můžu“,
+     * ten rovnou jde, ostatní odpoví jako u navrženého termínu. Hlasování skončí.
+     */
+    async choosePoll(
+      ownerId: string,
+      actionId: string,
+      candidateId: string,
+    ): Promise<ConfirmedSlot | null> {
+      return db.transaction(async (tx) => {
+        const [candidate] = await tx.query<{ date: string; start_time: string; end_time: string }>(
+          `select c.date, c.start_time, c.end_time from action_candidates c
+           join actions a on a.id = c.action_id
+           where c.id = $3 and c.action_id = $2 and a.owner_id = $1`,
+          [ownerId, actionId, candidateId],
+        )
+        if (!candidate) return null
+        const slot = { date: candidate.date, start: candidate.start_time, end: candidate.end_time }
+        await tx.query(
+          `update actions set confirmed_date = $2, confirmed_start = $3, confirmed_end = $4,
+             poll_deadline = null where id = $1`,
+          [actionId, slot.date, slot.start, slot.end],
+        )
+        await resetSlotResponses(tx, actionId, null)
+        await tx.query(
+          `update action_invites ai set slot_response = 'going'
+           from candidate_votes v
+           where v.candidate_id = $2 and v.user_id = ai.user_id and v.vote = 'yes'
+             and ai.action_id = $1 and ai.status = 'accepted'`,
+          [actionId, candidateId],
+        )
+        await tx.query('delete from action_candidates where action_id = $1', [actionId])
+        return slot
       })
     },
 
