@@ -565,3 +565,73 @@ describe('upozornění v aplikaci', () => {
     expect(evaSession.state.error).toBeNull()
   })
 })
+
+describe('domluva termínu v prohlížeči', () => {
+  const tuesday = { date: '2026-11-24', start: '18:00', end: '20:00' }
+
+  /** Anna pozve Evu, Eva přijme. Eva rozpis nemá. */
+  async function joined(now?: () => Date) {
+    const context = await friends()
+    const { annaSession, evaSession } = context
+    const evaId = annaSession.contacts.value.find((contact) => contact.name === 'Eva')!.userId
+    await annaSession.createAction(details, [evaId])
+    await evaSession.init()
+    evaSession.selectAction(evaSession.state.actions[0].id)
+    await evaSession.respondToAction(true)
+    const anna = sessionFor(context.anna, now ? { now } : {})
+    await anna.init()
+    anna.selectAction(anna.state.actions[0].id)
+    return { ...context, anna, evaSession, evaId }
+  }
+
+  it('asks the participant to vote, prefilled from the schedule, and lets the organizer choose', async () => {
+    const { anna, evaSession } = await joined()
+    await anna.createPoll([tuesday], null)
+    await evaSession.refresh()
+    expect(evaSession.slotNotice.value?.text).toBe(
+      'Anna se ptá, kdy můžeš: hlasování o termínu akce Pivo.',
+    )
+    const candidate = evaSession.selectedResource.value!.poll!.candidates[0]
+    await evaSession.vote([{ candidateId: candidate.id, vote: 'yes' }])
+    expect(evaSession.slotNotice.value).toBeNull()
+
+    await anna.refresh()
+    await anna.choosePoll(candidate.id)
+    expect(anna.selectedResource.value).toMatchObject({
+      confirmed: tuesday,
+      poll: null,
+      agreed: true,
+    })
+  })
+
+  it('tells the organizer when voting is over and the participant when asked for a schedule', async () => {
+    const { anna, evaSession, evaId } = await joined(() => new Date('2026-11-22T12:00:00Z'))
+    await anna.createPoll([tuesday], '2026-11-21T18:00:00.000Z')
+    expect(anna.slotNotice.value?.text).toBe('Hlasování o akci Pivo skončilo, vyber termín.')
+
+    await anna.remindParticipant(evaId)
+    await evaSession.refresh()
+    expect(evaSession.slotNotice.value?.text).toBe(
+      'Anna tě prosí o rozpis k akci Pivo, ať jde najít termín.',
+    )
+  })
+
+  it('lists every start of a day for the organizer and marks people as required', async () => {
+    const { anna, evaId } = await joined()
+    const slots = await anna.loadDaySlots('2026-11-25')
+    expect(slots.map((slot) => slot.start)).toEqual([
+      '17:00',
+      '17:30',
+      '18:00',
+      '18:30',
+      '19:00',
+      '19:30',
+      '20:00',
+    ])
+    await anna.setRequired(evaId, true)
+    expect(anna.selectedResource.value!.invites[0]).toMatchObject({
+      required: true,
+      hasSchedule: false,
+    })
+  })
+})

@@ -16,9 +16,10 @@ import type {
   SendFriendRequestResponse,
   SlotResponseRequest,
   UpdateSourceRequest,
+  Vote,
 } from '@/contract/api'
 import type { SourceAnswer } from '@/core/review'
-import type { Action, ActionDetails, Shift } from '@/core/schema'
+import type { Action, ActionDetails, Proposal, Shift } from '@/core/schema'
 
 /**
  * Co aplikace v prohlížeči potřebuje od serveru. Skutečný server je v http.ts, varianta v paměti
@@ -54,6 +55,21 @@ export interface Backend {
   actionView(actionId: string): Promise<ActionView>
   inviteToAction(actionId: string, userIds: string[]): Promise<ActionResource>
   cancelInvite(actionId: string, userId: string): Promise<ActionResource>
+  /** Organizátor označí účastníka jako nezbytného. */
+  setRequired(actionId: string, userId: string, required: boolean): Promise<ActionResource>
+  /** Organizátor poprosí účastníka o rozpis (upozornění v aplikaci). */
+  remind(actionId: string, userId: string): Promise<ActionResource>
+  /** Všechny možné začátky dne a kdo v nich může (výběr vlastního času). */
+  daySlots(actionId: string, date: string): Promise<Proposal[]>
+  /** Hlasování o 1–3 termínech. Lhůta je ISO čas, nebo null. */
+  createPoll(
+    actionId: string,
+    slots: ConfirmedSlot[],
+    deadline: string | null,
+  ): Promise<ActionResource>
+  deletePoll(actionId: string): Promise<ActionResource>
+  vote(actionId: string, votes: { candidateId: string; vote: Vote }[]): Promise<ActionResource>
+  choosePoll(actionId: string, candidateId: string): Promise<ActionResource>
   /** Akce z jedné věty: AI navrhne parametry do formuláře. Nic neuloží. */
   draftAction(text: string): Promise<DraftActionResponse>
   /** Odkaz rovnou do akce. Ukáže se jen jednou. */

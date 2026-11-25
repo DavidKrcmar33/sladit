@@ -61,6 +61,34 @@ async function fillFromSentence() {
 
 const isEditing = props.initial !== undefined
 
+// Další možnosti: ideální začátek, víkendové okno a nejmenší počet lidí. Prázdné = bez nich.
+const preferred = ref(props.initial?.preferredStart ?? '')
+const weekend = ref(props.initial?.weekendWindowStart !== undefined)
+const weekendStart = ref(props.initial?.weekendWindowStart ?? '10:00')
+const weekendEnd = ref(props.initial?.weekendWindowEnd ?? '22:00')
+const minPeople = ref<number | ''>(props.initial?.minPeople ?? '')
+const showMore = ref(
+  Boolean(
+    props.initial?.preferredStart || props.initial?.weekendWindowStart || props.initial?.minPeople,
+  ),
+)
+
+/** Formulář i s dalšími možnostmi. Prázdné pole volbu vynechá. */
+function submitted(): NewActionInput {
+  const { name, from, to, durationMinutes, windowStart, windowEnd } = input
+  const base = { name, from, to, durationMinutes, windowStart, windowEnd }
+  return {
+    ...base,
+    ...(preferred.value ? { preferredStart: preferred.value } : {}),
+    ...(weekend.value
+      ? { weekendWindowStart: weekendStart.value, weekendWindowEnd: weekendEnd.value }
+      : {}),
+    ...(minPeople.value !== '' && minPeople.value > 0
+      ? { minPeople: Number(minPeople.value) }
+      : {}),
+  }
+}
+
 const input = reactive<NewActionInput>(
   props.initial
     ? { ...props.initial }
@@ -80,7 +108,7 @@ const input = reactive<NewActionInput>(
     <form
       class="flex flex-col gap-4"
       novalidate
-      @submit.prevent="emit('submit', { ...input }, invitees)"
+      @submit.prevent="emit('submit', submitted(), invitees)"
     >
       <div
         v-if="draft && !isEditing"
@@ -160,6 +188,61 @@ const input = reactive<NewActionInput>(
         </div>
         <p v-if="errors.windowEnd" class="text-xs text-warn">{{ errors.windowEnd }}</p>
       </fieldset>
+
+      <details
+        :open="showMore"
+        class="rounded-lg border border-line"
+        @toggle="showMore = ($event.target as HTMLDetailsElement).open"
+      >
+        <summary class="cursor-pointer px-3 py-2 font-medium">Další možnosti</summary>
+        <div class="flex flex-col gap-4 border-t border-line p-3">
+          <label class="flex flex-col gap-1.5">
+            <span class="font-medium">Ideálně začít v</span>
+            <input v-model="preferred" type="time" step="1800" class="field-input" />
+            <span class="text-xs text-muted">
+              Ze dne se navrhne čas nejblíž tomuhle. Bez něj co nejdřív.
+            </span>
+          </label>
+          <div class="flex flex-col gap-1.5">
+            <label class="flex items-center gap-2 font-medium">
+              <input v-model="weekend" type="checkbox" class="size-4 accent-accent" />
+              O víkendu jiné okno
+            </label>
+            <div v-if="weekend" class="grid grid-cols-2 gap-3">
+              <input
+                v-model="weekendStart"
+                aria-label="O víkendu nejdřív od"
+                type="time"
+                step="1800"
+                class="field-input"
+              />
+              <input
+                v-model="weekendEnd"
+                aria-label="O víkendu nejpozději do"
+                type="time"
+                step="1800"
+                class="field-input"
+              />
+            </div>
+            <p v-if="errors.weekendWindowEnd" class="text-xs text-warn">
+              {{ errors.weekendWindowEnd }}
+            </p>
+          </div>
+          <label class="flex flex-col gap-1.5">
+            <span class="font-medium">Aspoň kolik lidí musí moct</span>
+            <input
+              v-model.number="minPeople"
+              type="number"
+              min="1"
+              max="50"
+              inputmode="numeric"
+              placeholder="bez omezení"
+              class="field-input"
+            />
+            <p v-if="errors.minPeople" class="text-xs text-warn">{{ errors.minPeople }}</p>
+          </label>
+        </div>
+      </details>
 
       <InvitePicker
         v-if="!isEditing && contacts"

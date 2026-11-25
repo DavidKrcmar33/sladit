@@ -22,9 +22,25 @@ const props = defineProps<{
    * Proč návrhy chybí: přihlášený nemá rozpis, ostatní ho nemají (nebo pozvánku nepřijali),
    * nebo se v okně akce nikdo nevešel.
    */
-  emptyReason?: 'mine' | 'others' | 'nofit'
+  emptyReason?: 'mine' | 'others' | 'conditions' | 'nofit'
+  /** Termíny chystané do hlasování (jen organizátor). */
+  pollDraft?: ConfirmedSlot[]
 }>()
-const emit = defineEmits<{ confirm: [proposal: Proposal]; upload: [] }>()
+const emit = defineEmits<{
+  confirm: [proposal: Proposal]
+  upload: []
+  togglePoll: [slot: ConfirmedSlot]
+}>()
+
+function inPoll(proposal: Proposal): boolean {
+  return (props.pollDraft ?? []).some(
+    (slot) => slot.date === proposal.date && slot.start === proposal.start,
+  )
+}
+
+function plain(proposal: Proposal): ConfirmedSlot {
+  return { date: proposal.date, start: proposal.start, end: proposal.end }
+}
 
 /** Termín, na který organizátor naposledy klikl, aby u něj bylo vidět „Navrhuji…“. */
 const clicked = ref<string | null>(null)
@@ -80,6 +96,10 @@ function namesOf(personIds: string[]): string {
         Ostatní zatím nemají nahraný rozpis, nebo ještě nepřijali pozvánku. Jakmile ho nahrají,
         návrhy se objeví tady. Klidně jim napiš, ať to udělají.
       </p>
+      <p v-else-if="emptyReason === 'conditions'" class="text-muted">
+        Žádný termín nesplňuje podmínky akce: nezbytní lidé nebo nejmenší počet lidí. Uvolni je v
+        úpravě akce nebo u účastníků.
+      </p>
       <p v-else class="text-muted">
         V okně akce se nikdo nevešel. Zkus delší období, širší čas během dne nebo kratší akci.
       </p>
@@ -119,15 +139,24 @@ function namesOf(personIds: string[]): string {
           {{ stabilityNote }}
         </p>
         <p v-if="isConfirmed(proposal)" class="font-semibold text-accent-dark">Navrženo</p>
-        <UiButton
-          v-else-if="canConfirm"
-          :variant="index === 0 ? 'primary' : 'secondary'"
-          class="mt-1 self-start"
-          :disabled="busy"
-          @click="confirm(proposal)"
-        >
-          {{ confirming && clicked === keyOf(proposal) ? 'Navrhuji…' : 'Navrhnout tento termín' }}
-        </UiButton>
+        <div v-else-if="canConfirm" class="mt-1 flex flex-wrap gap-2">
+          <UiButton
+            :variant="index === 0 ? 'primary' : 'secondary'"
+            :disabled="busy"
+            @click="confirm(proposal)"
+          >
+            {{ confirming && clicked === keyOf(proposal) ? 'Navrhuji…' : 'Navrhnout tento termín' }}
+          </UiButton>
+          <UiButton
+            v-if="pollDraft"
+            variant="ghost"
+            :aria-pressed="inPoll(proposal)"
+            :disabled="busy || (!inPoll(proposal) && pollDraft.length >= 3)"
+            @click="emit('togglePoll', plain(proposal))"
+          >
+            {{ inPoll(proposal) ? 'V hlasování ✓' : 'Do hlasování' }}
+          </UiButton>
+        </div>
       </li>
     </ol>
   </section>

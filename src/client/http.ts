@@ -9,6 +9,7 @@ import {
   ActionViewResponseSchema,
   CreateActionLinkResponseSchema,
   CreateFriendInviteResponseSchema,
+  DaySlotsResponseSchema,
   DraftActionResponseSchema,
   CreateInviteResponseSchema,
   ErrorResponseSchema,
@@ -105,6 +106,19 @@ export function httpBackend(fetcher: typeof fetch = (...args) => fetch(...args))
     deleteAction: (actionId) => ok('DELETE', `/actions/${actionId}`),
     actionView: (actionId) =>
       call(ActionViewResponseSchema, 'GET', `/actions/${actionId}/view`).then((data) => data.view),
+    setRequired: (actionId, userId, required) =>
+      action('PATCH', `/actions/${actionId}/invites/${userId}`, { required }),
+    remind: (actionId, userId) => action('POST', `/actions/${actionId}/invites/${userId}/remind`),
+    daySlots: (actionId, date) =>
+      call(DaySlotsResponseSchema, 'GET', `/actions/${actionId}/days/${date}`).then(
+        (data) => data.slots,
+      ),
+    createPoll: (actionId, slots, deadline) =>
+      action('PUT', `/actions/${actionId}/poll`, { slots, deadline }),
+    deletePoll: (actionId) => action('DELETE', `/actions/${actionId}/poll`),
+    vote: (actionId, votes) => action('PUT', `/actions/${actionId}/poll/votes`, { votes }),
+    choosePoll: (actionId, candidateId) =>
+      action('POST', `/actions/${actionId}/poll/candidates/${candidateId}/choose`),
     draftAction: (text) => call(DraftActionResponseSchema, 'POST', '/actions/draft', { text }),
     createActionLink: (actionId) =>
       call(CreateActionLinkResponseSchema, 'POST', `/actions/${actionId}/links`),

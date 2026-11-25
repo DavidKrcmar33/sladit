@@ -11,7 +11,7 @@ const props = defineProps<{
   groups: Group[]
   /** Právě vytvořený odkaz do akce. Ukáže se jen teď. */
   linkUrl?: string | null
-  /** Odkazy jdou jen s účtem, v ukázce ne. */
+  /** Odkazy, nezbytní lidé a prosby jdou jen s účtem, v ukázce ne. */
   canLink?: boolean
 }>()
 const emit = defineEmits<{
@@ -19,7 +19,17 @@ const emit = defineEmits<{
   cancel: [userId: string]
   createLink: []
   revokeLink: [linkId: string]
+  setRequired: [userId: string, required: boolean]
+  remind: [userId: string]
 }>()
+
+/** Komu jsem už v této návštěvě poslal prosbu o rozpis (tlačítko pak ukáže „Posláno“). */
+const reminded = ref<string[]>([])
+
+function remind(userId: string) {
+  reminded.value = [...reminded.value, userId]
+  emit('remind', userId)
+}
 
 const copied = ref(false)
 const canShare = typeof navigator !== 'undefined' && 'share' in navigator
@@ -93,20 +103,52 @@ function invitedIds(): string[] {
         :key="invite.userId"
         class="flex items-center justify-between gap-3 border-t border-line py-2"
       >
-        <span class="flex flex-col">
-          <span class="font-semibold">{{ invite.name }}</span>
+        <span class="flex min-w-0 flex-col">
+          <span class="font-semibold">
+            {{ invite.name }}
+            <span v-if="invite.required" class="text-xs font-medium text-accent-dark">
+              · nezbytný
+            </span>
+          </span>
           <span :class="invite.status === 'accepted' ? 'text-accent-dark' : 'text-muted'">
             {{ STATUS_TEXT[invite.status] }}
+            <template v-if="invite.status === 'accepted' && !invite.hasSchedule">
+              · <span class="text-warn">bez rozpisu</span>
+            </template>
           </span>
         </span>
-        <UiButton
-          v-if="action.isOrganizer"
-          variant="ghost"
-          :aria-label="`Zrušit pozvánku: ${invite.name}`"
-          @click="emit('cancel', invite.userId)"
-        >
-          {{ invite.status === 'accepted' ? 'Odebrat' : 'Zrušit' }}
-        </UiButton>
+        <div v-if="action.isOrganizer" class="flex flex-wrap justify-end gap-1">
+          <UiButton
+            v-if="canLink && invite.status === 'accepted' && !invite.hasSchedule"
+            variant="ghost"
+            :disabled="reminded.includes(invite.userId)"
+            :aria-label="`Poprosit o rozpis: ${invite.name}`"
+            @click="remind(invite.userId)"
+          >
+            {{ reminded.includes(invite.userId) ? 'Posláno' : 'Poprosit o rozpis' }}
+          </UiButton>
+          <UiButton
+            v-if="canLink && invite.status !== 'declined'"
+            variant="ghost"
+            :aria-pressed="invite.required"
+            :aria-label="`Nezbytný: ${invite.name}`"
+            :title="
+              invite.required
+                ? 'Bez něj se termín nenavrhne. Klikni pro zrušení.'
+                : 'Označit jako nezbytného: bez něj se termín nenavrhne.'
+            "
+            @click="emit('setRequired', invite.userId, !invite.required)"
+          >
+            {{ invite.required ? 'Nezbytný ✓' : 'Nezbytný?' }}
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            :aria-label="`Zrušit pozvánku: ${invite.name}`"
+            @click="emit('cancel', invite.userId)"
+          >
+            {{ invite.status === 'accepted' ? 'Odebrat' : 'Zrušit' }}
+          </UiButton>
+        </div>
       </li>
     </ul>
     <p v-if="action.invites.length === 0" class="text-muted">Zatím nikdo pozvaný není.</p>

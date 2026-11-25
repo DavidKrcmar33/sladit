@@ -70,6 +70,31 @@ export const ActionInviteSchema = z.object({
   slot: SlotResponseSchema,
   /** Jiný termín, který účastník navrhl. */
   counter: ConfirmedSlotSchema.nullable(),
+  /** Bez něj akce není: termín, kdy nemůže, se nenavrhne. */
+  required: z.boolean(),
+  /** Má nahraný rozpis nebo ruční den. Bez něj je u něj všude „nevíme“. */
+  hasSchedule: z.boolean(),
+})
+
+/** Hlas v hlasování o termínu: můžu, když bude nutné, nemůžu. */
+export const VoteSchema = z.enum(['yes', 'maybe', 'no'])
+
+/** Termín v hlasování a hlasy těch, kdo pozvánku přijali. */
+export const PollCandidateSchema = z.object({
+  id: z.string(),
+  date: DateStringSchema,
+  start: TimeStringSchema,
+  end: TimeStringSchema,
+  votes: z.array(z.object({ userId: z.string(), name: z.string(), vote: VoteSchema })),
+  /** Můj hlas. Null, dokud jsem nehlasoval (a vždy u organizátora). */
+  myVote: VoteSchema.nullable(),
+})
+
+/** Hlasování o několika termínech místo jednoho návrhu. */
+export const PollSchema = z.object({
+  /** Do kdy hlasovat (ISO čas). Null = bez lhůty. */
+  deadline: z.string().nullable(),
+  candidates: z.array(PollCandidateSchema),
 })
 
 /** Odpověď na navržený termín: jdu, nejdu, nebo navrhuji jiný. */
@@ -113,6 +138,10 @@ export const ActionResourceSchema = z.object({
   inMyCalendar: z.boolean(),
   /** Platné odkazy rovnou do akce. Vidí je jen organizátor. */
   links: z.array(InviteLinkSchema),
+  /** Hlasování o termínu, když běží. */
+  poll: PollSchema.nullable(),
+  /** Kdy mě organizátor poprosil o rozpis (ISO čas). Null u organizátora a bez prosby. */
+  remindedAt: z.string().nullable(),
 })
 
 export const ActionsResponseSchema = z.object({ actions: z.array(ActionResourceSchema) })
@@ -160,6 +189,8 @@ export const ActionViewSchema = z.object({
       }),
     ),
   }),
+  /** Kolik lidí nejvíc může v nějakém čase každého dne. */
+  dayBest: z.array(z.number()).default([]),
 })
 
 export const ActionViewResponseSchema = z.object({ view: ActionViewSchema })
@@ -304,6 +335,28 @@ export const CreateActionLinkResponseSchema = z.object({
 
 export const UpdateActionRequestSchema = z.object({ details: ActionDetailsSchema })
 
+/** Organizátor označí účastníka jako nezbytného. */
+export const SetRequiredRequestSchema = z.object({ required: z.boolean() })
+
+/** Hlasování o 1–3 termínech. Lhůta je ISO čas, nebo null. */
+export const CreatePollRequestSchema = z.object({
+  slots: z
+    .array(ConfirmedSlotSchema)
+    .min(1, 'Vyber aspoň jeden termín.')
+    .max(3, 'Hlasovat jde nejvýš o třech termínech.'),
+  deadline: z.iso.datetime({ offset: true }).nullable(),
+})
+
+export const VoteRequestSchema = z.object({
+  votes: z
+    .array(z.object({ candidateId: z.string(), vote: VoteSchema }))
+    .min(1)
+    .max(3),
+})
+
+/** Všechny možné začátky jednoho dne s tím, kdo může (výběr vlastního času). */
+export const DaySlotsResponseSchema = z.object({ slots: z.array(ProposalSchema) })
+
 /** Akce z jedné věty: AI navrhne parametry, člověk je zkontroluje ve formuláři. */
 export const DraftActionRequestSchema = z.object({
   text: z
@@ -424,6 +477,10 @@ export type InvitePreview = z.infer<typeof InvitePreviewSchema>
 export type ReadingRequest = z.infer<typeof ReadingRequestSchema>
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequestSchema>
 export type DraftActionResponse = z.infer<typeof DraftActionResponseSchema>
+export type Vote = z.infer<typeof VoteSchema>
+export type Poll = z.infer<typeof PollSchema>
+export type PollCandidate = z.infer<typeof PollCandidateSchema>
+export type CreatePollRequest = z.infer<typeof CreatePollRequestSchema>
 export type ClarifyResponse = z.infer<typeof ClarifyResponseSchema>
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 export type CalendarStatus = z.infer<typeof CalendarStatusSchema>

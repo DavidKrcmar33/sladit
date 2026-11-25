@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { ParityQuestion } from '@/core/compose'
+import type { ConfirmedSlot, Vote } from '@/contract/api'
+import { CALENDAR_CIRCLE, type ParityQuestion } from '@/core/compose'
 import type { Proposal, Shift } from '@/core/schema'
+import { attendanceInSlot } from '@/core/scheduler'
+import { eachDay } from '@/core/time'
 import { useSession } from '@/session'
 import ActionPeople from '@/ui/components/ActionPeople.vue'
 import CalendarGrid from '@/ui/components/CalendarGrid.vue'
 import CalendarLegend from '@/ui/components/CalendarLegend.vue'
 import DayEditor from '@/ui/components/DayEditor.vue'
+import DayPicker from '@/ui/components/DayPicker.vue'
 import ParityQuestions from '@/ui/components/ParityQuestions.vue'
+import PollPanel from '@/ui/components/PollPanel.vue'
 import ProposalList from '@/ui/components/ProposalList.vue'
+import QuickDays from '@/ui/components/QuickDays.vue'
 import ReadingWarnings from '@/ui/components/ReadingWarnings.vue'
 import SlotBanner from '@/ui/components/SlotBanner.vue'
 import UiButton from '@/ui/components/UiButton.vue'
@@ -24,6 +30,7 @@ const {
   composedPeople,
   stability,
   proposals,
+  dayBest,
   uncertainDays,
   pivotalUncertainCount,
   readingWarnings,
@@ -50,7 +57,82 @@ const {
   removeFromCalendar,
   dismissCalendarPrompt,
   icsForSelectedAction,
+  setRequired,
+  remindParticipant,
+  loadDaySlots,
+  createPoll,
+  deletePoll,
+  vote,
+  choosePoll,
 } = useSession()
+
+// Výběr vlastního času: den otevřený kliknutím na hlavičku kalendáře.
+const pickedDate = ref<string | null>(null)
+const pickedSlots = ref<Proposal[] | null>(null)
+
+async function pickDay(date: string) {
+  if (pickedDate.value === date) {
+    pickedDate.value = null
+    return
+  }
+  pickedDate.value = date
+  pickedSlots.value = null
+  const slots = await loadDaySlots(date)
+  if (pickedDate.value === date) pickedSlots.value = slots
+}
+
+// Hlasování: termíny, které organizátor chystá (nejvýš tři).
+const pollDraft = ref<ConfirmedSlot[]>([])
+
+function togglePoll(slot: ConfirmedSlot) {
+  const same = (item: ConfirmedSlot) => item.date === slot.date && item.start === slot.start
+  pollDraft.value = pollDraft.value.some(same)
+    ? pollDraft.value.filter((item) => !same(item))
+    : [...pollDraft.value, slot].slice(0, 3)
+}
+
+async function startPoll(deadline: string | null) {
+  await createPoll(
+    [...pollDraft.value].sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`)),
+    deadline,
+  )
+  if (resource.value.poll) pollDraft.value = []
+}
+
+/** Předvyplněný hlas podle mého rozpisu. */
+function suggestVote(slot: ConfirmedSlot): Vote | null {
+  const mine = composedPeople.value.find((person) => person.id === me.value?.id)
+  const attendance = attendanceInSlot(mine?.schedule ?? null, slot)
+  return attendance === 'available' ? 'yes' : attendance === 'busy' ? 'no' : null
+}
+
+// Rychlá odpověď bez rozpisu: ruční dny „můžu / nemůžu“.
+const BUSY_LABEL = 'NEMŮŽU'
+const hasReadSchedule = computed(
+  () => (me.value?.sources ?? []).filter((source) => source.circle !== CALENDAR_CIRCLE).length > 0,
+)
+const quickStates = computed(() =>
+  Object.fromEntries(
+    (me.value?.overrides ?? []).map((override) => [
+      override.date,
+      override.shifts.length === 0
+        ? ('free' as const)
+        : override.shifts.some((shift) => shift.label === BUSY_LABEL)
+          ? ('busy' as const)
+          : null,
+    ]),
+  ),
+)
+
+function setQuickDay(date: string, value: 'free' | 'busy' | null) {
+  if (value === null) void clearDayOverride(date)
+  else if (value === 'free') void saveDayShifts(date, [])
+  else {
+    void saveDayShifts(date, [
+      { date, start: '00:00', end: '23:59', label: BUSY_LABEL, raw: '', uncertain: false },
+    ])
+  }
+}
 
 const leaving = ref(false)
 const confirmingDelete = ref(false)
@@ -115,11 +197,15 @@ const alternatives = computed(() =>
  * Proč nejsou návrhy: plánovač nemá z čeho počítat, nebo se v okně akce nikdo nevešel.
  * Bez rozpisu je u člověka všude „nevíme“ a termín pro něj nejde najít.
  */
-const proposalsEmpty = computed<'mine' | 'others' | 'nofit'>(() => {
+const proposalsEmpty = computed<'mine' | 'others' | 'conditions' | 'nofit'>(() => {
   if (takesPart.value && !hasSchedule.value) return 'mine'
   const others = (calendar.value?.rows ?? []).filter((row) => row.personId !== me.value?.id)
   const knowsSomething = others.some((row) => row.days.some((day) => day.attendance !== 'unknown'))
-  return knowsSomething ? 'nofit' : 'others'
+  if (!knowsSomething) return 'others'
+  const conditions =
+    resource.value.details.minPeople !== undefined ||
+    resource.value.invites.some((invite) => invite.required)
+  return conditions ? 'conditions' : 'nofit'
 })
 
 /** Sloupec, na který se má v kalendáři dívat: navržený, jinak nejlepší termín. */
@@ -186,6 +272,19 @@ function confirm(proposal: Proposal) {
         @download-ics="downloadIcs"
       />
 
+      <PollPanel
+        :resource="resource"
+        :draft="pollDraft"
+        :suggest="suggestVote"
+        :pending="state.pending"
+        :now="new Date()"
+        @remove-draft="togglePoll"
+        @start="startPoll"
+        @cancel="deletePoll"
+        @vote="vote"
+        @choose="choosePoll"
+      />
+
       <div
         v-if="calendarPrompt"
         role="status"
@@ -217,6 +316,14 @@ function confirm(proposal: Proposal) {
         </button>
       </p>
 
+      <QuickDays
+        v-if="takesPart && !hasReadSchedule && !state.demo"
+        :dates="eachDay(resource.details.from, resource.details.to)"
+        :states="quickStates"
+        :busy="false"
+        @set="setQuickDay"
+      />
+
       <UncertainNotice
         v-if="uncertainDays.length > 0"
         :count="uncertainDays.length"
@@ -235,11 +342,34 @@ function confirm(proposal: Proposal) {
           :calendar="calendar"
           :selected-day="state.selectedDay"
           :highlight-date="highlightDate"
+          :day-best="dayBest.length ? dayBest : undefined"
+          :picked-date="pickedDate"
           @select="selectDay($event)"
           @edit-person="showSchedule"
+          @pick-day="pickDay"
         />
         <CalendarLegend />
       </template>
+
+      <p v-if="calendar && calendar.rows.length > 0 && !pickedDate" class="text-xs text-muted">
+        Klikni na den v hlavičce a uvidíš všechny časy toho dne a kdo v nich může.
+      </p>
+      <DayPicker
+        v-if="pickedDate"
+        :key="pickedDate"
+        :date="pickedDate"
+        :slots="pickedSlots"
+        :people="participants"
+        :is-organizer="resource.isOrganizer"
+        :can-counter="resource.myStatus === 'accepted' && resource.confirmed !== null"
+        :in-poll="pollDraft"
+        :can-poll="!state.demo && !resource.poll"
+        :busy="state.pending !== null"
+        @propose="confirmSlot"
+        @toggle-poll="togglePoll"
+        @counter="respondToSlot({ response: 'counter', counter: $event })"
+        @close="pickedDate = null"
+      />
 
       <DayEditor
         v-if="editedDay"
@@ -292,8 +422,10 @@ function confirm(proposal: Proposal) {
         :busy="state.pending !== null"
         :confirming="state.pending === 'confirm'"
         :empty-reason="proposalsEmpty"
+        :poll-draft="resource.isOrganizer && !state.demo && !resource.poll ? pollDraft : undefined"
         @confirm="confirm"
         @upload="showSchedule"
+        @toggle-poll="togglePoll"
       />
       <ActionPeople
         :action="resource"
@@ -307,6 +439,8 @@ function confirm(proposal: Proposal) {
         @cancel="cancelInvite"
         @create-link="createActionLink"
         @revoke-link="revokeActionLink"
+        @set-required="setRequired"
+        @remind="remindParticipant"
       />
     </aside>
   </div>

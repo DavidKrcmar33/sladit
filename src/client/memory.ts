@@ -14,6 +14,8 @@ import {
   type Shift,
   type SourceContent,
 } from '@/core/schema'
+import { composePeople } from '@/core/compose'
+import { daySlots } from '@/core/scheduler'
 import { sharedView } from '@/core/sharedView'
 import { BackendError, type Backend } from './backend'
 
@@ -135,12 +137,16 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
         status: 'accepted' as const,
         slot: action.confirmed ? ('going' as const) : ('pending' as const),
         counter: null,
+        required: false,
+        hasSchedule: true,
       })),
       confirmed: action.confirmed,
       mySlot: null,
       agreed: action.confirmed !== null,
       inMyCalendar: false,
       links: [],
+      poll: null,
+      remindedAt: null,
     })
   }
 
@@ -284,6 +290,22 @@ export function memoryBackend(options: MemoryBackendOptions): Backend & {
       )
       return copy({ actionId: action.id, ...view })
     },
+    async daySlots(actionId, date) {
+      const action = stored(actionId)
+      const people: Person[] = [
+        ...(self ? [{ ...self, files: [] }] : []),
+        ...friendsIn(action).map((friend) => ({ ...friend, files: [] })),
+      ]
+      const full = { id: action.id, ...action.details, people }
+      return copy(daySlots(full, composePeople(full), date))
+    },
+    // Nezbytní, prosby a hlasování jdou jen s účtem: v ukázce nikdo jiný neodpovídá.
+    setRequired: async () => onlyWithAccount(),
+    remind: async () => onlyWithAccount(),
+    createPoll: async () => onlyWithAccount(),
+    deletePoll: async () => onlyWithAccount(),
+    vote: async () => onlyWithAccount(),
+    choosePoll: async () => onlyWithAccount(),
     async inviteToAction(actionId, userIds) {
       const action = stored(actionId)
       if (userIds.some((userId) => !friends.some((friend) => friend.id === userId))) {

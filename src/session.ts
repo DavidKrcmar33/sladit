@@ -18,6 +18,7 @@ import type {
   SentFriendRequest,
   SlotResponseRequest,
   User,
+  Vote,
 } from './contract/api'
 import {
   buildCalendar,
@@ -38,8 +39,8 @@ import {
   type NewActionErrors,
   type NewActionInput,
 } from './core/newAction'
-import type { Action, ActionDetails, DateString, Shift, SourceFile } from './core/schema'
-import { findProposals } from './core/scheduler'
+import type { Action, ActionDetails, DateString, Proposal, Shift, SourceFile } from './core/schema'
+import { bestCountPerDay, daySlots, findProposals } from './core/scheduler'
 import { analyzeStability } from './core/sensitivity'
 import { detectSourceFileKind } from './core/sourceFile'
 import { LEGACY_STORAGE_KEY, STORAGE_KEY, loadState } from './core/storage'
@@ -76,7 +77,7 @@ export type SessionStatus = 'loading' | 'signedOut' | 'ready' | 'failed'
 
 /** Otevřená stránka hlavní části. */
 export type Page = 'action' | 'schedule' | 'friends' | 'group' | 'settings'
-export type PendingWork = 'confirm' | 'unconfirm' | 'calendar' | 'slot'
+export type PendingWork = 'confirm' | 'unconfirm' | 'calendar' | 'slot' | 'poll'
 
 /** Jedna zpráva v okně doptání: od aplikace, nebo moje odpověď. */
 export interface ReviewMessage {
@@ -159,6 +160,8 @@ export interface SessionOptions {
   inviteStorage?: WritableStorage | null
   /** Dnešní datum (testy). */
   today?: () => DateString
+  /** Teď (testy): třeba pro lhůtu hlasování. */
+  now?: () => Date
   /** Výsledek připojení kalendáře z adresy (?kalendar=pripojen a podobně). */
   calendarResult?: string | null
 }
@@ -168,6 +171,7 @@ export function createSession(options: SessionOptions) {
   const generateId = options.generateId ?? (() => crypto.randomUUID())
   const storage = options.storage ?? null
   const today = options.today ?? localToday
+  const now = options.now ?? (() => new Date())
   const inviteStorage = options.inviteStorage ?? null
   if (options.inviteToken) inviteStorage?.setItem(INVITE_STORAGE_KEY, options.inviteToken)
   let inviteToken = options.inviteToken ?? inviteStorage?.getItem(INVITE_STORAGE_KEY) ?? null
@@ -377,6 +381,12 @@ export function createSession(options: SessionOptions) {
     return selectedAction.value ? findProposals(selectedAction.value, composedPeople.value) : []
   })
 
+  /** Kolik lidí nejvíc může v nějakém čase každého dne (přehled nad kalendářem akce). */
+  const dayBest = computed<number[]>(() => {
+    if (usesServerView.value) return currentView.value?.dayBest ?? []
+    return selectedAction.value ? bestCountPerDay(selectedAction.value, composedPeople.value) : []
+  })
+
   /**
    * Nejistá čtení, která mohou změnit nejlepší termín. Nejistá směna zpochybní svůj den
    * a noční i ráno dne dalšího, proto se počítá i den po ní.
@@ -450,12 +460,28 @@ export function createSession(options: SessionOptions) {
    * organizátorovi někdo navrhl jiný termín. Jen první, další jsou vidět u akcí v menu.
    */
   const slotNotice = computed<{ actionId: string; text: string } | null>(() => {
+    const mine = state.people.find((person) => person.isSelf)
+    const hasSchedule = (mine?.sources.length ?? 0) + (mine?.overrides.length ?? 0) > 0
     for (const action of state.actions) {
+      const name = action.details.name
       if (action.myStatus === 'invited') {
+        return { actionId: action.id, text: `${action.organizerName} tě zve do akce ${name}.` }
+      }
+      if (action.remindedAt && !hasSchedule) {
         return {
           actionId: action.id,
-          text: `${action.organizerName} tě zve do akce ${action.details.name}.`,
+          text: `${action.organizerName} tě prosí o rozpis k akci ${name}, ať jde najít termín.`,
         }
+      }
+      const poll = action.poll
+      if (poll && action.myStatus === 'accepted' && poll.candidates.some((c) => !c.myVote)) {
+        return {
+          actionId: action.id,
+          text: `${action.organizerName} se ptá, kdy můžeš: hlasování o termínu akce ${name}.`,
+        }
+      }
+      if (poll && action.isOrganizer && poll.deadline && new Date(poll.deadline) <= now()) {
+        return { actionId: action.id, text: `Hlasování o akci ${name} skončilo, vyber termín.` }
       }
       if (action.mySlot === 'pending' && action.confirmed) {
         return {
@@ -883,6 +909,54 @@ export function createSession(options: SessionOptions) {
       guarded(() => backend.confirmAction(actionId, slot)),
     )
     if (action) replaceAction(action)
+  }
+
+  /** Změna vybrané akce na serveru: výsledek nahradí akci v seznamu. */
+  async function changeAction(
+    run: (actionId: string) => Promise<ActionResource>,
+    work: PendingWork | null = null,
+  ) {
+    const actionId = state.selectedActionId
+    if (!actionId) return
+    const call = () => guarded(() => run(actionId))
+    const action = work ? await onePending(work, call) : await call()
+    if (action) replaceAction(action)
+  }
+
+  function setRequired(userId: string, required: boolean) {
+    return changeAction((actionId) => backend.setRequired(actionId, userId, required))
+  }
+
+  function remindParticipant(userId: string) {
+    return changeAction((actionId) => backend.remind(actionId, userId))
+  }
+
+  /** Hlasování o 1–3 termínech. Lhůta je ISO čas, nebo null. */
+  function createPoll(slots: ConfirmedSlot[], deadline: string | null) {
+    return changeAction((actionId) => backend.createPoll(actionId, slots, deadline), 'poll')
+  }
+
+  function deletePoll() {
+    return changeAction((actionId) => backend.deletePoll(actionId), 'poll')
+  }
+
+  function vote(votes: { candidateId: string; vote: Vote }[]) {
+    return changeAction((actionId) => backend.vote(actionId, votes), 'poll')
+  }
+
+  function choosePoll(candidateId: string) {
+    return changeAction((actionId) => backend.choosePoll(actionId, candidateId), 'confirm')
+  }
+
+  /**
+   * Všechny možné začátky dne a kdo v nich může. S cizími lidmi počítá server, ve vlastní akci
+   * (jen já) stačí prohlížeč.
+   */
+  async function loadDaySlots(date: DateString): Promise<Proposal[]> {
+    const action = selectedAction.value
+    if (!action) return []
+    if (!usesServerView.value) return daySlots(action, composedPeople.value, date)
+    return (await guarded(() => backend.daySlots(action.id, date))) ?? []
   }
 
   // Přátelé
@@ -1359,6 +1433,7 @@ export function createSession(options: SessionOptions) {
     calendar,
     stability,
     proposals,
+    dayBest,
     uncertainDays,
     pivotalUncertainCount,
     readingWarnings,
@@ -1371,6 +1446,13 @@ export function createSession(options: SessionOptions) {
     dismissLocalActions,
     createActionLink,
     revokeActionLink,
+    setRequired,
+    remindParticipant,
+    createPoll,
+    deletePoll,
+    vote,
+    choosePoll,
+    loadDaySlots,
     draftAction,
     showSchedule,
     showFriends,

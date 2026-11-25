@@ -9,8 +9,16 @@ const props = defineProps<{
   selectedDay: PersonDay | null
   /** Den navrženého nebo nejlepšího termínu: jeho sloupec je zvýrazněný. */
   highlightDate?: string | null
+  /** Kolik lidí nejvíc může v nějakém čase každého dne. Bez něj hlavička jen ukazuje den. */
+  dayBest?: number[]
+  /** Den otevřený ve výběru času. */
+  pickedDate?: string | null
 }>()
-const emit = defineEmits<{ select: [day: PersonDay]; 'edit-person': [personId: string] }>()
+const emit = defineEmits<{
+  select: [day: PersonDay]
+  'edit-person': [personId: string]
+  'pick-day': [date: string]
+}>()
 
 const scroller = useTemplateRef<HTMLElement>('scroller')
 
@@ -51,7 +59,29 @@ function cellLabel(personName: string, date: string, day: CalendarDay): string {
               date === highlightDate ? 'font-semibold text-accent-dark' : 'font-medium text-muted',
             ]"
           >
+            <button
+              v-if="dayBest"
+              type="button"
+              :aria-pressed="date === pickedDate"
+              :aria-label="`Vybrat čas, ${formatDayLong(date)} (může nejvíc ${dayBest[calendar.dates.indexOf(date)] ?? 0} z ${calendar.rows.length})`"
+              :class="[
+                'mx-auto flex flex-col items-center rounded-lg px-2 py-0.5',
+                'focus-visible:outline-2 focus-visible:outline-accent',
+                date === pickedDate
+                  ? 'bg-accent text-white hover:bg-accent-dark'
+                  : date === highlightDate
+                    ? 'bg-accent-soft hover:brightness-95'
+                    : 'hover:bg-panel',
+              ]"
+              @click="emit('pick-day', date)"
+            >
+              <span>{{ formatDayHeader(date) }}</span>
+              <span class="text-[11px] font-normal">
+                {{ dayBest[calendar.dates.indexOf(date)] ?? 0 }}/{{ calendar.rows.length }}
+              </span>
+            </button>
             <span
+              v-else
               :class="date === highlightDate && 'rounded-full bg-accent-soft px-2 py-0.5'"
               :title="date === highlightDate ? 'Den termínu' : undefined"
             >
