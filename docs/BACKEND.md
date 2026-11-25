@@ -43,26 +43,28 @@ Frontend i API jsou na stejném původu (stejná adresa), takže není potřeba 
 
 Migrace jsou v `server/db/migrations/`, spouští je server sám při startu (`migrate` v `server/db/db.ts`). Nová změna schématu je nový soubor a nový řádek v seznamu `MIGRATIONS`, staré migrace se nemění.
 
-| Tabulka                | Co drží                                                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `users`                | Účet podle účtu Google: `google_sub`, e-mail, jméno.                                                                                             |
-| `sessions`             | Přihlášení. V databázi je jen otisk tokenu (SHA-256), samotný token má jen cookie v prohlížeči.                                                  |
-| `oauth_states`         | Rozpracované přihlášení: náhodný `state` a ověřovač PKCE. Platí 15 minut a jde použít jen jednou.                                                |
-| `people`               | Rozpis uživatele (`is_self`). Hosté z doby před fází 5 tu zůstali, aplikace je už nepoužívá.                                                     |
-| `sources`              | Přečtený podklad (JSON podle `src/core/schema.ts`) i s otázkami doptání. Jen server zná čtení (`basis`) a odpovědi.                              |
-| `day_overrides`        | Ruční úprava jednoho dne. Nové čtení ji nepřepíše.                                                                                               |
-| `actions`              | Akce: období, délka, denní okno, organizátor a navržený termín (`confirmed_*`).                                                                  |
-| `action_invites`       | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`. K tomu odpověď na termín a protinávrh.       |
-| `friendships`          | Přátelství, vzájemné. Dvojice je uložená jednou, menší id první.                                                                                 |
-| `friend_invites`       | Osobní odkaz „přidej si mě do přátel“: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                       |
-| `friend_requests`      | Žádost o přátelství podle e-mailu: odesílatel a e-mail adresáta malými písmeny. Platí 30 dní, adresát nemusí mít účet.                           |
-| `groups`               | Skupina: seznam lidí, které jde pozvat do akce najednou.                                                                                         |
-| `memberships`          | Členství s rolí `owner` (zakladatel) nebo `member`.                                                                                              |
-| `invites`              | Odkaz s pozvánkou do skupiny: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                                |
-| `action_links`         | Odkaz rovnou do akce: jen otisk tokenu, platnost 7 dní, případné zrušení. Přijetí = přátelství s organizátorem a přijatá pozvánka.               |
-| `read_usage`           | Počet čtení modelem za den podle času v Praze, kvůli limitům.                                                                                    |
-| `calendar_connections` | Připojený Google Kalendář: zašifrovaný obnovovací token, souhlas se zápisem, automatický zápis, stav, kalendář „Sladit“ a obsazenost (jen časy). |
-| `calendar_events`      | Událost zapsaná z potvrzené akce (kalendář a id události), aby šla změnit nebo smazat.                                                           |
+| Tabulka                | Co drží                                                                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`                | Účet podle účtu Google: `google_sub`, e-mail, jméno.                                                                                                                    |
+| `sessions`             | Přihlášení. V databázi je jen otisk tokenu (SHA-256), samotný token má jen cookie v prohlížeči.                                                                         |
+| `oauth_states`         | Rozpracované přihlášení: náhodný `state` a ověřovač PKCE. Platí 15 minut a jde použít jen jednou.                                                                       |
+| `people`               | Rozpis uživatele (`is_self`). Hosté z doby před fází 5 tu zůstali, aplikace je už nepoužívá.                                                                            |
+| `sources`              | Přečtený podklad (JSON podle `src/core/schema.ts`) i s otázkami doptání. Jen server zná čtení (`basis`) a odpovědi.                                                     |
+| `day_overrides`        | Ruční úprava jednoho dne. Nové čtení ji nepřepíše.                                                                                                                      |
+| `actions`              | Akce: období, délka, denní okno (i víkendové), ideální začátek, nejmenší počet lidí, organizátor, navržený termín (`confirmed_*`) a lhůta hlasování.                    |
+| `action_invites`       | Pozvánka do akce a odpověď: `invited`, `accepted`, `declined`. Do termínu se počítá jen `accepted`. K tomu odpověď na termín, protinávrh, nezbytnost a prosba o rozpis. |
+| `friendships`          | Přátelství, vzájemné. Dvojice je uložená jednou, menší id první.                                                                                                        |
+| `friend_invites`       | Osobní odkaz „přidej si mě do přátel“: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                                              |
+| `friend_requests`      | Žádost o přátelství podle e-mailu: odesílatel a e-mail adresáta malými písmeny. Platí 30 dní, adresát nemusí mít účet.                                                  |
+| `groups`               | Skupina: seznam lidí, které jde pozvat do akce najednou.                                                                                                                |
+| `memberships`          | Členství s rolí `owner` (zakladatel) nebo `member`.                                                                                                                     |
+| `invites`              | Odkaz s pozvánkou do skupiny: jen otisk tokenu, platnost 7 dní, případné zrušení.                                                                                       |
+| `action_candidates`    | Termíny v hlasování (1–3). Hlasování skončí výběrem jednoho z nich, zrušením, nebo přímým návrhem termínu.                                                              |
+| `candidate_votes`      | Hlas účastníka u termínu: `yes` (můžu), `maybe` (když bude nutné), `no` (nemůžu).                                                                                       |
+| `action_links`         | Odkaz rovnou do akce: jen otisk tokenu, platnost 7 dní, případné zrušení. Přijetí = přátelství s organizátorem a přijatá pozvánka.                                      |
+| `read_usage`           | Počet čtení modelem za den podle času v Praze, kvůli limitům.                                                                                                           |
+| `calendar_connections` | Připojený Google Kalendář: zašifrovaný obnovovací token, souhlas se zápisem, automatický zápis, stav, kalendář „Sladit“ a obsazenost (jen časy).                        |
+| `calendar_events`      | Událost zapsaná z potvrzené akce (kalendář a id události), aby šla změnit nebo smazat.                                                                                  |
 
 Účastníci akce jsou organizátor a ti, kdo pozvánku přijali. Pozvat jde přátele a lidi ze skupin, kde je organizátor členem. Tabulka `action_participants` a hosté z doby před fází 5 zůstaly v databázi, ale nepoužívají se. Migrace 003 převedla akce ve skupinách z fáze 4 na přijaté pozvánky.
 
@@ -93,6 +95,12 @@ Vše pod `/api`. Kromě `/me`, `/health` a přihlášení vyžaduje přihlášen
 | `POST /actions/:id/invites`                            | Pozvat další lidi (jen organizátor).                               |
 | `POST`, `DELETE /actions/:id/links(/:linkId)`          | Odkaz rovnou do akce (jen tentokrát v odpovědi), zrušení.          |
 | `DELETE /actions/:id/invites/:userId`                  | Zrušit pozvánku nebo odebrat účastníka (jen organizátor).          |
+| `PATCH /actions/:id/invites/:userId`                   | Nezbytný účastník (jen organizátor).                               |
+| `POST /actions/:id/invites/:userId/remind`             | Prosba o rozpis, nejvýš jednou za 12 hodin (jen organizátor).      |
+| `GET /actions/:id/days/:date`                          | Všechny začátky dne a kdo v nich může (výběr vlastního času).      |
+| `PUT`, `DELETE /actions/:id/poll`                      | Hlasování o 1–3 termínech s lhůtou, zrušení (jen organizátor).     |
+| `PUT /actions/:id/poll/votes`                          | Hlasy účastníka.                                                   |
+| `POST /actions/:id/poll/candidates/:id/choose`         | Výběr vítěze: stane se navrženým termínem (jen organizátor).       |
 | `POST /actions/:id/response`                           | Odpověď pozvaného: `accept` přijme, jinak odmítne nebo odejde.     |
 | `PUT`, `DELETE /actions/:id/confirmed`                 | Navržení termínu a jeho zrušení (jen organizátor).                 |
 | `POST /actions/:id/slot-response`                      | Odpověď na termín: jdu, nejdu, nebo jiný termín.                   |
@@ -128,7 +136,10 @@ Akci upravuje, maže, zve do ní a navrhuje termín jen organizátor. Pozvaný d
 - jméno a odpověď na pozvánku (`GET /actions`),
 - pro každý den období akce jen „může / nemůže / nevíme“ (`GET /actions/:id/view`),
 - zda může v každém ze tří návrhů,
-- u křehkého termínu den, na kterém záleží, bez důvodu (chybí rozpis, nebo nejisté čtení).
+- u křehkého termínu den, na kterém záleží, bez důvodu (chybí rozpis, nebo nejisté čtení),
+- ve výběru vlastního času (`GET /actions/:id/days/:date`) pro každý začátek v denním okně akce, zda může, nemůže, nebo nevíme. Je to víc než stav dne, ale pořád jen „kdy můžeš“ uvnitř okna akce, se kterým účastník při přijetí souhlasil. Směny, časy směn ani označení ven nejdou,
+- zda má nahraný rozpis (u pozvánky, aby ho organizátor mohl poprosit),
+- hlasy v hlasování (to jsou odpovědi samotných účastníků).
 
 Návrhy a jejich jistotu počítá server ze všech rozpisů (`server/view.ts`). Rozpisy cizích lidí jen použije, ven je nepustí. Jediná metoda úložiště, která čte cizí rozpisy, je `actionForView` a volá ji jen tento výpočet. Přátelé a členové společných skupin o sobě vidí jméno a e-mail (stránka Přátelé, seznam členů skupiny, výběr pozvaných), aplikace to říká v textech u pozvánek. Účastník akce, který s druhým není přítel ani ve stejné skupině, vidí jen jméno. U žádosti o přátelství podle e-mailu adresát vidí jméno a e-mail odesílatele, aby poznal, od koho je (formulář to odesílateli řekne předem). Odesílatel se naopak nedozví, zda e-mail patří k účtu: odpověď je stejná pro e-mail s účtem i bez něj. Výpočet je v `src/core/sharedView.ts`, stejně ho počítá i ukázka bez přihlášení. Testy v `server/events.test.ts` hledají v odpovědích pro účastníka skutečné časy, označení, text z podkladu, poznámky i název souboru a zkoušejí přístup za pozvaného, za organizátora i za člověka, který pozvaný není.
 

@@ -135,6 +135,7 @@ Do okna jde napsat i větu, třeba „platí to od prosince do února, o Vánoc�
 
 `composeSchedule` v `core/compose.ts`, čistá funkce bez sítě. Ze zdrojů a ručních úprav jednoho člověka složí rozpis pro období akce. Plánovač dostane jen tento hotový rozpis.
 
+- **Domluva termínu.** Akce může mít ideální začátek (ze dne se navrhne čas nejblíž, mezi dny dál rozhoduje počet lidí a dřívější den, takže jistota termínu platí beze změny), jiné okno o víkendu, nejmenší počet lidí a nezbytné účastníky (organizátor je nezbytný vždy). Termín bez nezbytného, který nemůže, ani s méně lidmi se nenavrhne. Nezbytný, o kterém v čase vítěze nic nevíme, udělá termín nejistým. Organizátor si může otevřít kterýkoli den se všemi začátky a místo jednoho návrhu pustit hlasování o 1–3 termínech (`src/core/scheduler.ts`, `server/scheduling.test.ts`).
 - **Okruhy.** Každý zdroj patří do okruhu: Práce, Škola, případně Další práce. Výchozí okruh určí typ podkladu (rozvrh je Škola), uživatel ho může změnit. Zdroje stejného okruhu se sčítají, třeba listopad a prosinec. Den je známý, jen když ho pokrývá každý okruh, který člověk má. Rozvrh do 18. 12. a směny do 6. 12. tak dají po 6. 12. „nevíme“, ne volno.
 - **Dva zdroje stejného okruhu pro stejné dny** se sčítají a přidá se varování. Může jít o novou verzi rozpisu, pak má uživatel starší zdroj odebrat.
 - **Ruční úprava dne** pokrývá přesně svůj den a nahradí směny, které ten den začínají. Nové čtení ji nepřepíše, zrušit jde v editoru dne („Vrátit podle podkladů“).
