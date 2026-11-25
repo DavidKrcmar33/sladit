@@ -74,19 +74,13 @@ function cellLabel(personName: string, date: string, day: CalendarDay): string {
               Podklady
             </button>
           </th>
-          <td
-            v-for="(day, index) in row.days"
-            :key="calendar.dates[index]"
-            :class="
-              calendar.dates[index] === highlightDate &&
-              'rounded-lg outline-2 outline-offset-1 outline-accent'
-            "
-          >
+          <td v-for="(day, index) in row.days" :key="calendar.dates[index]">
             <CalendarCell
               :day="day"
               :label="cellLabel(row.personName, calendar.dates[index], day)"
               :selected="isSelected(row.personId, calendar.dates[index])"
               :readonly="row.isPrivate ?? false"
+              :highlighted="calendar.dates[index] === highlightDate"
               @select="emit('select', { personId: row.personId, date: calendar.dates[index] })"
             />
           </td>

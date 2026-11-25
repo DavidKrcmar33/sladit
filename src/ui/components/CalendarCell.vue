@@ -11,6 +11,8 @@ const props = defineProps<{
   readonly?: boolean
   /** Měsíční mřížka: na telefonu se celý týden vejde do šířky, text se smí zalomit. */
   compact?: boolean
+  /** Den nejlepšího nebo navrženého termínu: obrys přesně po hraně buňky. */
+  highlighted?: boolean
 }>()
 const emit = defineEmits<{ select: [] }>()
 
@@ -90,6 +92,7 @@ const colorClasses = computed(() => {
       'flex h-13 w-full cursor-default flex-col items-center justify-center rounded-md px-1 text-center text-[13px] leading-tight font-medium',
       sizeClasses,
       colorClasses,
+      highlighted && 'outline-2 -outline-offset-2 outline-accent-dark',
     ]"
   >
     <span v-if="content">{{ content }}</span>
@@ -105,6 +108,7 @@ const colorClasses = computed(() => {
       sizeClasses,
       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
       colorClasses,
+      highlighted && 'outline-2 -outline-offset-2 outline-accent-dark',
       selected && 'ring-2 ring-ink ring-offset-2 ring-offset-ground',
     ]"
     @click="emit('select')"
