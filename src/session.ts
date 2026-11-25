@@ -751,6 +751,30 @@ export function createSession(options: SessionOptions) {
     open('group')
   }
 
+  /**
+   * Otevře stránku z adresy (obnovení stránky, tlačítko Zpět). Akci nebo skupinu, kterou už
+   * nevidím, neotevře a vrátí false.
+   */
+  function openRoute(
+    route:
+      | { page: 'schedule' | 'friends' | 'settings' }
+      | { page: 'action'; actionId: string }
+      | { page: 'group'; groupId: string },
+  ): boolean {
+    if (route.page === 'action') {
+      if (!state.actions.some((action) => action.id === route.actionId)) return false
+      selectAction(route.actionId)
+      return true
+    }
+    if (route.page === 'group') {
+      if (!state.groups.some((group) => group.id === route.groupId)) return false
+      selectGroup(route.groupId)
+      return true
+    }
+    open(route.page)
+    return true
+  }
+
   // Akce
 
   /** Založí akci a pozve vybrané přátele. Vrací chyby formuláře. */
@@ -1478,6 +1502,7 @@ export function createSession(options: SessionOptions) {
     showSettings,
     selectAction,
     selectGroup,
+    openRoute,
     createAction: createNewAction,
     updateAction,
     undoActionUpdate,

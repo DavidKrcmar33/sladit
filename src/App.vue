@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { actionDetails, type NewActionErrors, type NewActionInput } from '@/core/newAction'
 import { useSession } from '@/session'
 import AccountBox from '@/ui/components/AccountBox.vue'
@@ -16,6 +16,7 @@ import ActionPage from '@/ui/pages/ActionPage.vue'
 import FriendsPage from '@/ui/pages/FriendsPage.vue'
 import MySchedulePage from '@/ui/pages/MySchedulePage.vue'
 import SettingsPage from '@/ui/pages/SettingsPage.vue'
+import { pathFor, routeFromPath } from '@/ui/route'
 
 const {
   state,
@@ -50,6 +51,7 @@ const {
   dismissCalendarNotice,
   draftAction,
   refresh,
+  openRoute,
 } = useSession()
 
 /** Otevřený formulář akce: nová, nebo úprava vybrané. */
@@ -141,6 +143,38 @@ async function submitAction(input: NewActionInput, inviteUserIds: string[]) {
   }
 }
 
+// Otevřená stránka v adrese: po obnovení stránky se otevře totéž a funguje tlačítko Zpět.
+// Ukázka adresu nemění (běží na ?ukazka).
+const startRoute = state.demo ? null : routeFromPath(location.pathname)
+const currentPath = computed(() =>
+  pathFor(state.page, state.selectedActionId, state.selectedGroupId),
+)
+let routed = false
+
+watch(
+  () => state.status,
+  (status) => {
+    if (status !== 'ready' || routed || state.demo) return
+    routed = true
+    // Výchozí stránku (třeba Nastavení po připojení kalendáře) přepíše jen konkrétní adresa.
+    if (startRoute && startRoute.page !== 'schedule') openRoute(startRoute)
+    if (location.pathname !== currentPath.value) {
+      history.replaceState(history.state, '', currentPath.value)
+    }
+  },
+  { immediate: true },
+)
+
+watch(currentPath, (path) => {
+  if (!routed || state.demo || location.pathname === path) return
+  history.pushState(history.state, '', path)
+})
+
+function onPopState() {
+  const route = routeFromPath(location.pathname)
+  if (!route || !openRoute(route)) openRoute({ page: 'schedule' })
+}
+
 // Upozornění v aplikaci: jednou za minutu a po návratu do záložky se načtou nové pozvánky,
 // termíny a žádosti. Ve skryté záložce se nic nestahuje.
 const REFRESH_MS = 60_000
@@ -153,10 +187,12 @@ function refreshIfVisible() {
 onMounted(() => {
   refreshTimer = setInterval(refreshIfVisible, REFRESH_MS)
   document.addEventListener('visibilitychange', refreshIfVisible)
+  window.addEventListener('popstate', onPopState)
 })
 onBeforeUnmount(() => {
   clearInterval(refreshTimer)
   document.removeEventListener('visibilitychange', refreshIfVisible)
+  window.removeEventListener('popstate', onPopState)
 })
 
 async function submitGroup(name: string) {
