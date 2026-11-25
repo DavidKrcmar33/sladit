@@ -68,12 +68,14 @@ const SourceRowSchema = z.object({
   warnings: z.array(z.string()),
   parity: ParitySchema,
   questions: z.array(SourceQuestionSchema).default([]),
+  /** Poznámky ke čtení, které vlastník skryl (migrace 010). */
+  dismissed_warnings: z.array(z.string()).default([]),
   /** Podklad má uložené čtení, takže se k němu jde doptat (migrace 005). */
   reviewable: z.boolean().default(false),
 })
 
 const SOURCE_COLUMNS =
-  's.id, s.person_id, s.circle, s.files, s.coverage, s.shifts, s.warnings, s.parity, s.questions, s.basis is not null as reviewable'
+  's.id, s.person_id, s.circle, s.files, s.coverage, s.shifts, s.warnings, s.parity, s.questions, s.dismissed_warnings, s.basis is not null as reviewable'
 
 interface PersonRow {
   id: string
@@ -152,13 +154,14 @@ function stableJson(value: unknown): string {
 function toSource(row: unknown): Source {
   const { id, circle, files, coverage, shifts, warnings, parity, questions, reviewable } =
     SourceRowSchema.parse(row)
+  const dismissed = new Set(SourceRowSchema.parse(row).dismissed_warnings)
   return {
     id,
     circle,
     files,
     coverage,
     shifts,
-    warnings,
+    warnings: warnings.filter((warning) => !dismissed.has(warning)),
     parity,
     ...(reviewable ? { questions } : {}),
   }
@@ -921,6 +924,24 @@ export function createStore(db: Db) {
         ])
         return true
       })
+    },
+
+    /** Skryje poznámku ke čtení. Zůstane skrytá i po přepočtu podkladu. */
+    async dismissWarning(
+      ownerId: string,
+      personId: string,
+      sourceId: string,
+      warning: string,
+    ): Promise<boolean> {
+      const rows = await db.query(
+        `update sources s set dismissed_warnings = s.dismissed_warnings || jsonb_build_array($4::text)
+         from people p
+         where p.id = s.person_id and p.owner_id = $1 and s.person_id = $2 and s.id = $3
+           and not s.dismissed_warnings ? $4
+         returning s.id`,
+        [ownerId, personId, sourceId, warning],
+      )
+      return rows.length > 0
     },
 
     async deleteSource(ownerId: string, personId: string, sourceId: string): Promise<boolean> {

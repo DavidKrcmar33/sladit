@@ -29,6 +29,7 @@ describe('pgliteDb', () => {
       '007_slot_responses',
       '008_action_links',
       '009_scheduling',
+      '010_dismissed_warnings',
     ])
     await first.query("insert into users (id, google_sub, email, name) values ('u', 's', 'e', 'n')")
     await first.close()
@@ -62,6 +63,7 @@ describe('pgliteDb', () => {
       '007_slot_responses',
       '008_action_links',
       '009_scheduling',
+      '010_dismissed_warnings',
     ])
     expect(await db.query('select action_id, user_id, status from action_invites')).toEqual([
       { action_id: 'pivo', user_id: 'eva', status: 'accepted' },
