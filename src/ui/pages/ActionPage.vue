@@ -8,7 +8,7 @@ import { eachDay } from '@/core/time'
 import { useSession } from '@/session'
 import ActionPeople from '@/ui/components/ActionPeople.vue'
 import CalendarGrid from '@/ui/components/CalendarGrid.vue'
-import CalendarLegend from '@/ui/components/CalendarLegend.vue'
+import CalendarHelp from '@/ui/components/CalendarHelp.vue'
 import DayEditor from '@/ui/components/DayEditor.vue'
 import DayPicker from '@/ui/components/DayPicker.vue'
 import ParityQuestions from '@/ui/components/ParityQuestions.vue'
@@ -283,7 +283,7 @@ function confirm(proposal: Proposal) {
       </SlotBanner>
     </section>
 
-    <section aria-label="Účastníci" class="flex w-full min-w-0 max-w-3xl shrink-0 flex-col gap-4">
+    <section aria-label="Účastníci" class="flex w-full min-w-0 max-w-2xl shrink-0 flex-col gap-4">
       <div
         v-if="resource.myStatus === 'invited'"
         role="status"
@@ -336,6 +336,7 @@ function confirm(proposal: Proposal) {
     >
       <h2 id="calendar-title" class="action-section-title">Kalendář</h2>
       <div class="action-surface flex min-w-0 flex-col gap-4">
+        <div class="flex justify-end"><CalendarHelp /></div>
         <div
           v-if="calendarPrompt"
           role="status"
@@ -408,7 +409,6 @@ function confirm(proposal: Proposal) {
             @edit-person="showSchedule"
             @pick-day="pickDay"
           />
-          <CalendarLegend />
         </template>
 
         <p v-if="calendar && calendar.rows.length > 0 && !pickedDate" class="text-xs text-muted">

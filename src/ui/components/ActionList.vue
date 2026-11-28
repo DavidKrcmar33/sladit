@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sectionIcons } from '@/ui/sectionIcons'
 import { computed } from 'vue'
 import { formatDateRange, formatDayShort } from '@/ui/format'
 import SidebarSection from './SidebarSection.vue'
@@ -18,6 +19,7 @@ const props = defineProps<{
     slotWaiting: boolean
     confirmed: { date: string } | null
     agreed: boolean
+    polling: boolean
   }[]
   selectedActionId: string | null
 }>()
@@ -29,6 +31,13 @@ const waitingBadge = computed(() => {
   if (count === 0) return null
   return count === 1 ? '1 čeká' : `${count} čekají`
 })
+function statusLabel(action: (typeof props.actions)[number]): string {
+  return action.agreed
+    ? 'Termín domluvený'
+    : action.polling
+      ? 'O termínu se hlasuje'
+      : 'Termín není domluvený'
+}
 </script>
 
 <template>
@@ -36,7 +45,7 @@ const waitingBadge = computed(() => {
     id="action-list"
     :collapsed="collapsed"
     :selected-id="selectedActionId"
-    icon="calendar"
+    :icon="sectionIcons.actions"
     title="Akce"
     :count="actions.length"
     add-label="Přidat akci"
@@ -53,10 +62,29 @@ const waitingBadge = computed(() => {
           :title="`${action.name} · ${formatDateRange(action.from, action.to)} · Lidé: ${action.peopleCount}${action.confirmed ? ` · ${action.agreed ? 'Domluveno' : 'Navrženo'}: ${formatDayShort(action.confirmed.date)}` : ''}`"
           @click="emit('select', action.id)"
         >
-          <UiIcon name="calendar" :size="18" class="shrink-0" />
+          <UiIcon :name="sectionIcons.actions" :size="18" class="shrink-0" />
           <span class="min-w-0 flex-1 truncate">{{ action.name }}</span>
-          <span v-if="action.waitingForMe" class="sidebar-badge shrink-0">pozvánka</span>
-          <span v-else-if="action.slotWaiting" class="sidebar-badge shrink-0">termín</span>
+          <span
+            class="flex shrink-0"
+            :title="statusLabel(action)"
+            role="img"
+            :aria-label="statusLabel(action)"
+            :class="
+              action.id === selectedActionId
+                ? 'text-accent-dark'
+                : action.agreed || action.polling
+                  ? 'text-sidebar-muted'
+                  : 'text-warn-soft'
+            "
+          >
+            <UiIcon
+              :name="action.agreed ? 'check' : action.polling ? 'vote' : 'hourglass'"
+              :size="16"
+            />
+          </span>
+          <span v-if="action.waitingForMe || action.slotWaiting" class="sr-only">
+            {{ action.waitingForMe ? 'Pozvánka čeká na odpověď' : 'Termín čeká na odpověď' }}
+          </span>
         </button>
       </li>
     </ul>

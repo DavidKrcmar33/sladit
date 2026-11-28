@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sectionIcons } from '@/ui/sectionIcons'
 import { nextTick, ref, useTemplateRef } from 'vue'
 import type { Group } from '@/contract/api'
 import SidebarSection from './SidebarSection.vue'
@@ -30,7 +31,7 @@ function submit() {
     id="group-list"
     :collapsed="collapsed"
     :selected-id="selectedGroupId"
-    icon="users"
+    :icon="sectionIcons.groups"
     title="Skupiny"
     :count="groups.length"
     add-label="Přidat skupinu"
@@ -61,7 +62,7 @@ function submit() {
           :title="`${group.name} · Členové: ${group.members.length}`"
           @click="emit('select', group.id)"
         >
-          <UiIcon name="users" :size="18" class="shrink-0" />
+          <UiIcon :name="sectionIcons.groups" :size="18" class="shrink-0" />
           <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
         </button>
       </li>

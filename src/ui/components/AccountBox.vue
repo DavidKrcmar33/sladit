@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sectionIcons } from '@/ui/sectionIcons'
 import { ref } from 'vue'
 import UiButton from './UiButton.vue'
 import UiDialog from './UiDialog.vue'
@@ -52,7 +53,7 @@ function logout() {
         class="sidebar-link sidebar-link-plain"
         @click="emit('settings')"
       >
-        <UiIcon name="settings" :size="18" class="shrink-0" />
+        <UiIcon :name="sectionIcons.settings" :size="18" class="shrink-0" />
         <span v-if="!collapsed">Nastavení</span>
       </button>
       <button
@@ -62,7 +63,7 @@ function logout() {
         class="sidebar-link sidebar-link-plain"
         @click="confirmingLogout = true"
       >
-        <UiIcon name="logout" :size="18" class="shrink-0" />
+        <UiIcon :name="sectionIcons.logout" :size="18" class="shrink-0" />
         <span v-if="!collapsed">Odhlásit</span>
       </button>
     </div>

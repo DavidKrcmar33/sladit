@@ -1,5 +1,17 @@
 <script setup lang="ts">
 export type IconName =
+  | 'calendar-days'
+  | 'party-popper'
+  | 'users-round'
+  | 'hourglass'
+  | 'circle-check'
+  | 'clock'
+  | 'circle-help'
+  | 'vote'
+  | 'upload'
+  | 'user-plus'
+  | 'mail'
+  | 'link'
   | 'circle-alert'
   | 'calendar-search'
   | 'trash'
@@ -22,6 +34,60 @@ export type IconName =
 const { name, size = 16 } = defineProps<{ name: IconName; size?: number }>()
 
 const paths: Record<IconName, string[]> = {
+  'calendar-days': [
+    'M8 2v4',
+    'M16 2v4',
+    'M3 10h18',
+    'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+    'M8 14h.01',
+    'M12 14h.01',
+    'M16 14h.01',
+    'M8 18h.01',
+    'M12 18h.01',
+    'M16 18h.01',
+  ],
+  'party-popper': [
+    'M5.8 11.3 2 22l10.7-3.79',
+    'M4 3h.01',
+    'M22 8h.01',
+    'M15 2h.01',
+    'M22 20h.01',
+    'M22 2l-2.24.75a2.9 2.9 0 0 0-1.96 3.12 2.9 2.9 0 0 1-2.2 3.19l-.5.13',
+    'M22 13l-.82-.33a2.9 2.9 0 0 0-3.16.63l-.82.82',
+    'M11 2l.33.82a2.9 2.9 0 0 1-.63 3.16l-.82.82',
+    'M7.66 15.34c2.93 2.93 6.1 4.5 7.07 3.53s-.6-4.14-3.53-7.07-6.1-4.5-7.07-3.53.6 4.14 3.53 7.07z',
+  ],
+  'users-round': [
+    'M10 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
+    'M2 21v-2a8 8 0 0 1 16 0v2',
+    'M18 2a4 4 0 0 1 0 8',
+    'M22 21v-2a8 8 0 0 0-3-6.24',
+  ],
+  hourglass: ['M5 2h14', 'M5 22h14', 'M6 2v6l6 4-6 4v6', 'M18 2v6l-6 4 6 4v6'],
+
+  'circle-check': ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'M8 12l3 3 5-6'],
+  'circle-help': [
+    'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20',
+    'M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3',
+    'M12 17h.01',
+  ],
+  vote: ['M9 12l2 2 4-4', 'M5 7l7-5 7 5-7 10z', 'M5 13H3v8h18v-8h-2'],
+  upload: ['M12 16V3', 'M7 8l5-5 5 5', 'M4 16v5h16v-5'],
+  clock: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'M12 6v6l4 2'],
+  'user-plus': [
+    'M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
+    'M2 21v-2a6 6 0 0 1 12 0v2',
+    'M19 8v6',
+    'M16 11h6',
+  ],
+  mail: [
+    'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+    'M22 6l-10 7L2 6',
+  ],
+  link: [
+    'M10 13a5 5 0 0 0 7 .5l3-3a5 5 0 0 0-7-7l-1.5 1.5',
+    'M14 11a5 5 0 0 0-7-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5',
+  ],
   'circle-alert': ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'M12 8v4', 'M12 16h.01'],
   'calendar-search': [
     'M8 2v4',
