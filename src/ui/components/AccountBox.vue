@@ -4,7 +4,13 @@ import UiButton from './UiButton.vue'
 import UiDialog from './UiDialog.vue'
 import UiIcon from './UiIcon.vue'
 
-defineProps<{ name: string; email: string; demo: boolean; settingsOpen: boolean }>()
+defineProps<{
+  collapsed: boolean
+  name: string
+  email: string
+  demo: boolean
+  settingsOpen: boolean
+}>()
 const emit = defineEmits<{ logout: []; settings: [] }>()
 
 const confirmingLogout = ref(false)
@@ -16,39 +22,45 @@ function logout() {
 </script>
 
 <template>
-  <section aria-label="Účet" class="mt-auto flex flex-col gap-2 border-t border-line pt-4">
+  <section
+    aria-label="Účet"
+    :class="['flex flex-col gap-1.5', collapsed ? '' : 'mt-auto border-t border-white/20 pt-4']"
+  >
     <template v-if="demo">
-      <p class="px-2 font-semibold">Ukázka</p>
-      <p class="px-2 text-xs text-muted">Nic se neukládá a podklady se nečtou.</p>
-      <a class="px-2 text-accent-dark underline" href="/">Přihlásit se</a>
+      <p v-if="!collapsed" class="px-2 font-semibold">Ukázka</p>
+      <p v-if="!collapsed" class="px-2 sidebar-muted text-xs">
+        Nic se neukládá a podklady se nečtou.
+      </p>
+      <a class="sidebar-link" href="/" aria-label="Přihlásit se" title="Přihlásit se">
+        <UiIcon name="arrow-right" :size="18" class="shrink-0" />
+        <span v-if="!collapsed">Přihlásit se</span>
+      </a>
     </template>
-    <div v-else class="flex items-center gap-1 pl-2">
-      <div class="flex min-w-0 flex-1 flex-col">
+    <div v-else class="flex flex-col gap-1.5">
+      <div v-if="!collapsed" class="flex min-w-0 flex-col px-3 pb-2">
         <span class="truncate font-semibold">{{ name }}</span>
-        <span class="truncate text-xs text-muted">{{ email }}</span>
+        <span class="truncate sidebar-muted text-xs">{{ email }}</span>
       </div>
       <button
         type="button"
         aria-label="Nastavení"
         title="Nastavení"
         :aria-current="settingsOpen ? 'page' : undefined"
-        :class="[
-          'flex size-9 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-white hover:text-ink',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-          settingsOpen ? 'bg-white text-ink' : '',
-        ]"
+        class="sidebar-link sidebar-link-plain"
         @click="emit('settings')"
       >
-        <UiIcon name="settings" :size="18" />
+        <UiIcon name="settings" :size="18" class="shrink-0" />
+        <span v-if="!collapsed">Nastavení</span>
       </button>
       <button
         type="button"
         aria-label="Odhlásit"
         title="Odhlásit"
-        class="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-white hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        class="sidebar-link sidebar-link-plain"
         @click="confirmingLogout = true"
       >
-        <UiIcon name="logout" :size="18" />
+        <UiIcon name="logout" :size="18" class="shrink-0" />
+        <span v-if="!collapsed">Odhlásit</span>
       </button>
     </div>
 

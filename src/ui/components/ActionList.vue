@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { formatDateRange, formatDayShort } from '@/ui/format'
 import SidebarSection from './SidebarSection.vue'
+import UiIcon from './UiIcon.vue'
 
 const props = defineProps<{
+  collapsed: boolean
   actions: {
     id: string
     name: string
@@ -19,7 +21,7 @@ const props = defineProps<{
   }[]
   selectedActionId: string | null
 }>()
-const emit = defineEmits<{ select: [actionId: string]; create: [] }>()
+const emit = defineEmits<{ expand: []; select: [actionId: string]; create: [] }>()
 
 /** Ve sbaleném seznamu nesmí čekající pozvánka ani termín k odpovědi zapadnout. */
 const waitingBadge = computed(() => {
@@ -32,48 +34,29 @@ const waitingBadge = computed(() => {
 <template>
   <SidebarSection
     id="action-list"
+    :collapsed="collapsed"
+    :selected-id="selectedActionId"
+    icon="calendar"
     title="Akce"
     :count="actions.length"
     add-label="Nová akce"
     :badge="waitingBadge"
+    @expand="emit('expand')"
     @add="emit('create')"
   >
-    <p v-if="actions.length === 0" class="px-2 text-muted">Zatím žádné akce.</p>
-    <ul class="flex flex-col gap-1">
+    <ul class="flex flex-col gap-1.5">
       <li v-for="action in actions" :key="action.id">
         <button
           type="button"
           :aria-current="action.id === selectedActionId ? 'page' : undefined"
-          :class="[
-            'flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2.5 text-left',
-            action.id === selectedActionId
-              ? 'border-line bg-white'
-              : 'border-transparent hover:bg-white/60',
-          ]"
+          class="sidebar-link"
+          :title="`${action.name} · ${formatDateRange(action.from, action.to)} · Lidé: ${action.peopleCount}${action.confirmed ? ` · ${action.agreed ? 'Domluveno' : 'Navrženo'}: ${formatDayShort(action.confirmed.date)}` : ''}`"
           @click="emit('select', action.id)"
         >
-          <span class="flex items-center justify-between gap-2">
-            <span class="font-semibold">{{ action.name }}</span>
-            <span
-              v-if="action.waitingForMe"
-              class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
-            >
-              pozvánka
-            </span>
-            <span
-              v-else-if="action.slotWaiting"
-              class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
-            >
-              termín
-            </span>
-          </span>
-          <span class="text-xs text-muted">
-            {{ formatDateRange(action.from, action.to) }} · Lidé: {{ action.peopleCount }}
-          </span>
-          <span v-if="action.confirmed" class="text-xs font-medium text-accent-dark">
-            {{ action.agreed ? 'Domluveno' : 'Navrženo' }}:
-            {{ formatDayShort(action.confirmed.date) }}
-          </span>
+          <UiIcon name="calendar" :size="18" class="shrink-0" />
+          <span class="min-w-0 flex-1 truncate">{{ action.name }}</span>
+          <span v-if="action.waitingForMe" class="sidebar-badge shrink-0">pozvánka</span>
+          <span v-else-if="action.slotWaiting" class="sidebar-badge shrink-0">termín</span>
         </button>
       </li>
     </ul>

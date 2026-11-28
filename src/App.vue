@@ -12,6 +12,7 @@ import InviteDialog from '@/ui/components/InviteDialog.vue'
 import LoginScreen from '@/ui/components/LoginScreen.vue'
 import NewActionDialog from '@/ui/components/NewActionDialog.vue'
 import UiButton from '@/ui/components/UiButton.vue'
+import UiIcon from '@/ui/components/UiIcon.vue'
 import ActionPage from '@/ui/pages/ActionPage.vue'
 import FriendsPage from '@/ui/pages/FriendsPage.vue'
 import MySchedulePage from '@/ui/pages/MySchedulePage.vue'
@@ -109,13 +110,6 @@ const requestNotice = computed(() => {
     ? `${incoming[0].fromName} tě chce přidat do přátel.`
     : `Máš ${requestCount.value} o přátelství.`
 })
-
-function navClass(active: boolean) {
-  return [
-    'flex min-h-11 w-full items-center justify-between rounded-lg border px-3 py-2 text-left font-semibold lg:min-h-0',
-    active ? 'border-line bg-white' : 'border-transparent hover:bg-white/60',
-  ]
-}
 
 function openActionDialog(mode: 'create' | 'edit', invitees: string[] = []) {
   actionErrors.value = {}
@@ -226,49 +220,58 @@ async function submitGroup(name: string) {
 
   <template v-else>
     <AppShell :title="pageTitle" :nav-key="navKey" :attention="menuAttention">
-      <template #sidebar>
-        <p class="flex items-center gap-2 px-2 text-xl font-semibold tracking-tight">
-          <img src="/favicon.svg" alt="" class="size-6" />
-          Sladit
-        </p>
-        <nav aria-label="Moje" class="flex flex-col gap-1">
+      <template #sidebar="{ collapsed, expand }">
+        <nav aria-label="Moje" class="flex flex-col gap-1.5">
           <button
             type="button"
-            :class="navClass(state.page === 'schedule')"
+            class="sidebar-link"
             :aria-current="state.page === 'schedule' ? 'page' : undefined"
+            title="Můj rozvrh"
+            aria-label="Můj rozvrh"
             @click="showSchedule"
           >
-            Můj rozvrh
+            <UiIcon name="calendar" :size="18" class="shrink-0" />
+            <span v-if="!collapsed">Můj rozvrh</span>
           </button>
           <button
             type="button"
-            :class="navClass(state.page === 'friends')"
+            class="sidebar-link"
             :aria-current="state.page === 'friends' ? 'page' : undefined"
+            title="Přátelé"
+            :aria-label="
+              state.friendRequests.incoming.length ? `Přátelé, ${requestCount}` : 'Přátelé'
+            "
             @click="showFriends"
           >
-            Přátelé
+            <UiIcon name="users" :size="18" class="shrink-0" />
+            <span v-if="!collapsed">Přátelé</span>
             <span
               v-if="state.friendRequests.incoming.length > 0"
-              class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
+              :class="collapsed ? 'sidebar-dot' : 'sidebar-badge ml-auto'"
             >
-              {{ requestCount }}
+              {{ collapsed ? '' : requestCount }}
             </span>
           </button>
         </nav>
         <ActionList
+          :collapsed="collapsed"
           :actions="actionItems"
           :selected-action-id="state.page === 'action' ? state.selectedActionId : null"
+          @expand="expand"
           @select="selectAction"
           @create="openActionDialog('create')"
         />
         <GroupList
           v-if="!state.demo"
+          :collapsed="collapsed"
           :groups="state.groups"
           :selected-group-id="state.page === 'group' ? state.selectedGroupId : null"
+          @expand="expand"
           @select="selectGroup"
           @create="submitGroup"
         />
         <AccountBox
+          :collapsed="collapsed"
           :name="me?.name ?? state.user?.name ?? ''"
           :email="state.user?.email ?? ''"
           :demo="state.demo"
