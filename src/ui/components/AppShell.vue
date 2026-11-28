@@ -11,6 +11,25 @@ const props = defineProps<{
   attention?: boolean
 }>()
 
+const collapsed = ref(loadCollapsed())
+function loadCollapsed(): boolean {
+  try {
+    return localStorage.getItem('sladit:sidebar:collapsed') === 'true'
+  } catch {
+    return false
+  }
+}
+watch(collapsed, (value) => {
+  try {
+    localStorage.setItem('sladit:sidebar:collapsed', String(value))
+  } catch {
+    /* Preference je volitelná, navigace funguje i bez úložiště. */
+  }
+})
+function expandSidebar() {
+  collapsed.value = false
+}
+
 /** Na úzké obrazovce je postranní panel schovaný a vysouvá se zleva. Na široké je vidět stále. */
 const open = ref(false)
 const drawer = useTemplateRef<HTMLElement>('drawer')
@@ -54,7 +73,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="flex h-dvh bg-ground pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] text-sm text-ink lg:min-h-160"
+    class="flex h-dvh bg-ground pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] text-sm text-ink"
   >
     <!-- Clona za vysunutým panelem: klepnutí mimo panel ho zavře. -->
     <div
@@ -69,15 +88,47 @@ onBeforeUnmount(() => {
       id="app-drawer"
       ref="drawer"
       :class="[
-        'flex shrink-0 flex-col gap-6 overflow-y-auto border-r border-line bg-panel px-4 py-6',
-        'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:w-[min(18rem,85vw)]',
-        'max-lg:pt-[max(1.5rem,env(safe-area-inset-top))] max-lg:pb-[max(1.5rem,env(safe-area-inset-bottom))]',
-        'max-lg:transition-[translate,visibility] max-lg:duration-200 max-lg:ease-out motion-reduce:transition-none',
+        'sidebar-panel flex min-h-0 shrink-0 flex-col gap-4 overflow-y-auto p-3',
+        'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 ',
+        'max-lg:pt-[max(0.75rem,env(safe-area-inset-top))] max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        'max-lg:transition-[width,translate,visibility] max-lg:duration-200 max-lg:ease-out motion-reduce:transition-none',
         open ? 'max-lg:shadow-xl' : 'max-lg:invisible max-lg:-translate-x-full',
-        'lg:w-60',
+        collapsed ? 'sidebar-collapsed' : '',
       ]"
     >
-      <slot name="sidebar" />
+      <div :class="['flex items-center gap-2 p-1', collapsed ? 'flex-col' : '']">
+        <p
+          class="flex min-w-0 flex-1 items-center gap-2 text-2xl font-semibold"
+          aria-label="Sladit"
+        >
+          <svg
+            viewBox="0 0 32 32"
+            aria-hidden="true"
+            :class="['shrink-0', collapsed ? 'size-8' : 'size-10']"
+          >
+            <circle cx="16" cy="16" r="15" class="fill-cta" />
+            <circle cx="16" cy="16" r="8" class="fill-accent-dark" />
+          </svg>
+          <span v-if="!collapsed">Sladit</span>
+        </p>
+        <button
+          type="button"
+          class="sidebar-icon-button"
+          :aria-label="collapsed ? 'Rozbalit navigaci' : 'Sbalit navigaci'"
+          :title="collapsed ? 'Rozbalit navigaci' : 'Sbalit navigaci'"
+          :aria-expanded="!collapsed"
+          aria-controls="sidebar-navigation"
+          @click="collapsed = !collapsed"
+        >
+          <UiIcon :name="collapsed ? 'chevron-right' : 'chevron-left'" :size="18" />
+        </button>
+      </div>
+      <div
+        id="sidebar-navigation"
+        :class="['flex flex-1 flex-col', collapsed ? 'gap-1.5' : 'gap-4']"
+      >
+        <slot name="sidebar" :collapsed="collapsed" :expand="expandSidebar" />
+      </div>
     </aside>
     <div class="flex min-w-0 flex-1 flex-col">
       <div

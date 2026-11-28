@@ -88,129 +88,130 @@ function invitedIds(): string[] {
 </script>
 
 <template>
-  <section
-    aria-labelledby="people-title"
-    class="flex flex-col gap-2 rounded-xl border border-line bg-white p-5"
-  >
-    <h2 id="people-title" class="text-base font-semibold">Účastníci</h2>
-    <ul>
-      <li class="flex items-center justify-between gap-3 border-t border-line py-2">
-        <span class="font-semibold">{{ action.organizerName }}</span>
-        <span class="text-muted">pořádá</span>
-      </li>
-      <li
-        v-for="invite in action.invites"
-        :key="invite.userId"
-        class="flex items-center justify-between gap-3 border-t border-line py-2"
-      >
-        <span class="flex min-w-0 flex-col">
-          <span class="font-semibold">
-            {{ invite.name }}
-            <span v-if="invite.required" class="text-xs font-medium text-accent-dark">
-              · nezbytný
+  <section aria-labelledby="people-title" class="flex min-w-0 flex-col gap-4">
+    <h2 id="people-title" class="action-section-title">Účastníci</h2>
+    <div class="flex min-w-0 flex-col gap-2 action-surface">
+      <ul>
+        <li class="flex items-center justify-between gap-3 border-t border-line py-2">
+          <span class="font-semibold">{{ action.organizerName }}</span>
+          <span class="text-muted">pořádá</span>
+        </li>
+        <li
+          v-for="invite in action.invites"
+          :key="invite.userId"
+          class="flex items-center justify-between gap-3 border-t border-line py-2"
+        >
+          <span class="flex min-w-0 flex-col">
+            <span class="font-semibold">
+              {{ invite.name }}
+              <span v-if="invite.required" class="text-xs font-medium text-accent-dark">
+                · nezbytný
+              </span>
+            </span>
+            <span :class="invite.status === 'accepted' ? 'text-accent-dark' : 'text-muted'">
+              {{ STATUS_TEXT[invite.status] }}
+              <template v-if="invite.status === 'accepted' && !invite.hasSchedule">
+                · <span class="text-warn">bez rozpisu</span>
+              </template>
             </span>
           </span>
-          <span :class="invite.status === 'accepted' ? 'text-accent-dark' : 'text-muted'">
-            {{ STATUS_TEXT[invite.status] }}
-            <template v-if="invite.status === 'accepted' && !invite.hasSchedule">
-              · <span class="text-warn">bez rozpisu</span>
-            </template>
-          </span>
-        </span>
-        <div v-if="action.isOrganizer" class="flex flex-wrap justify-end gap-1">
-          <UiButton
-            v-if="canLink && invite.status === 'accepted' && !invite.hasSchedule"
-            variant="ghost"
-            :disabled="reminded.includes(invite.userId)"
-            :aria-label="`Poprosit o rozpis: ${invite.name}`"
-            @click="remind(invite.userId)"
-          >
-            {{ reminded.includes(invite.userId) ? 'Posláno' : 'Poprosit o rozpis' }}
-          </UiButton>
-          <UiButton
-            v-if="canLink && invite.status !== 'declined'"
-            variant="ghost"
-            :aria-pressed="invite.required"
-            :aria-label="`Nezbytný: ${invite.name}`"
-            :title="
-              invite.required
-                ? 'Bez něj se termín nenavrhne. Klikni pro zrušení.'
-                : 'Označit jako nezbytného: bez něj se termín nenavrhne.'
-            "
-            @click="emit('setRequired', invite.userId, !invite.required)"
-          >
-            {{ invite.required ? 'Nezbytný ✓' : 'Nezbytný?' }}
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            :aria-label="`Zrušit pozvánku: ${invite.name}`"
-            @click="emit('cancel', invite.userId)"
-          >
-            {{ invite.status === 'accepted' ? 'Odebrat' : 'Zrušit' }}
-          </UiButton>
-        </div>
-      </li>
-    </ul>
-    <p v-if="action.invites.length === 0" class="text-muted">Zatím nikdo pozvaný není.</p>
-
-    <template v-if="action.isOrganizer">
-      <div v-if="picking" class="flex flex-col gap-3 border-t border-line pt-3">
-        <InvitePicker
-          v-model="selected"
-          :contacts="contacts"
-          :groups="groups"
-          :excluded="invitedIds()"
-        />
-        <div class="flex gap-2">
-          <UiButton variant="primary" :disabled="selected.length === 0" @click="sendInvites">
-            Pozvat
-          </UiButton>
-          <UiButton @click="picking = false">Zrušit</UiButton>
-        </div>
-      </div>
-      <UiButton v-else variant="dashed" @click="picking = true">Pozvat další</UiButton>
-
-      <div v-if="canLink" class="flex flex-col gap-2 border-t border-line pt-3">
-        <h3 class="font-medium">Pozvat odkazem</h3>
-        <p class="text-muted">
-          Pošli odkaz třeba do skupinového chatu. Kdo ho otevře a přijme, bude tvůj přítel a rovnou
-          účastník akce. Platí 7 dní.
-        </p>
-        <template v-if="linkUrl">
-          <label for="action-link" class="font-medium">Odkaz do akce</label>
-          <input
-            id="action-link"
-            :value="linkUrl"
-            readonly
-            class="field-input"
-            @focus="($event.target as HTMLInputElement).select()"
-          />
-          <p class="text-xs text-muted">Ukáže se jen teď. Kdo ho ztratí, vytvoř nový.</p>
-          <div class="flex flex-wrap gap-2">
-            <UiButton variant="primary" @click="copyLink">
-              {{ copied ? 'Zkopírováno' : 'Zkopírovat odkaz' }}
-            </UiButton>
-            <UiButton v-if="canShare" @click="shareLink">Sdílet</UiButton>
-          </div>
-        </template>
-        <UiButton v-else @click="emit('createLink')">Vytvořit odkaz do akce</UiButton>
-        <ul v-if="action.links.length > 0">
-          <li
-            v-for="link in action.links"
-            :key="link.id"
-            class="flex items-center justify-between gap-3 border-t border-line py-1.5"
-          >
-            <span class="text-muted">odkaz platí do {{ formatExpiry(link.expiresAt) }}</span>
+          <div v-if="action.isOrganizer" class="flex flex-wrap justify-end gap-1">
             <UiButton
-              variant="danger"
-              :aria-label="`Zrušit odkaz platný do ${formatExpiry(link.expiresAt)}`"
-              @click="emit('revokeLink', link.id)"
+              v-if="canLink && invite.status === 'accepted' && !invite.hasSchedule"
+              variant="ghost"
+              :disabled="reminded.includes(invite.userId)"
+              :aria-label="`Poprosit o rozpis: ${invite.name}`"
+              @click="remind(invite.userId)"
             >
-              Zrušit
+              {{ reminded.includes(invite.userId) ? 'Posláno' : 'Poprosit o rozpis' }}
             </UiButton>
-          </li>
-        </ul>
-      </div>
-    </template>
+            <UiButton
+              v-if="canLink && invite.status !== 'declined'"
+              variant="ghost"
+              :aria-pressed="invite.required"
+              :aria-label="`Nezbytný: ${invite.name}`"
+              :title="
+                invite.required
+                  ? 'Bez něj se termín nenavrhne. Klikni pro zrušení.'
+                  : 'Označit jako nezbytného: bez něj se termín nenavrhne.'
+              "
+              @click="emit('setRequired', invite.userId, !invite.required)"
+            >
+              {{ invite.required ? 'Nezbytný ✓' : 'Nezbytný?' }}
+            </UiButton>
+            <UiButton
+              variant="ghost"
+              :aria-label="`Zrušit pozvánku: ${invite.name}`"
+              @click="emit('cancel', invite.userId)"
+            >
+              {{ invite.status === 'accepted' ? 'Odebrat' : 'Zrušit' }}
+            </UiButton>
+          </div>
+        </li>
+      </ul>
+      <p v-if="action.invites.length === 0" class="text-muted">Zatím nikdo pozvaný není.</p>
+
+      <template v-if="action.isOrganizer">
+        <div v-if="picking" class="flex flex-col gap-3 border-t border-line pt-3">
+          <InvitePicker
+            v-model="selected"
+            :contacts="contacts"
+            :groups="groups"
+            :excluded="invitedIds()"
+          />
+          <div class="flex gap-2">
+            <UiButton variant="primary" :disabled="selected.length === 0" @click="sendInvites">
+              Pozvat
+            </UiButton>
+            <UiButton @click="picking = false">Zrušit</UiButton>
+          </div>
+        </div>
+        <UiButton v-else variant="dashed" @click="picking = true">Pozvat další</UiButton>
+
+        <div v-if="canLink" class="flex flex-col gap-2 border-t border-line pt-3">
+          <h3 class="font-medium">Pozvat odkazem</h3>
+          <p class="text-muted">
+            Pošli odkaz třeba do skupinového chatu. Kdo ho otevře a přijme, bude tvůj přítel a
+            rovnou účastník akce. Platí 7 dní.
+          </p>
+          <template v-if="linkUrl">
+            <label for="action-link" class="font-medium">Odkaz do akce</label>
+            <input
+              id="action-link"
+              :value="linkUrl"
+              readonly
+              class="field-input"
+              @focus="($event.target as HTMLInputElement).select()"
+            />
+            <p class="text-xs text-muted">Ukáže se jen teď. Kdo ho ztratí, vytvoř nový.</p>
+            <div class="flex flex-wrap gap-2">
+              <UiButton variant="primary" @click="copyLink">
+                {{ copied ? 'Zkopírováno' : 'Zkopírovat odkaz' }}
+              </UiButton>
+              <UiButton v-if="canShare" @click="shareLink">Sdílet</UiButton>
+            </div>
+          </template>
+          <UiButton v-else variant="primary" @click="emit('createLink')"
+            >Vytvořit odkaz do akce</UiButton
+          >
+          <ul v-if="action.links.length > 0">
+            <li
+              v-for="link in action.links"
+              :key="link.id"
+              class="flex items-center justify-between gap-3 border-t border-line py-1.5"
+            >
+              <span class="text-muted">odkaz platí do {{ formatExpiry(link.expiresAt) }}</span>
+              <UiButton
+                variant="danger"
+                :aria-label="`Zrušit odkaz platný do ${formatExpiry(link.expiresAt)}`"
+                @click="emit('revokeLink', link.id)"
+              >
+                Zrušit
+              </UiButton>
+            </li>
+          </ul>
+        </div>
+      </template>
+    </div>
   </section>
 </template>

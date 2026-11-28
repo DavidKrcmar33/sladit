@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
 import { addDays } from '@/core/time'
 import type { NewActionErrors, NewActionInput } from '@/core/newAction'
 import type { Group } from '@/contract/api'
@@ -9,8 +9,11 @@ import { formatDuration } from '@/ui/format'
 import InvitePicker from './InvitePicker.vue'
 import UiButton from './UiButton.vue'
 import UiDialog from './UiDialog.vue'
+import UiIcon from './UiIcon.vue'
 
 const props = defineProps<{
+  canDelete?: boolean
+  busy?: boolean
   errors: NewActionErrors
   /** Hodnoty upravované akce. Bez nich se zakládá nová. */
   initial?: NewActionInput
@@ -28,7 +31,16 @@ const props = defineProps<{
 const emit = defineEmits<{
   submit: [input: NewActionInput, inviteUserIds: string[]]
   close: []
+  delete: []
 }>()
+
+const confirmingDelete = ref(false)
+const confirmation = useTemplateRef<HTMLElement>('confirmation')
+watch(confirmingDelete, async (open) => {
+  if (!open) return
+  await nextTick()
+  confirmation.value?.querySelector('button')?.focus()
+})
 
 const invitees = ref<string[]>([...(props.initialInvitees ?? [])])
 
@@ -104,8 +116,12 @@ const input = reactive<NewActionInput>(
 </script>
 
 <template>
-  <UiDialog :title="isEditing ? 'Upravit akci' : 'Nová akce'" @close="emit('close')">
+  <UiDialog
+    :title="confirmingDelete ? 'Smazat akci' : isEditing ? 'Upravit akci' : 'Nová akce'"
+    @close="emit('close')"
+  >
     <form
+      v-if="!confirmingDelete"
       class="flex flex-col gap-4"
       novalidate
       @submit.prevent="emit('submit', submitted(), invitees)"
@@ -257,6 +273,28 @@ const input = reactive<NewActionInput>(
           {{ isEditing ? 'Uložit změny' : 'Založit akci' }}
         </UiButton>
       </div>
+      <div v-if="isEditing && canDelete" class="border-t border-line pt-4">
+        <button type="button" class="delete-action-button" @click="confirmingDelete = true">
+          <UiIcon name="trash" /> Smazat akci
+        </button>
+      </div>
     </form>
+    <div v-else ref="confirmation" class="flex flex-col gap-4">
+      <p>Smazat akci pro všechny? Vrátit to nejde.</p>
+      <div class="flex justify-end gap-3">
+        <UiButton :disabled="busy" autofocus @click="confirmingDelete = false">Nechat</UiButton>
+        <button type="button" class="delete-action-button" :disabled="busy" @click="emit('delete')">
+          <UiIcon name="trash" /> Smazat
+        </button>
+      </div>
+    </div>
   </UiDialog>
 </template>
+
+<style scoped>
+@reference "../../styles.css";
+
+.delete-action-button {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 font-medium text-danger transition-colors hover:bg-danger-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:cursor-not-allowed disabled:opacity-50;
+}
+</style>

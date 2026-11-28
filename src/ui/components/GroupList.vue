@@ -2,10 +2,11 @@
 import { nextTick, ref, useTemplateRef } from 'vue'
 import type { Group } from '@/contract/api'
 import SidebarSection from './SidebarSection.vue'
+import UiIcon from './UiIcon.vue'
 import UiButton from './UiButton.vue'
 
-defineProps<{ groups: Group[]; selectedGroupId: string | null }>()
-const emit = defineEmits<{ select: [groupId: string]; create: [name: string] }>()
+defineProps<{ collapsed: boolean; groups: Group[]; selectedGroupId: string | null }>()
+const emit = defineEmits<{ expand: []; select: [groupId: string]; create: [name: string] }>()
 
 const creating = ref(false)
 const name = ref('')
@@ -27,9 +28,13 @@ function submit() {
 <template>
   <SidebarSection
     id="group-list"
+    :collapsed="collapsed"
+    :selected-id="selectedGroupId"
+    icon="users"
     title="Skupiny"
     :count="groups.length"
-    add-label="Nová skupina"
+    add-label="Přidat skupinu"
+    @expand="emit('expand')"
     @add="startCreating"
   >
     <form v-if="creating" class="flex flex-col gap-2 pb-1" @submit.prevent="submit">
@@ -47,24 +52,17 @@ function submit() {
         <UiButton @click="creating = false">Zrušit</UiButton>
       </div>
     </form>
-    <p v-if="groups.length === 0 && !creating" class="px-2 text-muted">
-      Skupina je seznam lidí, které pozveš do akce najednou.
-    </p>
-    <ul class="flex flex-col gap-1">
+    <ul class="flex flex-col gap-1.5">
       <li v-for="group in groups" :key="group.id">
         <button
           type="button"
           :aria-current="group.id === selectedGroupId ? 'page' : undefined"
-          :class="[
-            'flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2 text-left',
-            group.id === selectedGroupId
-              ? 'border-line bg-white'
-              : 'border-transparent hover:bg-white/60',
-          ]"
+          class="sidebar-link"
+          :title="`${group.name} · Členové: ${group.members.length}`"
           @click="emit('select', group.id)"
         >
-          <span class="font-semibold">{{ group.name }}</span>
-          <span class="text-xs text-muted">Členové: {{ group.members.length }}</span>
+          <UiIcon name="users" :size="18" class="shrink-0" />
+          <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
         </button>
       </li>
     </ul>

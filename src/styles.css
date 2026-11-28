@@ -3,24 +3,33 @@
 @theme {
   --font-sans: 'Inter', system-ui, sans-serif;
 
-  --color-ground: #fbfcfc;
-  --color-panel: #f3f6f6;
-  --color-ink: #132422;
-  --color-muted: #5a6b69;
-  --color-line: #dce4e3;
-  --color-line-strong: #c5d0ce;
-  --color-outline: #a9b8b6;
-  --color-accent: #0f6b63;
-  --color-accent-dark: #0a4f49;
-  --color-accent-soft: #e6f0ef;
-  --color-accent-ring: #7fa9a4;
+  --color-ground: #f0fdf0;
+  --color-panel: #e3f0e3;
+  --color-ink: #102417;
+  --color-muted: #617566;
+  --color-muted-strong: #506354;
+  --color-cta: #caf440;
+  --color-cta-hover: color-mix(in srgb, var(--color-cta) 90%, var(--color-accent));
+  --color-cta-ink: #0b2e13;
+  --color-line: #d3e7d5;
+  --color-line-strong: #617566;
+  --color-outline: #617566;
+  --color-accent: #15451c;
+  --color-accent-dark: #0b2e13;
+  --color-accent-soft: #e3f0e3;
+  --color-accent-ring: #617566;
   /* Den, kdy člověk může: stejně světlá jako směna, aby žádný stav nepřebíjel ostatní. */
-  --color-free: #b9dbd5;
+  --color-free: #d3e7d5;
   --color-shift: #f1c9a5;
+  --color-danger: #8b2c35;
+  --color-danger-soft: #fcebec;
   --color-warn: #7a4410;
   --color-warn-strong: #b5651d;
   --color-warn-soft: #fbebdd;
-  --color-void: #0a1f1d;
+  --color-void: #0b2e13;
+  --color-sidebar: #15451c;
+  --color-sidebar-text: #f0fdf0;
+  --color-sidebar-muted: #d3e7d5;
 
   --animate-orbit: orbit 60s linear infinite;
   --animate-orbit-reverse: orbit 24s linear infinite reverse;
@@ -33,7 +42,11 @@
 }
 
 @utility bg-hatch {
-  background: repeating-linear-gradient(135deg, var(--color-line) 0 4px, #f2f5f5 4px 8px);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-line) 0 4px,
+    var(--color-ground) 4px 8px
+  );
 }
 
 body {
@@ -53,7 +66,7 @@ body {
 }
 
 dialog::backdrop {
-  background: rgb(19 36 34 / 0.4);
+  background: color-mix(in srgb, var(--color-ink) 40%, transparent);
 }
 
 @layer components {
@@ -64,4 +77,145 @@ dialog::backdrop {
   .field-input:focus-visible {
     @apply border-accent outline-2 outline-offset-1 outline-accent;
   }
+}
+
+@layer components {
+  .sidebar-panel {
+    width: min(272px, calc(100vw - 20px));
+    transition: width 180ms ease;
+    margin: 10px;
+    border-radius: 16px;
+    color: var(--color-sidebar-text);
+    background: linear-gradient(155deg, var(--color-sidebar), var(--color-void));
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--color-void) 12%, transparent);
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-accent-ring) transparent;
+  }
+
+  .sidebar-link {
+    position: relative;
+    background: rgb(255 255 255 / 0.07);
+    @apply flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left font-medium transition-colors motion-reduce:transition-none;
+  }
+
+  .sidebar-link-plain {
+    background: transparent;
+  }
+
+  .sidebar-icon-button {
+    @apply flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors motion-reduce:transition-none;
+  }
+
+  .sidebar-link:hover,
+  .sidebar-icon-button:hover {
+    background: rgb(255 255 255 / 0.13);
+  }
+
+  .sidebar-link[aria-current='page'],
+  .sidebar-link[data-active='true'],
+  .sidebar-category[data-active='true'] {
+    color: var(--color-cta-ink);
+    background: var(--color-cta);
+    font-weight: 600;
+  }
+
+  .sidebar-muted {
+    color: var(--color-sidebar-muted);
+  }
+
+  .sidebar-link[aria-current='page'] .sidebar-muted {
+    color: var(--color-cta-ink);
+  }
+
+  .sidebar-badge {
+    @apply rounded-full px-2 py-0.5 text-xs font-semibold;
+    color: var(--color-ink);
+    background: var(--color-free);
+  }
+
+  .sidebar-panel :is(button, a, input):not(dialog *):focus-visible {
+    outline: 2px solid var(--color-free);
+    outline-offset: 3px;
+  }
+
+  .sidebar-panel .sidebar-category-content :is(button, input):focus-visible {
+    outline-offset: -2px;
+  }
+
+  .sidebar-panel .sidebar-category-content [aria-current='page']:focus-visible {
+    outline-color: var(--color-cta-ink);
+  }
+}
+
+@layer components {
+  .sidebar-collapsed {
+    width: 72px;
+  }
+  .sidebar-collapsed .sidebar-link {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .sidebar-category {
+    @apply flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1 text-left text-xs font-semibold;
+    color: var(--color-sidebar-muted);
+  }
+  .sidebar-category:hover:not([data-active='true']) {
+    background: rgb(255 255 255 / 0.07);
+  }
+  .sidebar-category-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition:
+      grid-template-rows 160ms ease,
+      visibility 160ms;
+  }
+  .sidebar-category-content[data-open='true'] {
+    grid-template-rows: 1fr;
+    visibility: visible;
+  }
+  .sidebar-dot {
+    position: absolute;
+    right: 7px;
+    top: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-free);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-panel,
+  .sidebar-category-content {
+    transition: none;
+  }
+}
+
+/* Na barevných sekundárních plochách potřebuje drobný text vyšší kontrast. */
+@layer utilities {
+  :is(.bg-panel, .bg-accent-soft, .bg-free, .bg-line) {
+    --color-muted: var(--color-muted-strong);
+  }
+}
+
+@layer components {
+  .source-orb {
+    background: radial-gradient(circle, var(--color-void) 0 55%, var(--color-accent) 100%);
+    box-shadow:
+      0 0 0 6px var(--color-accent-soft),
+      0 12px 28px color-mix(in srgb, var(--color-ink) 12%, transparent);
+  }
+}
+
+@utility page-header-icon-button {
+  @apply inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-accent-soft hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
+}
+
+@utility action-section-title {
+  @apply flex min-h-11 items-center text-xl leading-7 font-semibold text-ink;
+}
+
+/* Shared surfaces on the action detail; functional control borders remain intact. */
+@utility action-surface {
+  @apply rounded-3xl bg-white p-4 sm:p-6;
 }

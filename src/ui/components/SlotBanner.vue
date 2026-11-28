@@ -6,15 +6,17 @@ import { formatMinutes, toMinutes } from '@/core/time'
 import type { PendingWork } from '@/session'
 import { formatDayLong, formatDayShort, formatTimeWindow } from '@/ui/format'
 import UiButton from './UiButton.vue'
+import UiIcon from './UiIcon.vue'
 
 /**
  * Navržený termín akce. Organizátor vidí, kdo jde, a může přijmout jiný navržený termín.
  * Účastník odpoví „jdu“, „nejdu“, nebo navrhne jiný termín.
  */
 const props = defineProps<{
+  showAlternatives?: boolean
   resource: ActionResource
   /** Navržený termín. */
-  proposed: ConfirmedSlot
+  proposed: ConfirmedSlot | null
   /** Moje id, abych mezi pozvánkami našel svůj návrh. */
   myUserId: string | null
   /** Další návrhy aplikace, ze kterých jde vybrat jiný termín. */
@@ -24,6 +26,7 @@ const props = defineProps<{
   calendarPrompt: boolean
 }>()
 const emit = defineEmits<{
+  toggleAlternatives: []
   respond: [request: SlotResponseRequest]
   adopt: [userId: string]
   withdraw: []
@@ -102,25 +105,65 @@ function proposeCustom() {
 </script>
 
 <template>
+  <slot v-if="!resource.agreed" />
   <div
-    role="status"
-    class="flex flex-col gap-3 rounded-xl bg-accent-soft px-4 py-3 text-accent-dark"
+    v-if="resource.agreed"
+    class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-3xl bg-accent-soft px-4 py-3 text-accent-dark sm:px-6"
   >
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex min-w-0 items-center gap-2">
+      <UiIcon name="check" :size="20" class="shrink-0" />
+      <h2 class="text-base font-semibold">Termín je dohodnutý</h2>
+    </div>
+    <div class="flex items-center gap-1 [&>button]:size-9 [&>button]:p-0">
+      <UiButton
+        variant="ghost"
+        title="Navrhnout jiné termíny"
+        aria-label="Navrhnout jiné termíny"
+        :aria-expanded="!!showAlternatives"
+        :aria-pressed="!!showAlternatives"
+        :class="showAlternatives ? 'bg-accent !text-white hover:!bg-accent-dark' : 'hover:!bg-line'"
+        @click="emit('toggleAlternatives')"
+      >
+        <UiIcon name="calendar-search" :size="18" />
+      </UiButton>
+      <UiButton
+        v-if="resource.isOrganizer || resource.mySlot === 'going'"
+        variant="ghost"
+        title="Stáhnout .ics"
+        aria-label="Stáhnout .ics"
+        class="hover:!bg-line"
+        @click="emit('downloadIcs')"
+      >
+        <UiIcon name="download" :size="18" />
+      </UiButton>
+      <UiButton
+        v-if="resource.isOrganizer"
+        variant="ghost"
+        title="Zrušit návrh"
+        aria-label="Zrušit návrh"
+        class="!text-danger hover:!bg-danger-soft"
+        :disabled="busy"
+        @click="emit('withdraw')"
+      >
+        <UiIcon name="close" :size="18" />
+      </UiButton>
+    </div>
+  </div>
+  <slot v-if="resource.agreed && showAlternatives" />
+  <div
+    v-if="proposed && (!resource.agreed || showAlternatives)"
+    class="flex flex-col gap-3"
+    :class="resource.agreed ? 'text-ink' : 'rounded-xl bg-accent-soft px-4 py-3 text-accent-dark'"
+  >
+    <div v-if="!resource.agreed" class="flex flex-wrap items-center gap-2">
       <p class="font-semibold">
         <template v-if="resource.isOrganizer">Navržený termín:</template>
         <template v-else>{{ resource.organizerName }} navrhuje termín:</template>
         {{ formatDayLong(proposed.date) }},
         {{ formatTimeWindow(proposed.start, proposed.end) }}
       </p>
-      <span
-        v-if="resource.agreed"
-        class="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
-      >
-        Domluveno
-      </span>
     </div>
-    <p class="text-ink">{{ summary }}</p>
+    <p v-if="!resource.agreed" class="text-ink">{{ summary }}</p>
 
     <template v-if="resource.mySlot !== null">
       <div v-if="resource.mySlot === 'pending' || changing" class="flex flex-wrap gap-2">
@@ -132,7 +175,7 @@ function proposeCustom() {
         <UiButton v-if="changing" variant="ghost" @click="changing = false">Zpět</UiButton>
       </div>
       <p v-else class="flex flex-wrap items-center gap-2 text-ink">
-        <template v-if="resource.mySlot === 'going'">Jdeš.</template>
+        <template v-if="resource.mySlot === 'going' && !resource.agreed">Jdeš.</template>
         <template v-else-if="resource.mySlot === 'not-going'">Nejdeš.</template>
         <template v-else-if="myCounter">
           Tvůj návrh: {{ describe(myCounter) }}. Čeká, co řekne {{ resource.organizerName }}.
@@ -142,10 +185,7 @@ function proposeCustom() {
         </UiButton>
       </p>
 
-      <div
-        v-if="choosingOther"
-        class="flex flex-col gap-2 rounded-lg border border-line bg-white p-3 text-ink"
-      >
+      <div v-if="choosingOther" class="flex flex-col gap-2 action-surface text-ink">
         <p class="font-medium">Který termín by ti vyhovoval?</p>
         <div v-if="alternatives.length > 0" class="flex flex-wrap gap-2">
           <UiButton
@@ -183,7 +223,7 @@ function proposeCustom() {
       <li
         v-for="invite in counters"
         :key="invite.userId"
-        class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-ink"
+        class="flex flex-wrap items-center justify-between gap-2 action-surface text-ink"
       >
         <span>
           <strong>{{ invite.name }}</strong> navrhuje {{ describe(invite.counter!) }}.
@@ -194,7 +234,13 @@ function proposeCustom() {
       </li>
     </ul>
 
-    <div v-if="resource.isOrganizer || resource.mySlot === 'going'" class="flex flex-wrap gap-2">
+    <div
+      v-if="
+        (resource.isOrganizer || resource.mySlot === 'going') &&
+        (!resource.agreed || resource.inMyCalendar || (calendarConnected && !calendarPrompt))
+      "
+      class="flex flex-wrap justify-center gap-2"
+    >
       <UiButton
         v-if="resource.inMyCalendar"
         variant="ghost"
@@ -211,11 +257,15 @@ function proposeCustom() {
       >
         {{ pending === 'calendar' ? 'Zapisuji do kalendáře…' : 'Přidat do kalendáře' }}
       </UiButton>
-      <UiButton v-if="!resource.inMyCalendar" variant="ghost" @click="emit('downloadIcs')">
+      <UiButton
+        v-if="!resource.agreed && !resource.inMyCalendar"
+        variant="ghost"
+        @click="emit('downloadIcs')"
+      >
         Stáhnout .ics
       </UiButton>
       <UiButton
-        v-if="resource.isOrganizer"
+        v-if="resource.isOrganizer && !resource.agreed"
         variant="ghost"
         :disabled="busy"
         @click="emit('withdraw')"
