@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { useSession } from '@/session'
+import PageHeader from '@/ui/components/PageHeader.vue'
 import UiButton from '@/ui/components/UiButton.vue'
 
 const {
@@ -63,17 +64,14 @@ async function confirmRemove(userId: string) {
 
 <template>
   <div
-    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 py-5 sm:px-6 lg:gap-8 lg:px-8 lg:py-6"
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
   >
+    <PageHeader
+      title="Přátelé"
+      title-id="friends-title"
+      subtitle="Přátele můžeš zvát do akcí. Navzájem vidíte jméno a e-mail. Z tvého rozvrhu uvidí jen, zda v daný den můžeš, tvé směny ne."
+    />
     <section aria-labelledby="friends-title" class="flex min-w-0 flex-[999_1_480px] flex-col gap-4">
-      <div class="flex flex-col gap-1">
-        <h1 id="friends-title" class="text-2xl font-semibold tracking-tight">Přátelé</h1>
-        <p class="text-[15px] text-muted">
-          Přátele můžeš zvát do akcí. Navzájem vidíte jméno a e-mail. Z tvého rozvrhu uvidí jen, zda
-          v daný den můžeš, tvé směny ne.
-        </p>
-      </div>
-
       <section
         v-if="state.friendRequests.incoming.length > 0"
         aria-labelledby="requests-title"

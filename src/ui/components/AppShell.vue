@@ -97,10 +97,17 @@ onBeforeUnmount(() => {
       ]"
     >
       <div :class="['flex items-center gap-2 p-1', collapsed ? 'flex-col' : '']">
-        <p class="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold" aria-label="Sladit">
-          <svg viewBox="0 0 32 32" aria-hidden="true" class="size-8 shrink-0">
+        <p
+          class="flex min-w-0 flex-1 items-center gap-2 text-2xl font-semibold"
+          aria-label="Sladit"
+        >
+          <svg
+            viewBox="0 0 32 32"
+            aria-hidden="true"
+            :class="['shrink-0', collapsed ? 'size-8' : 'size-10']"
+          >
             <circle cx="16" cy="16" r="15" class="fill-cta" />
-            <circle cx="16" cy="16" r="8" class="fill-white" />
+            <circle cx="16" cy="16" r="8" class="fill-accent-dark" />
           </svg>
           <span v-if="!collapsed">Sladit</span>
         </p>

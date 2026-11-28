@@ -21,6 +21,8 @@
   /* Den, kdy člověk může: stejně světlá jako směna, aby žádný stav nepřebíjel ostatní. */
   --color-free: #d3e7d5;
   --color-shift: #f1c9a5;
+  --color-danger: #8b2c35;
+  --color-danger-soft: #fcebec;
   --color-warn: #7a4410;
   --color-warn-strong: #b5651d;
   --color-warn-soft: #fbebdd;
@@ -203,4 +205,17 @@ dialog::backdrop {
       0 0 0 6px var(--color-accent-soft),
       0 12px 28px color-mix(in srgb, var(--color-ink) 12%, transparent);
   }
+}
+
+@utility page-header-icon-button {
+  @apply inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-accent-soft hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
+}
+
+@utility action-section-title {
+  @apply flex min-h-11 items-center text-xl leading-7 font-semibold text-ink;
+}
+
+/* Shared surfaces on the action detail; functional control borders remain intact. */
+@utility action-surface {
+  @apply rounded-3xl bg-white p-4 sm:p-6;
 }

@@ -27,6 +27,7 @@ const {
   slotNotice,
   contacts,
   selectedAction,
+  participants,
   selectedResource,
   selectedGroup,
   init,
@@ -48,7 +49,7 @@ const {
   declineInvite,
   createAction,
   updateAction,
-  undoActionUpdate,
+  deleteAction,
   dismissCalendarNotice,
   draftAction,
   refresh,
@@ -65,9 +66,6 @@ const editedDetails = computed(() =>
   actionDialog.value === 'edit' && selectedAction.value
     ? actionDetails(selectedAction.value)
     : undefined,
-)
-const canUndoEdit = computed(
-  () => state.lastActionEdit !== null && state.lastActionEdit.actionId === state.selectedActionId,
 )
 const showsAction = computed(() => state.page === 'action' && selectedAction.value !== null)
 
@@ -123,6 +121,13 @@ function createWithGroup() {
     'create',
     members.map((member) => member.userId),
   )
+}
+
+async function deleteEditedAction() {
+  if (actionDialog.value !== 'edit' || !selectedResource.value?.isOrganizer) return
+  const id = state.selectedActionId
+  await deleteAction()
+  if (!state.actions.some((action) => action.id === id)) actionDialog.value = null
 }
 
 async function submitAction(input: NewActionInput, inviteUserIds: string[]) {
@@ -284,11 +289,14 @@ async function submitGroup(name: string) {
       <template v-if="showsAction && selectedAction && selectedResource" #header>
         <ActionHeader
           :action="selectedAction"
-          :can-undo-edit="canUndoEdit"
+          :confirmed="selectedResource.confirmed"
+          :agreed="selectedResource.agreed"
+          :participant-count="selectedResource.participantIds.length"
+          :participants="participants"
+          :voting="selectedResource.poll !== null"
           :is-organizer="selectedResource.isOrganizer"
           :organizer-name="selectedResource.organizerName"
           @edit="openActionDialog('edit')"
-          @undo-edit="undoActionUpdate"
         />
       </template>
 
@@ -369,6 +377,9 @@ async function submitGroup(name: string) {
       :groups="state.groups"
       :initial-invitees="dialogInvitees"
       :draft="state.demo ? undefined : draftAction"
+      :can-delete="actionDialog === 'edit' && selectedResource?.isOrganizer"
+      :busy="Boolean(state.pending)"
+      @delete="deleteEditedAction"
       @submit="submitAction"
       @close="actionDialog = null"
     />

@@ -24,7 +24,10 @@ function logout() {
 <template>
   <section
     aria-label="Účet"
-    :class="['flex flex-col gap-1.5', collapsed ? '' : 'mt-auto border-t border-white/20 pt-4']"
+    :class="[
+      'mt-auto flex shrink-0 flex-col gap-1.5',
+      collapsed ? '' : 'border-t border-white/20 pt-4',
+    ]"
   >
     <template v-if="demo">
       <p v-if="!collapsed" class="px-2 font-semibold">Ukázka</p>

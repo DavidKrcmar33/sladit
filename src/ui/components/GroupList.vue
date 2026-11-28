@@ -33,7 +33,7 @@ function submit() {
     icon="users"
     title="Skupiny"
     :count="groups.length"
-    add-label="Nová skupina"
+    add-label="Přidat skupinu"
     @expand="emit('expand')"
     @add="startCreating"
   >

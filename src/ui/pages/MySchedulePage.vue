@@ -14,6 +14,7 @@ import ReadingWarnings from '@/ui/components/ReadingWarnings.vue'
 import ReviewChat from '@/ui/components/ReviewChat.vue'
 import SourceDropZone from '@/ui/components/SourceDropZone.vue'
 import SourceFileChip from '@/ui/components/SourceFileChip.vue'
+import PageHeader from '@/ui/components/PageHeader.vue'
 import UiButton from '@/ui/components/UiButton.vue'
 import UncertainNotice from '@/ui/components/UncertainNotice.vue'
 import { editedDayOf } from '@/ui/editedDay'
@@ -140,20 +141,17 @@ function answerParity(question: ParityQuestion, odd: boolean) {
 
 <template>
   <div
-    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 py-5 sm:px-6 lg:gap-8 lg:px-8 lg:py-6"
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
   >
+    <PageHeader
+      title="Můj rozvrh"
+      title-id="schedule-title"
+      subtitle="Nahraj svůj rozpis směn, rozvrh nebo cokoli dalšího. AI ho přečte jednou a pak ho aplikace použije ve všech akcích. Ostatní z něj uvidí jen, kdy můžeš."
+    />
     <section
       aria-labelledby="schedule-title"
       class="flex min-w-0 flex-[999_1_560px] flex-col gap-4"
     >
-      <div class="flex flex-col gap-1">
-        <h1 id="schedule-title" class="text-2xl font-semibold tracking-tight">Můj rozvrh</h1>
-        <p class="text-[15px] text-muted">
-          Nahraj svůj rozpis směn, rozvrh nebo cokoli dalšího. AI ho přečte jednou a pak ho aplikace
-          použije ve všech akcích. Ostatní z něj uvidí jen, kdy můžeš.
-        </p>
-      </div>
-
       <section
         v-if="isEmpty"
         aria-labelledby="empty-title"

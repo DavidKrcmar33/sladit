@@ -39,7 +39,7 @@ const waitingBadge = computed(() => {
     icon="calendar"
     title="Akce"
     :count="actions.length"
-    add-label="Nová akce"
+    add-label="Přidat akci"
     :badge="waitingBadge"
     @expand="emit('expand')"
     @add="emit('create')"

@@ -94,7 +94,7 @@ function add() {
           <slot />
           <button type="button" class="sidebar-link" :aria-label="addLabel" @click="add">
             <UiIcon name="plus" :size="18" class="shrink-0" />
-            Přidat
+            {{ addLabel }}
           </button>
         </div>
       </div>

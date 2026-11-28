@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Friend, Group } from '@/contract/api'
+import PageHeader from '@/ui/components/PageHeader.vue'
 import UiButton from './UiButton.vue'
 
 const props = defineProps<{
@@ -55,23 +56,19 @@ async function copyInvite() {
 
 <template>
   <div
-    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 py-5 sm:px-6 lg:gap-8 lg:px-8 lg:py-6"
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
   >
-    <section aria-labelledby="group-title" class="flex min-w-0 flex-[999_1_480px] flex-col gap-5">
-      <div class="flex flex-col gap-1">
-        <h1 id="group-title" class="text-2xl font-semibold tracking-tight">{{ group.name }}</h1>
-        <p class="text-[15px] text-muted">
-          Skupina je seznam lidí, které můžeš pozvat do akce najednou. Každý pozvánku přijme sám a
-          ostatní z jeho rozvrhu uvidí jen, zda v daný den může.
-        </p>
-      </div>
-
-      <div>
-        <UiButton variant="primary" @click="emit('createAction')">
-          Nová akce s celou skupinou
-        </UiButton>
-      </div>
-    </section>
+    <PageHeader
+      :title="group.name"
+      title-id="group-title"
+      subtitle="Skupina je seznam lidí, které můžeš pozvat do akce najednou. Každý pozvánku přijme sám a ostatní z jeho rozvrhu uvidí jen, zda v daný den může."
+    >
+      <template #actions>
+        <UiButton variant="primary" @click="emit('createAction')"
+          >Nová akce s celou skupinou</UiButton
+        >
+      </template>
+    </PageHeader>
 
     <aside class="flex min-w-0 flex-[1_1_300px] flex-col gap-5 lg:max-w-sm">
       <section

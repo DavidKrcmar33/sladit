@@ -56,7 +56,7 @@ function cellLabel(personName: string, date: string, day: CalendarDay): string {
             :data-highlight="date === highlightDate || undefined"
             :class="[
               'pb-1 text-center',
-              date === highlightDate ? 'font-semibold text-accent-dark' : 'font-medium text-muted',
+              date === highlightDate ? 'font-semibold text-accent-dark' : 'font-medium text-ink',
             ]"
           >
             <button

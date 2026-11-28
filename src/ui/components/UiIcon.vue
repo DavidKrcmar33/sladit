@@ -1,5 +1,10 @@
 <script setup lang="ts">
 export type IconName =
+  | 'circle-alert'
+  | 'calendar-search'
+  | 'trash'
+  | 'download'
+  | 'pencil'
   | 'check'
   | 'close'
   | 'arrow-right'
@@ -17,6 +22,18 @@ export type IconName =
 const { name, size = 16 } = defineProps<{ name: IconName; size?: number }>()
 
 const paths: Record<IconName, string[]> = {
+  'circle-alert': ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'M12 8v4', 'M12 16h.01'],
+  'calendar-search': [
+    'M8 2v4',
+    'M16 2v4',
+    'M3 10h18',
+    'M10 21H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5',
+    'M17 13a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
+    'M20 20l2 2',
+  ],
+  trash: ['M3 6h18', 'M9 6V3h6v3', 'M5 6l1 15h12l1-15', 'M10 10v7', 'M14 10v7'],
+  download: ['M12 3v12', 'M7 10l5 5 5-5', 'M5 16v5h14v-5'],
+  pencil: ['M16 4l4 4', 'M4 20l4-1L21 6a2.12 2.12 0 0 0-3-3L5 16z'],
   calendar: [
     'M8 3v4',
     'M16 3v4',
