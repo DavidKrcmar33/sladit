@@ -141,7 +141,7 @@ function namesOf(personIds: string[]): string {
         <p v-if="isConfirmed(proposal)" class="font-semibold text-accent-dark">Navrženo</p>
         <div v-else-if="canConfirm" class="mt-1 flex flex-wrap gap-2">
           <UiButton
-            :variant="index === 0 ? 'primary' : 'secondary'"
+            :variant="index === 0 ? 'accent' : 'secondary'"
             :disabled="busy"
             @click="confirm(proposal)"
           >

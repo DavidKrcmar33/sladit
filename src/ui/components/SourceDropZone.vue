@@ -117,8 +117,7 @@ defineExpose({ openFilePicker })
       :class="[
         'relative flex flex-col items-center justify-center rounded-full text-center leading-snug font-semibold text-white transition-transform',
         compact ? 'size-24 text-sm' : 'size-36 text-base',
-        'bg-[radial-gradient(circle,#050b0a_0,var(--color-void)_55%,var(--color-accent)_100%)]',
-        'shadow-[0_0_0_6px_var(--color-accent-soft),0_18px_40px_rgb(19_36_34/0.18)]',
+        'source-orb',
         'focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-accent',
         isDraggingOver ? 'scale-110' : 'hover:scale-105',
       ]"

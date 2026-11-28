@@ -138,7 +138,7 @@ const bubbleMe = 'max-w-[85%] self-end rounded-2xl rounded-br-sm bg-accent px-3.
   <dialog
     ref="dialog"
     aria-labelledby="review-title"
-    class="m-auto w-[min(40rem,calc(100vw-2rem))] max-w-none overflow-hidden rounded-xl border border-line bg-white p-0 text-sm text-ink shadow-xl backdrop:bg-black/40"
+    class="m-auto w-[min(40rem,calc(100vw-2rem))] max-w-none overflow-hidden rounded-xl border border-line bg-white p-0 text-sm text-ink shadow-lg backdrop:bg-ink/40"
     @close="emit('close')"
   >
     <div class="flex max-h-[min(46rem,calc(100vh-2rem))] flex-col">
