@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { ActionResource, Group } from '@/contract/api'
 import type { Contact } from '@/session'
 import InvitePicker from './InvitePicker.vue'
 import UiButton from './UiButton.vue'
+import UiIcon from './UiIcon.vue'
 
 const props = defineProps<{
   action: ActionResource
@@ -71,13 +72,11 @@ const STATUS_TEXT = {
   declined: 'odmítnuto',
 } as const
 
-const picking = ref(false)
 const selected = ref<string[]>([])
 
 function sendInvites() {
   emit('invite', selected.value)
   selected.value = []
-  picking.value = false
 }
 
 function invitedIds(): string[] {
@@ -85,23 +84,47 @@ function invitedIds(): string[] {
     .filter((invite) => invite.status !== 'declined')
     .map((invite) => invite.userId)
 }
+const hasAvailableFriends = computed(() =>
+  props.contacts.some((contact) => contact.isFriend && !invitedIds().includes(contact.userId)),
+)
 </script>
 
 <template>
   <section aria-labelledby="people-title" class="flex min-w-0 flex-col gap-4">
     <h2 id="people-title" class="action-section-title">Účastníci</h2>
     <div class="flex min-w-0 flex-col gap-2 action-surface">
-      <ul>
-        <li class="flex items-center justify-between gap-3 border-t border-line py-2">
-          <span class="font-semibold">{{ action.organizerName }}</span>
-          <span class="text-muted">pořádá</span>
+      <ul class="flex flex-col gap-3">
+        <li class="flex flex-wrap items-center gap-3 py-2">
+          <UiIcon name="circle-check" :size="20" class="shrink-0 text-accent" />
+          <span class="font-semibold break-words">{{ action.organizerName }}</span>
+          <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-dark"
+            >Pořadatel</span
+          >
         </li>
         <li
           v-for="invite in action.invites"
           :key="invite.userId"
-          class="flex items-center justify-between gap-3 border-t border-line py-2"
+          class="flex flex-wrap items-center gap-3 py-2"
         >
-          <span class="flex min-w-0 flex-col">
+          <UiIcon
+            :name="
+              invite.status === 'accepted' && invite.slot === 'going'
+                ? 'circle-check'
+                : invite.status === 'declined' || invite.slot === 'not-going'
+                  ? 'close'
+                  : 'clock'
+            "
+            :size="20"
+            class="shrink-0"
+            :class="
+              invite.status === 'accepted' && invite.slot === 'going'
+                ? 'text-accent'
+                : invite.status === 'declined' || invite.slot === 'not-going'
+                  ? 'text-danger'
+                  : 'text-muted'
+            "
+          />
+          <span class="flex min-w-0 flex-1 flex-col break-words">
             <span class="font-semibold">
               {{ invite.name }}
               <span v-if="invite.required" class="text-xs font-medium text-accent-dark">
@@ -109,7 +132,13 @@ function invitedIds(): string[] {
               </span>
             </span>
             <span :class="invite.status === 'accepted' ? 'text-accent-dark' : 'text-muted'">
-              {{ STATUS_TEXT[invite.status] }}
+              {{
+                invite.status === 'accepted' && invite.slot === 'going'
+                  ? 'účast potvrzena'
+                  : invite.status === 'accepted' && invite.slot === 'not-going'
+                    ? 'termín nevyhovuje'
+                    : STATUS_TEXT[invite.status]
+              }}
               <template v-if="invite.status === 'accepted' && !invite.hasSchedule">
                 · <span class="text-warn">bez rozpisu</span>
               </template>
@@ -150,68 +179,74 @@ function invitedIds(): string[] {
         </li>
       </ul>
       <p v-if="action.invites.length === 0" class="text-muted">Zatím nikdo pozvaný není.</p>
-
-      <template v-if="action.isOrganizer">
-        <div v-if="picking" class="flex flex-col gap-3 border-t border-line pt-3">
-          <InvitePicker
-            v-model="selected"
-            :contacts="contacts"
-            :groups="groups"
-            :excluded="invitedIds()"
+    </div>
+    <div
+      v-if="action.isOrganizer && (canLink || hasAvailableFriends)"
+      class="grid min-w-0 gap-4"
+      :class="canLink && hasAvailableFriends ? 'md:grid-cols-2' : ''"
+    >
+      <div v-if="canLink" class="action-surface flex min-w-0 flex-col gap-4">
+        <h3 class="flex items-center gap-2 text-base font-semibold">
+          <UiIcon name="link" :size="20" class="shrink-0" />Pozvat odkazem
+        </h3>
+        <p class="text-muted">
+          Přijetím odkazu se přidá přítel i účastník akce. Odkaz platí 7 dní.
+        </p>
+        <template v-if="linkUrl">
+          <label for="action-link" class="font-medium">Odkaz do akce</label>
+          <input
+            id="action-link"
+            :value="linkUrl"
+            readonly
+            class="field-input"
+            @focus="($event.target as HTMLInputElement).select()"
           />
-          <div class="flex gap-2">
-            <UiButton variant="primary" :disabled="selected.length === 0" @click="sendInvites">
-              Pozvat
+          <p class="text-xs text-muted">Ukáže se jen teď. Kdo ho ztratí, vytvoř nový.</p>
+          <div class="flex flex-wrap gap-2">
+            <UiButton variant="primary" @click="copyLink">
+              {{ copied ? 'Zkopírováno' : 'Zkopírovat odkaz' }}
             </UiButton>
-            <UiButton @click="picking = false">Zrušit</UiButton>
+            <UiButton v-if="canShare" @click="shareLink">Sdílet</UiButton>
           </div>
-        </div>
-        <UiButton v-else variant="dashed" @click="picking = true">Pozvat další</UiButton>
-
-        <div v-if="canLink" class="flex flex-col gap-2 border-t border-line pt-3">
-          <h3 class="font-medium">Pozvat odkazem</h3>
-          <p class="text-muted">
-            Pošli odkaz třeba do skupinového chatu. Kdo ho otevře a přijme, bude tvůj přítel a
-            rovnou účastník akce. Platí 7 dní.
-          </p>
-          <template v-if="linkUrl">
-            <label for="action-link" class="font-medium">Odkaz do akce</label>
-            <input
-              id="action-link"
-              :value="linkUrl"
-              readonly
-              class="field-input"
-              @focus="($event.target as HTMLInputElement).select()"
-            />
-            <p class="text-xs text-muted">Ukáže se jen teď. Kdo ho ztratí, vytvoř nový.</p>
-            <div class="flex flex-wrap gap-2">
-              <UiButton variant="primary" @click="copyLink">
-                {{ copied ? 'Zkopírováno' : 'Zkopírovat odkaz' }}
-              </UiButton>
-              <UiButton v-if="canShare" @click="shareLink">Sdílet</UiButton>
-            </div>
-          </template>
-          <UiButton v-else variant="primary" @click="emit('createLink')"
-            >Vytvořit odkaz do akce</UiButton
+        </template>
+        <UiButton v-else variant="primary" @click="emit('createLink')"
+          >Vytvořit odkaz do akce</UiButton
+        >
+        <ul v-if="action.links.length > 0">
+          <li
+            v-for="link in action.links"
+            :key="link.id"
+            class="flex items-center justify-between gap-3 border-t border-line py-1.5"
           >
-          <ul v-if="action.links.length > 0">
-            <li
-              v-for="link in action.links"
-              :key="link.id"
-              class="flex items-center justify-between gap-3 border-t border-line py-1.5"
+            <span class="text-muted">odkaz platí do {{ formatExpiry(link.expiresAt) }}</span>
+            <UiButton
+              variant="danger"
+              :aria-label="`Zrušit odkaz platný do ${formatExpiry(link.expiresAt)}`"
+              @click="emit('revokeLink', link.id)"
             >
-              <span class="text-muted">odkaz platí do {{ formatExpiry(link.expiresAt) }}</span>
-              <UiButton
-                variant="danger"
-                :aria-label="`Zrušit odkaz platný do ${formatExpiry(link.expiresAt)}`"
-                @click="emit('revokeLink', link.id)"
-              >
-                Zrušit
-              </UiButton>
-            </li>
-          </ul>
-        </div>
-      </template>
+              Zrušit
+            </UiButton>
+          </li>
+        </ul>
+      </div>
+      <div v-if="hasAvailableFriends" class="action-surface flex min-w-0 flex-col gap-4">
+        <h3 class="flex items-center gap-2 text-base font-semibold">
+          <UiIcon name="user-plus" :size="20" class="shrink-0" />Pozvat přítele
+        </h3>
+        <InvitePicker
+          v-model="selected"
+          :contacts="contacts"
+          :groups="groups"
+          :excluded="invitedIds()"
+        />
+        <UiButton
+          variant="primary"
+          class="mt-auto"
+          :disabled="selected.length === 0"
+          @click="sendInvites"
+          >Pozvat</UiButton
+        >
+      </div>
     </div>
   </section>
 </template>

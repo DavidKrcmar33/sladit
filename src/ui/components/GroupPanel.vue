@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sectionIcons } from '@/ui/sectionIcons'
 import { computed, ref } from 'vue'
 import type { Friend, Group } from '@/contract/api'
 import PageHeader from '@/ui/components/PageHeader.vue'
@@ -56,10 +57,11 @@ async function copyInvite() {
 
 <template>
   <div
-    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
+    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 pt-6 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
   >
     <PageHeader
       :title="group.name"
+      :placeholder-icon="sectionIcons.groups"
       title-id="group-title"
       subtitle="Skupina je seznam lidí, které můžeš pozvat do akce najednou. Každý pozvánku přijme sám a ostatní z jeho rozvrhu uvidí jen, zda v daný den může."
     >

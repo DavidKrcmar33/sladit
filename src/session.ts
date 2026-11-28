@@ -452,6 +452,7 @@ export function createSession(options: SessionOptions) {
         (action.isOrganizer && action.invites.some((invite) => invite.slot === 'counter')),
       confirmed: action.confirmed,
       agreed: action.agreed,
+      polling: action.poll !== null,
     })),
   )
 

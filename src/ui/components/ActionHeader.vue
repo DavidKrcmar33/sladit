@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sectionIcons } from '@/ui/sectionIcons'
 import type { ConfirmedSlot } from '@/contract/api'
 import PageHeader from './PageHeader.vue'
 import UiIcon from './UiIcon.vue'
@@ -30,7 +31,7 @@ const emit = defineEmits<{ edit: [] }>()
 
 <template>
   <div class="w-full min-w-0 px-4 pt-6 sm:px-6 lg:px-8">
-    <PageHeader :title="action.name" placeholder-icon="calendar" stable-layout surface>
+    <PageHeader :title="action.name" :placeholder-icon="sectionIcons.actions" stable-layout>
       <template #iconActions>
         <button
           v-if="isOrganizer"

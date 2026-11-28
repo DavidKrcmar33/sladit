@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { nextTick, ref, useTemplateRef } from 'vue'
+import { sectionIcons } from '@/ui/sectionIcons'
+import { ref } from 'vue'
 import { useSession } from '@/session'
 import PageHeader from '@/ui/components/PageHeader.vue'
 import UiButton from '@/ui/components/UiButton.vue'
+import UiIcon from '@/ui/components/UiIcon.vue'
 
 const {
   state,
@@ -18,19 +20,9 @@ const copied = ref(false)
 const removing = ref<string | null>(null)
 
 // Přidání podle e-mailu: adresátovi přijde žádost v aplikaci.
-const adding = ref(false)
 const email = ref('')
 const sending = ref(false)
 const sendResult = ref<{ ok: boolean; message: string } | null>(null)
-const emailInput = useTemplateRef<HTMLInputElement>('emailInput')
-
-async function startAdding() {
-  adding.value = true
-  sendResult.value = null
-  await nextTick()
-  emailInput.value?.focus()
-}
-
 async function sendRequest() {
   if (!email.value.trim() || sending.value) return
   sending.value = true
@@ -64,14 +56,160 @@ async function confirmRemove(userId: string) {
 
 <template>
   <div
-    class="flex h-full flex-wrap content-start gap-6 overflow-auto px-4 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
+    class="flex h-full flex-col gap-6 overflow-auto px-4 pt-6 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
   >
     <PageHeader
       title="Přátelé"
+      :placeholder-icon="sectionIcons.friends"
       title-id="friends-title"
       subtitle="Přátele můžeš zvát do akcí. Navzájem vidíte jméno a e-mail. Z tvého rozvrhu uvidí jen, zda v daný den můžeš, tvé směny ne."
     />
-    <section aria-labelledby="friends-title" class="flex min-w-0 flex-[999_1_480px] flex-col gap-4">
+    <section
+      v-if="state.friends.length > 0"
+      aria-labelledby="friends-title"
+      class="flex w-full min-w-0 max-w-3xl shrink-0 flex-col gap-4"
+    >
+      <ul class="action-surface flex flex-col">
+        <li
+          v-for="friend in state.friends"
+          :key="friend.userId"
+          class="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2 last:border-b-0"
+        >
+          <span class="flex min-w-0 flex-col">
+            <span class="font-semibold">{{ friend.name }}</span>
+            <span v-if="friend.email" class="truncate text-muted">{{ friend.email }}</span>
+          </span>
+          <div v-if="removing === friend.userId" class="flex items-center gap-2">
+            <span class="text-warn">Odebrat z přátel?</span>
+            <UiButton variant="danger" @click="confirmRemove(friend.userId)">Odebrat</UiButton>
+            <UiButton @click="removing = null">Nechat</UiButton>
+          </div>
+          <UiButton
+            v-else-if="!state.demo"
+            variant="ghost"
+            :aria-label="`Odebrat z přátel: ${friend.name}`"
+            @click="removing = friend.userId"
+          >
+            Odebrat
+          </UiButton>
+        </li>
+      </ul>
+    </section>
+
+    <section
+      v-if="!state.demo"
+      aria-labelledby="friend-add-title"
+      class="flex w-full min-w-0 max-w-3xl shrink-0 flex-col gap-4"
+    >
+      <h2 id="friend-add-title" class="action-section-title">Přidat přátele</h2>
+      <div class="grid min-w-0 gap-4 md:grid-cols-2">
+        <form
+          class="action-surface grid min-w-0 gap-4 md:row-span-5 md:grid-rows-subgrid"
+          aria-labelledby="friend-email-title"
+          @submit.prevent="sendRequest"
+        >
+          <h3
+            id="friend-email-title"
+            class="flex items-center gap-3 text-base font-semibold text-ink"
+          >
+            <UiIcon name="mail" :size="20" class="shrink-0 text-accent" />
+            Přidat e-mailem
+          </h3>
+          <div class="flex min-w-0 flex-col gap-2">
+            <label for="friend-email" class="font-medium">E-mail kamaráda</label>
+            <input
+              id="friend-email"
+              v-model="email"
+              type="email"
+              autocomplete="off"
+              maxlength="200"
+              placeholder="jmeno@example.com"
+              class="field-input"
+            />
+          </div>
+          <p class="text-sm text-muted">
+            Adresát uvidí tvé jméno a e-mail. Pokud ještě nemá účet, žádost uvidí po prvním
+            přihlášení.
+          </p>
+          <UiButton variant="primary" type="submit" :disabled="sending || !email.trim()">
+            {{ sending ? 'Posílám…' : 'Poslat žádost' }}
+          </UiButton>
+          <div aria-live="polite">
+            <p
+              v-if="sendResult"
+              :role="sendResult.ok ? 'status' : 'alert'"
+              :class="sendResult.ok ? 'text-accent-dark' : 'font-medium text-warn'"
+            >
+              {{ sendResult.message }}
+            </p>
+          </div>
+        </form>
+        <section
+          aria-labelledby="friend-link-title"
+          class="action-surface grid min-w-0 gap-4 md:row-span-5 md:grid-rows-subgrid"
+        >
+          <h3
+            id="friend-link-title"
+            class="flex items-center gap-3 text-base font-semibold text-ink"
+          >
+            <UiIcon name="link" :size="20" class="shrink-0 text-accent" />
+            Pozvat odkazem
+          </h3>
+          <div class="flex min-w-0 flex-col gap-2">
+            <template v-if="state.lastInvite?.target === 'friends'">
+              <label for="friend-url" class="font-medium">Tvůj odkaz</label>
+              <input
+                id="friend-url"
+                :value="state.lastInvite.url"
+                readonly
+                class="field-input"
+                @focus="($event.target as HTMLInputElement).select()"
+              />
+            </template>
+            <p v-else class="text-sm text-muted">
+              Pošli odkaz do chatu. Po přihlášení a potvrzení pozvánky budete přátelé.
+            </p>
+          </div>
+          <p class="text-sm text-muted">
+            Odkaz platí 7 dní a můžeš ho kdykoli zrušit.
+            <template v-if="state.lastInvite?.target === 'friends'">
+              Zkopíruj si ho teď, později bude potřeba vytvořit nový.
+            </template>
+          </p>
+          <UiButton
+            v-if="state.lastInvite?.target === 'friends'"
+            variant="primary"
+            @click="copyLink(state.lastInvite.url)"
+          >
+            {{ copied ? 'Zkopírováno' : 'Zkopírovat odkaz' }}
+          </UiButton>
+          <UiButton v-else variant="primary" @click="createLink">Vytvořit odkaz</UiButton>
+          <div>
+            <template v-if="state.friendInvites.length > 0">
+              <p class="font-medium">Platné odkazy: {{ state.friendInvites.length }}</p>
+              <ul>
+                <li
+                  v-for="invite in state.friendInvites"
+                  :key="invite.id"
+                  class="flex flex-wrap items-center justify-between gap-3 border-t border-line py-1.5"
+                >
+                  <span class="text-sm text-muted"
+                    >platí do {{ expiry.format(new Date(invite.expiresAt)) }}</span
+                  >
+                  <UiButton variant="danger" @click="revokeFriendInvite(invite.id)"
+                    >Zrušit</UiButton
+                  >
+                </li>
+              </ul>
+            </template>
+          </div>
+        </section>
+      </div>
+    </section>
+    <div
+      v-if="state.friendRequests.incoming.length || state.friendRequests.outgoing.length"
+      class="flex w-full min-w-0 max-w-3xl shrink-0 flex-col gap-4"
+    >
       <section
         v-if="state.friendRequests.incoming.length > 0"
         aria-labelledby="requests-title"
@@ -98,38 +236,6 @@ async function confirmRemove(userId: string) {
         </ul>
       </section>
 
-      <p
-        v-if="state.friends.length === 0"
-        class="rounded-xl border border-dashed border-outline px-4 py-6 text-center text-muted"
-      >
-        Zatím tu nikdo není. Přidej kamaráda podle e-mailu, nebo mu pošli odkaz.
-      </p>
-      <ul v-else class="flex flex-col rounded-xl border border-line bg-white px-5 py-2">
-        <li
-          v-for="friend in state.friends"
-          :key="friend.userId"
-          class="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2 last:border-b-0"
-        >
-          <span class="flex min-w-0 flex-col">
-            <span class="font-semibold">{{ friend.name }}</span>
-            <span v-if="friend.email" class="truncate text-muted">{{ friend.email }}</span>
-          </span>
-          <div v-if="removing === friend.userId" class="flex items-center gap-2">
-            <span class="text-warn">Odebrat z přátel?</span>
-            <UiButton variant="danger" @click="confirmRemove(friend.userId)">Odebrat</UiButton>
-            <UiButton @click="removing = null">Nechat</UiButton>
-          </div>
-          <UiButton
-            v-else-if="!state.demo"
-            variant="ghost"
-            :aria-label="`Odebrat z přátel: ${friend.name}`"
-            @click="removing = friend.userId"
-          >
-            Odebrat
-          </UiButton>
-        </li>
-      </ul>
-
       <section
         v-if="state.friendRequests.outgoing.length > 0"
         aria-labelledby="sent-title"
@@ -155,85 +261,6 @@ async function confirmRemove(userId: string) {
           </li>
         </ul>
       </section>
-    </section>
-
-    <aside
-      v-if="!state.demo"
-      aria-labelledby="friend-add-title"
-      class="flex min-w-0 flex-[1_1_300px] flex-col gap-3 self-start rounded-xl border border-line bg-white p-5 lg:max-w-sm"
-    >
-      <h2 id="friend-add-title" class="text-base font-semibold">Přidat přítele</h2>
-
-      <h3 class="font-medium">Podle e-mailu</h3>
-      <form v-if="adding" class="flex flex-col gap-2" @submit.prevent="sendRequest">
-        <label for="friend-email" class="font-medium">E-mail kamaráda</label>
-        <input
-          id="friend-email"
-          ref="emailInput"
-          v-model="email"
-          type="email"
-          autocomplete="off"
-          maxlength="200"
-          placeholder="jmeno@example.com"
-          class="field-input"
-        />
-        <div class="flex flex-wrap gap-2">
-          <UiButton variant="primary" type="submit" :disabled="sending || !email.trim()">
-            {{ sending ? 'Posílám…' : 'Poslat žádost' }}
-          </UiButton>
-          <UiButton @click="adding = false">Zavřít</UiButton>
-        </div>
-        <p class="text-xs text-muted">
-          Adresát uvidí tvé jméno a e-mail, ať pozná, od koho žádost je. Kdo ještě nemá účet, uvidí
-          žádost po prvním přihlášení.
-        </p>
-        <p
-          v-if="sendResult"
-          :role="sendResult.ok ? 'status' : 'alert'"
-          :class="sendResult.ok ? 'text-accent-dark' : 'font-medium text-warn'"
-        >
-          {{ sendResult.message }}
-        </p>
-      </form>
-      <template v-if="!adding">
-        <p class="text-muted">Kamarádovi přijde žádost v aplikaci.</p>
-        <UiButton @click="startAdding">Přidat přítele podle e-mailu</UiButton>
-      </template>
-
-      <h3 class="border-t border-line pt-3 font-medium">Odkazem</h3>
-      <p class="text-muted">
-        Pošli odkaz třeba do chatu. Až ho kamarád po přihlášení otevře a potvrdí, budete přátelé.
-        Odkaz platí 7 dní a jde kdykoli zrušit.
-      </p>
-      <template v-if="state.lastInvite?.target === 'friends'">
-        <label for="friend-url" class="font-medium">Tvůj odkaz</label>
-        <input
-          id="friend-url"
-          :value="state.lastInvite.url"
-          readonly
-          class="field-input"
-          @focus="($event.target as HTMLInputElement).select()"
-        />
-        <p class="text-xs text-muted">Ukáže se jen teď. Kdo ho ztratí, vytvoř nový.</p>
-        <UiButton variant="primary" @click="copyLink(state.lastInvite.url)">
-          {{ copied ? 'Zkopírováno' : 'Zkopírovat odkaz' }}
-        </UiButton>
-      </template>
-      <UiButton v-else variant="primary" @click="createLink">Vytvořit odkaz</UiButton>
-
-      <template v-if="state.friendInvites.length > 0">
-        <p class="font-medium">Platné odkazy: {{ state.friendInvites.length }}</p>
-        <ul>
-          <li
-            v-for="invite in state.friendInvites"
-            :key="invite.id"
-            class="flex items-center justify-between gap-3 border-t border-line py-1.5"
-          >
-            <span class="text-muted">platí do {{ expiry.format(new Date(invite.expiresAt)) }}</span>
-            <UiButton variant="danger" @click="revokeFriendInvite(invite.id)">Zrušit</UiButton>
-          </li>
-        </ul>
-      </template>
-    </aside>
+    </div>
   </div>
 </template>

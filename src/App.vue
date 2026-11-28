@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sectionIcons } from '@/ui/sectionIcons'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { actionDetails, type NewActionErrors, type NewActionInput } from '@/core/newAction'
 import { useSession } from '@/session'
@@ -235,7 +236,7 @@ async function submitGroup(name: string) {
             aria-label="Můj rozvrh"
             @click="showSchedule"
           >
-            <UiIcon name="calendar" :size="18" class="shrink-0" />
+            <UiIcon :name="sectionIcons.schedule" :size="18" class="shrink-0" />
             <span v-if="!collapsed">Můj rozvrh</span>
           </button>
           <button
@@ -248,7 +249,7 @@ async function submitGroup(name: string) {
             "
             @click="showFriends"
           >
-            <UiIcon name="users" :size="18" class="shrink-0" />
+            <UiIcon :name="sectionIcons.friends" :size="18" class="shrink-0" />
             <span v-if="!collapsed">Přátelé</span>
             <span
               v-if="state.friendRequests.incoming.length > 0"

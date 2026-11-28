@@ -114,24 +114,30 @@ function proposeCustom() {
       <UiIcon name="check" :size="20" class="shrink-0" />
       <h2 class="text-base font-semibold">Termín je dohodnutý</h2>
     </div>
-    <div class="flex items-center gap-1 [&>button]:size-9 [&>button]:p-0">
+    <div class="flex flex-wrap items-center gap-1">
       <UiButton
         variant="ghost"
-        title="Navrhnout jiné termíny"
-        aria-label="Navrhnout jiné termíny"
+        :title="showAlternatives ? 'Skrýt další termíny' : 'Změnit termín'"
+        :aria-label="showAlternatives ? 'Skrýt další termíny' : 'Změnit termín'"
         :aria-expanded="!!showAlternatives"
         :aria-pressed="!!showAlternatives"
-        :class="showAlternatives ? 'bg-accent !text-white hover:!bg-accent-dark' : 'hover:!bg-line'"
+        class="!h-9 !px-3"
+        :class="
+          showAlternatives
+            ? 'bg-accent !text-white hover:!bg-accent-dark'
+            : 'bg-line hover:!bg-line-strong'
+        "
         @click="emit('toggleAlternatives')"
       >
         <UiIcon name="calendar-search" :size="18" />
+        {{ showAlternatives ? 'Skrýt další termíny' : 'Změnit termín' }}
       </UiButton>
       <UiButton
         v-if="resource.isOrganizer || resource.mySlot === 'going'"
         variant="ghost"
         title="Stáhnout .ics"
         aria-label="Stáhnout .ics"
-        class="hover:!bg-line"
+        class="!size-9 !p-0 hover:!bg-line"
         @click="emit('downloadIcs')"
       >
         <UiIcon name="download" :size="18" />
@@ -141,11 +147,11 @@ function proposeCustom() {
         variant="ghost"
         title="Zrušit návrh"
         aria-label="Zrušit návrh"
-        class="!text-danger hover:!bg-danger-soft"
+        class="!size-9 !p-0 !text-danger hover:!bg-danger-soft"
         :disabled="busy"
         @click="emit('withdraw')"
       >
-        <UiIcon name="close" :size="18" />
+        <UiIcon name="trash" :size="18" />
       </UiButton>
     </div>
   </div>

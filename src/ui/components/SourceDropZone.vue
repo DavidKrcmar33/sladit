@@ -3,7 +3,10 @@ import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 import { ACCEPTED_FILE_TYPES } from '@/core/sourceFile'
 
 /** Kompaktní varianta do úzkého panelu: bez ilustrace, jen rámeček a menší tlačítko. */
-const { compact = false } = defineProps<{ compact?: boolean }>()
+const { compact = false, horizontal = false } = defineProps<{
+  compact?: boolean
+  horizontal?: boolean
+}>()
 const emit = defineEmits<{ files: [files: File[]] }>()
 
 const zone = useTemplateRef<HTMLElement>('zone')
@@ -59,7 +62,10 @@ defineExpose({ openFilePicker })
   <div
     ref="zone"
     :class="[
-      'relative flex w-full max-w-xl items-center justify-center',
+      horizontal
+        ? 'relative flex w-full flex-col gap-3 rounded-3xl'
+        : 'relative flex w-full max-w-xl items-center justify-center',
+      horizontal && isDraggingOver && 'bg-accent-soft',
       compact && 'rounded-xl border-2 border-dashed py-5',
       compact && (isDraggingOver ? 'border-accent bg-accent-soft' : 'border-outline'),
     ]"
@@ -69,17 +75,21 @@ defineExpose({ openFilePicker })
     @drop.prevent="onDrop"
   >
     <div
-      v-if="!compact"
+      v-if="!compact && !horizontal"
       aria-hidden="true"
       class="absolute inset-0 m-auto size-68 animate-orbit rounded-full border-[1.5px] border-dashed border-line-strong motion-reduce:animate-none"
     />
     <div
-      v-if="!compact"
+      v-if="!compact && !horizontal"
       aria-hidden="true"
       class="absolute inset-0 m-auto size-51 animate-orbit-reverse rounded-full border-[1.5px] border-dashed border-accent-ring motion-reduce:animate-none"
     />
 
-    <div v-if="!compact" aria-hidden="true" class="pointer-events-none absolute inset-0">
+    <div
+      v-if="!compact && !horizontal"
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-0"
+    >
       <div
         class="absolute top-[8%] left-[4%] flex w-36 -rotate-9 flex-col gap-2 rounded-lg border border-line-strong bg-white p-2.5 shadow-md"
       >
@@ -112,7 +122,9 @@ defineExpose({ openFilePicker })
       </div>
     </div>
 
+    <slot v-if="horizontal" />
     <button
+      v-else
       type="button"
       :class="[
         'relative flex flex-col items-center justify-center rounded-full text-center leading-snug font-semibold text-white transition-transform',

@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { sectionIcons } from '@/ui/sectionIcons'
 import { ref } from 'vue'
 import { useSession } from '@/session'
 import CalendarCard from '@/ui/components/CalendarCard.vue'
+import PageHeader from '@/ui/components/PageHeader.vue'
 import UiButton from '@/ui/components/UiButton.vue'
 
 const {
@@ -34,11 +36,14 @@ async function saveName() {
 </script>
 
 <template>
-  <div class="flex h-full flex-col gap-4 overflow-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight">Nastavení</h1>
-      <p class="text-[15px] text-muted">Propojení s dalšími aplikacemi a tvůj účet.</p>
-    </div>
+  <div
+    class="flex h-full flex-col gap-6 overflow-auto px-4 pt-6 pb-5 sm:px-6 lg:gap-8 lg:px-8 lg:pb-6"
+  >
+    <PageHeader
+      :placeholder-icon="sectionIcons.settings"
+      title="Nastavení"
+      subtitle="Propojení s dalšími aplikacemi a tvůj účet."
+    />
     <div class="flex max-w-md flex-col gap-4">
       <CalendarCard
         :status="state.calendar"
